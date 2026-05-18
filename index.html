@@ -752,7 +752,13 @@ function getPin(){return localStorage.getItem('kt_wh_pin')||DEFAULT_PIN}
 function getAutoLock(){return parseInt(localStorage.getItem('kt_autolock')||'28800000')}
 
 async function apiCall(params,body=null){const url=API+'?'+new URLSearchParams(params);const opts=body?{method:'POST',body:JSON.stringify(body)}:{method:'GET'};const res=await fetch(url,opts);return res.json();}
-async function syncNow(){if(isSyncing)return;isSyncing=true;setSyncStatus('syncing');try{const data=await apiCall({action:'getAll'});if(data.error)throw new Error(data.error);T=Array.isArray(data.templates)?data.templates:T;CO=Array.isArray(data.checkouts)?data.checkouts:CO;H=Array.isArray(data.history)?data.history:H;R=Array.isArray(data.repairs)?data.repairs:R;KY=Array.isArray(data.keys)?data.keys:(JSON.parse(localStorage.getItem('kt_keys')||'[]'));KOF=Array.isArray(data.keysOnFile)?data.keysOnFile:(JSON.parse(localStorage.getItem('kt_kof')||'[]'));IS=JSON.parse(localStorage.getItem('kt_insp')||'[]');if(!T.length)await seedDefaults();setSyncStatus('ok');}catch(e){setSyncStatus('error');T=JSON.parse(localStorage.getItem('kt_tpl')||'[]');CO=JSON.parse(localStorage.getItem('kt_co')||'[]');H=JSON.parse(localStorage.getItem('kt_hist')||'[]');R=JSON.parse(localStorage.getItem('kt_rep')||'[]');KY=JSON.parse(localStorage.getItem('kt_keys')||'[]');KOF=JSON.parse(localStorage.getItem('kt_kof')||'[]');IS=JSON.parse(localStorage.getItem('kt_insp')||'[]');if(!T.length)seedDefaultsLocal();}finally{isSyncing=false;loadKof();refresh();}}
+async function syncNow(){if(isSyncing)return;isSyncing=true;setSyncStatus('syncing');try{const data=await apiCall({action:'getAll'});if(data.error)throw new Error(data.error);T=Array.isArray(data.templates)?data.templates:T;CO=Array.isArray(data.checkouts)?data.checkouts:CO;H=Array.isArray(data.history)?data.history:H;R=Array.isArray(data.repairs)?data.repairs:R;KY=Array.isArray(data.keys)?data.keys:(JSON.parse(localStorage.getItem('kt_keys')||'[]'));// KOF loaded via loadKof() call belowIS=JSON.parse(localStorage.getItem('kt_insp')||'[]');if(!T.length)await seedDefaults();setSyncStatus('ok');}catch(e){setSyncStatus('error');T=JSON.parse(localStorage.getItem('kt_tpl')||'[]');CO=JSON.parse(localStorage.getItem('kt_co')||'[]');H=JSON.parse(localStorage.getItem('kt_hist')||'[]');R=JSON.parse(localStorage.getItem('kt_rep')||'[]');KY=JSON.parse(localStorage.getItem('kt_keys')||'[]');// KOF via loadKof belowIS=JSON.parse(localStorage.getItem('kt_insp')||'[]');if(!T.length)seedDefaultsLocal();}finally{
+    isSyncing=false;
+    // Load KOF from cloud if available, otherwise from localStorage
+    const kofSource=typeof data!=='undefined'&&Array.isArray(data.keysOnFile)?data.keysOnFile:null;
+    loadKof(kofSource);
+    refresh();
+  }}
 async function pushData(){localStorage.setItem('kt_tpl',JSON.stringify(T));localStorage.setItem('kt_co',JSON.stringify(CO));localStorage.setItem('kt_hist',JSON.stringify(H));localStorage.setItem('kt_rep',JSON.stringify(R));localStorage.setItem('kt_keys',JSON.stringify(KY));localStorage.setItem('kt_kof',JSON.stringify(KOF));localStorage.setItem('kt_insp',JSON.stringify(IS));try{await apiCall({action:'setAll'},{templates:T,checkouts:CO,history:H,repairs:R,keys:KY,keysOnFile:KOF});setSyncStatus('ok');}catch(e){setSyncStatus('error');}}
 function setSyncStatus(s){const dot=document.getElementById('sync-dot');if(dot)dot.className='sync-dot'+(s==='error'?' offline':'');}
 
@@ -777,7 +783,7 @@ document.addEventListener('click',()=>{if(currentMode==='warehouse')resetAutoLoc
 
 function setMode(mode){currentMode=mode;document.getElementById('btn-tech').classList.toggle('active',mode==='tech');document.getElementById('btn-warehouse').classList.toggle('active',mode==='warehouse');document.getElementById('warehouse-mode').style.display=mode==='warehouse'?'':'none';document.getElementById('tech-mode').style.display=mode==='tech'?'':'none';document.getElementById('warehouse-nav').style.display=mode==='warehouse'?'':'none';const badge=document.getElementById('mode-badge');badge.textContent=mode==='warehouse'?'Warehouse':'Tech View';badge.className='mode-badge mode-'+mode;if(mode==='warehouse'){resetAutoLock();updateLockTimerDisplay();refresh();}if(mode==='tech'){clearTimeout(autoLockTimer);document.getElementById('tech-kit-area').innerHTML='<div class="empty"><div class="ei">&#128119;</div><p>Enter your name above<br>to see your active kit</p></div>';}}
 
-function nav(id){document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.bn').forEach(b=>b.classList.remove('active'));document.getElementById('panel-'+id).classList.add('active');const ids=['dashboard','checkout','returns','keys','inspections','templates','history'];document.querySelectorAll('.bn')[ids.indexOf(id)]?.classList.add('active');document.querySelector('.scroll').scrollTop=0;if(id==='returns')renderRetSel();if(id==='templates')renderTplGrid();if(id==='history')renderHistory();if(id==='inspections')renderInspList();if(id==='keys'){renderKeys();renderKeysOnFile();}if(id==='checkout')fillKeyPickers();}
+function nav(id){document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.bn').forEach(b=>b.classList.remove('active'));document.getElementById('panel-'+id).classList.add('active');const ids=['dashboard','checkout','returns','keys','inspections','templates','history'];document.querySelectorAll('.bn')[ids.indexOf(id)]?.classList.add('active');document.querySelector('.scroll').scrollTop=0;if(id==='returns')renderRetSel();if(id==='templates')renderTplGrid();if(id==='history')renderHistory();if(id==='inspections')renderInspList();if(id==='keys'){loadKof(null);renderKeys();}if(id==='checkout'){loadKof(null);fillKeyPickers();}}
 
 function refresh(){document.getElementById('dash-date').textContent=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});document.getElementById('s-out').textContent=CO.length;document.getElementById('s-rep').textContent=R.length;document.getElementById('s-jobs').textContent=H.length;renderDash();fillProjSel();renderRetSel();renderTplGrid();renderHistory();renderInspList();renderKeys();renderInspAlerts();}
 
@@ -853,8 +859,22 @@ function delInsp(i){if(!confirm('Remove this item?'))return;IS.splice(i,1);local
 // ── KEYS ON FILE (permanent registry) ──
 let KOF = []; // keys on file — loaded from localStorage
 
-function loadKof(){KOF=JSON.parse(localStorage.getItem('kt_kof')||'[]');}
-function saveKof_local(){localStorage.setItem('kt_kof',JSON.stringify(KOF));pushData();}
+function loadKof(cloudData){
+  if(cloudData&&Array.isArray(cloudData)){
+    KOF=cloudData;
+    localStorage.setItem('kt_kof',JSON.stringify(KOF));
+  } else {
+    KOF=JSON.parse(localStorage.getItem('kt_kof')||'[]');
+  }
+  renderKeysOnFile();
+  fillKeyPickers();
+}
+function saveKof_local(){
+  localStorage.setItem('kt_kof',JSON.stringify(KOF));
+  renderKeysOnFile();
+  fillKeyPickers();
+  pushData();
+}
 
 function openAddKofModal_edit(id){
   const k=KOF.find(x=>x.id===id);if(!k)return;
@@ -1203,8 +1223,8 @@ if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catc
 document.getElementById('co-date').value=today();
 document.getElementById('rr-date').value=today();
 document.getElementById('insp-last').value=today();
-loadKof();setMode('tech');
-syncNow();
+setMode('tech');
+syncNow(); // syncNow calls loadKof() after cloud data arrives
 setInterval(()=>syncNow(),60000);
 </script>
 </body>
