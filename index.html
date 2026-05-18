@@ -238,7 +238,8 @@ hr{border:none;border-top:1px solid var(--bdr);margin:13px 0}
             <div class="fg"><label>No. of techs</label><input type="number" id="co-techs" min="1" max="30" value="1" oninput="calcKit()"></div>
             <div class="fg"><label>Date</label><input type="date" id="co-date"></div>
           </div>
-          <div class="fg"><label>Tech names</label><input type="text" id="co-names" placeholder="Mike R., Sara L."></div>
+          <div class="fg"><label>Tech names <span style="color:var(--txt3);font-size:10px;font-weight:400">(all crew going to job)</span></label><input type="text" id="co-names" placeholder="Rigo, Baldemar, Rolando..."></div>
+          <div class="fg"><label>Checked out by <span style="color:var(--txt3);font-size:10px;font-weight:400">(person picking up kit)</span></label><input type="text" id="co-checkedout" placeholder="Name of person collecting the kit..."></div>
           <div class="fg"><label>Site address</label><input type="text" id="co-addr" placeholder="123 Main St"></div>
           <div class="fg"><label>Building / client</label><input type="text" id="co-bldg" placeholder="Acme Tower..."></div>
           <div class="fg"><label>Vehicle # / description</label><input type="text" id="co-vehicle" placeholder="Truck #3, White Ford F-150..."></div>
@@ -253,9 +254,19 @@ hr{border:none;border-top:1px solid var(--bdr);margin:13px 0}
             <div style="display:flex;gap:8px"><input type="text" id="addon-name" placeholder="Item name" style="flex:1"><input type="number" id="addon-qty" placeholder="Qty" min="1" value="1" style="width:70px"><button class="btn btn-s btn-sm" onclick="addOneOff()">+</button></div>
           </div>
           <div style="background:var(--sur2);border:1px solid var(--bdr);border-radius:var(--r);padding:12px;margin-bottom:10px">
-            <div class="ctitle" style="margin-bottom:8px">Client keys (optional)</div>
+            <div class="ctitle" style="margin-bottom:8px">Client keys <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px;color:var(--txt3)">(optional)</span></div>
             <div id="co-keys-list"></div>
-            <div style="display:flex;gap:8px"><input type="text" id="key-tag" placeholder="Key # / description" style="flex:1"><input type="number" id="key-qty" placeholder="Qty" min="1" value="1" style="width:60px"><button class="btn btn-s btn-sm" onclick="addKey()">+</button></div>
+            <!-- Quick-pick from saved keys on file -->
+            <div style="margin-bottom:8px">
+              <select id="co-key-pick" style="font-size:12px" onchange="pickKeyFromFile(this.value)">
+                <option value="">&#128273; Pick from keys on file…</option>
+              </select>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="text" id="key-tag" placeholder="Or type key # / description" style="flex:1;font-size:12px">
+              <input type="number" id="key-qty" min="1" value="1" style="width:55px;text-align:center">
+              <button class="btn btn-s btn-sm" onclick="addKey()">+</button>
+            </div>
           </div>
           <div class="fg"><label>Notes</label><textarea id="co-notes" rows="2" placeholder="Special instructions..."></textarea></div>
           <div class="info-a">Verify each item physically before proceeding.</div>
@@ -299,17 +310,30 @@ hr{border:none;border-top:1px solid var(--bdr);margin:13px 0}
 
     <div class="panel" id="panel-keys">
       <div class="sec-hdr">
-        <div><div class="sec-title">Client Keys</div><div class="sec-sub">Keys in &amp; out by property</div></div>
-        <button class="btn btn-p btn-sm" onclick="openAddKeyDirect()">+ Add Key</button>
+        <div><div class="sec-title">Client Keys</div><div class="sec-sub">Keys on file &amp; checkout log</div></div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-s btn-sm" onclick="openAddKeyOnFile()">+ Key on File</button>
+          <button class="btn btn-p btn-sm" onclick="openAddKeyDirect()">+ Log Checkout</button>
+        </div>
       </div>
 
-      <!-- Stats row -->
+      <!-- SECTION 1: Keys on File (permanent property key registry) -->
+      <div class="card" style="margin-bottom:12px">
+        <div class="ctitle" style="margin-bottom:10px">&#128220; Keys on file <span style="font-size:9px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--txt3)">Saved for future reference</span></div>
+        <div id="keys-onfile-list">
+          <div class="empty" style="padding:16px"><div class="ei" style="font-size:24px;margin-bottom:6px">&#128273;</div><p style="font-size:12px">No keys on file yet.<br>Tap + Key on File to save a property key.</p></div>
+        </div>
+      </div>
+
+      <!-- SECTION 2: Checkout log (who has what) -->
+      <div class="sec-hdr" style="margin-bottom:8px">
+        <div style="font-size:14px;font-weight:600">Checkout log</div>
+      </div>
       <div class="g2" style="margin-bottom:12px">
         <div class="stat"><div class="stat-v" id="k-stat-out" style="color:var(--acc)">0</div><div class="stat-l">Keys out</div></div>
         <div class="stat"><div class="stat-v" id="k-stat-in" style="color:var(--grn)">0</div><div class="stat-l">Returned</div></div>
       </div>
 
-      <!-- Filter tabs -->
       <div style="display:flex;gap:6px;margin-bottom:12px">
         <button class="btn btn-sm" id="kf-all" style="flex:1;justify-content:center;background:var(--acc);color:#0d1117;border:none" onclick="setKeyFilter('all')">All</button>
         <button class="btn btn-sm btn-s" id="kf-out" style="flex:1;justify-content:center" onclick="setKeyFilter('out')">&#128275; Out</button>
@@ -318,9 +342,9 @@ hr{border:none;border-top:1px solid var(--bdr);margin:13px 0}
 
       <div class="card">
         <div class="search-wrap"><span class="search-ico">&#128269;</span><input type="text" id="key-search" placeholder="Search key, address, tech..." oninput="renderKeys()"></div>
-        <div id="keys-list"><div class="empty"><div class="ei">&#128273;</div><p>No keys logged yet.<br>Tap + Add Key to get started.</p></div></div>
+        <div id="keys-list"><div class="empty"><div class="ei">&#128273;</div><p>No keys checked out yet.</p></div></div>
       </div>
-    </div>
+    </div>    </div>
 
     <div class="panel" id="panel-history">
       <div class="sec-hdr"><div><div class="sec-title">Job History</div></div></div>
@@ -488,23 +512,52 @@ hr{border:none;border-top:1px solid var(--bdr);margin:13px 0}
 </div>
 
 <!-- ══ NEW: Import from Schedule modal ══ -->
-<!-- ADD KEY MODAL -->
+<!-- KEY ON FILE MODAL -->
+<div class="ov" id="kof-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-t"><span id="kof-modal-t">&#128273; Save Key on File</span><button class="xbtn" onclick="closeKofModal()">X</button></div>
+    <div style="font-size:12px;color:var(--txt2);margin-bottom:14px;line-height:1.6">Save a property key permanently for future reference. This is the key registry — not a checkout.</div>
+    <div class="fg"><label>Key # / tag / description</label><input type="text" id="kof-tag" placeholder="Key #1, Master, Roof Access, Unit 4B..."></div>
+    <div class="fg"><label>Property / building name</label><input type="text" id="kof-client" placeholder="The Beacon, Salesforce Tower..."></div>
+    <div class="fg"><label>Property address</label><input type="text" id="kof-addr" placeholder="250 King St, San Francisco..."></div>
+    <div class="fg"><label>Quantity <span style="color:var(--txt3)">(copies)</span></label><input type="number" id="kof-qty" min="1" value="1"></div>
+    <div class="fg"><label>Notes <span style="color:var(--txt3)">(optional)</span></label><input type="text" id="kof-notes" placeholder="Front door, garage, suite 400..."></div>
+    <hr>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="flex:1" onclick="closeKofModal()">Cancel</button>
+      <button class="btn btn-p" style="flex:1" onclick="saveKof()">&#128190; Save Key</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD KEY MODAL (log a checkout) -->
 <div class="ov" id="addkey-modal">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-t"><span id="addkey-modal-t">&#128273; Add Key</span><button class="xbtn" onclick="closeAddKeyDirect()">X</button></div>
+    <div class="modal-t"><span id="addkey-modal-t">&#128228; Log Key Checkout</span><button class="xbtn" onclick="closeAddKeyDirect()">X</button></div>
+    <div class="info-b" style="margin-bottom:14px;font-size:12px">Logging who has a key right now. For permanent key records, use + Key on File.</div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div class="fg" style="grid-column:1/-1"><label>Property address</label><input type="text" id="ak-addr" placeholder="400 Howard St, San Francisco..."></div>
-      <div class="fg" style="grid-column:1/-1"><label>Building / client name</label><input type="text" id="ak-client" placeholder="Salesforce Tower, City Hall..."></div>
-      <div class="fg"><label>Key tag / description</label><input type="text" id="ak-tag" placeholder="Master, Unit 4B, Roof..."></div>
-      <div class="fg"><label>Quantity</label><input type="number" id="ak-qty" min="1" value="1"></div>
-      <div class="fg" style="grid-column:1/-1"><label>Tech who has it</label><input type="text" id="ak-tech" placeholder="Rigo, Baldemar..."></div>
+    <!-- Quick-pick from keys on file -->
+    <div class="fg" id="ak-kof-pick-wrap">
+      <label>Pick from keys on file <span style="color:var(--txt3)">(optional)</span></label>
+      <select id="ak-kof-pick" onchange="prefillFromKof(this.value)">
+        <option value="">— or fill in manually below —</option>
+      </select>
     </div>
+
+    <div class="fg"><label>Key tag / description</label><input type="text" id="ak-tag" placeholder="Key #1, Master, Roof..."></div>
+    <div class="fg"><label>Building / client name</label><input type="text" id="ak-client" placeholder="The Beacon, Salesforce Tower..."></div>
+    <div class="fg"><label>Property address</label><input type="text" id="ak-addr" placeholder="250 King St, San Francisco..."></div>
+    <div class="g2">
+      <div class="fg"><label>Quantity</label><input type="number" id="ak-qty" min="1" value="1"></div>
+      <div class="fg"><label>Date out</label><input type="date" id="ak-date"></div>
+    </div>
+    <div class="fg"><label>Tech who has it</label><input type="text" id="ak-tech" placeholder="Rigo, Baldemar..."></div>
     <hr>
     <div style="display:flex;gap:8px">
       <button class="btn btn-s" style="flex:1" onclick="closeAddKeyDirect()">Cancel</button>
-      <button class="btn btn-p" style="flex:1" onclick="saveKeyDirect()">&#128273; Save Key</button>
+      <button class="btn btn-p" style="flex:1" onclick="saveKeyDirect()">&#128228; Log Checkout</button>
     </div>
   </div>
 </div>
@@ -687,7 +740,7 @@ function getPin(){return localStorage.getItem('kt_wh_pin')||DEFAULT_PIN}
 function getAutoLock(){return parseInt(localStorage.getItem('kt_autolock')||'28800000')}
 
 async function apiCall(params,body=null){const url=API+'?'+new URLSearchParams(params);const opts=body?{method:'POST',body:JSON.stringify(body)}:{method:'GET'};const res=await fetch(url,opts);return res.json();}
-async function syncNow(){if(isSyncing)return;isSyncing=true;setSyncStatus('syncing');try{const data=await apiCall({action:'getAll'});if(data.error)throw new Error(data.error);T=Array.isArray(data.templates)?data.templates:T;CO=Array.isArray(data.checkouts)?data.checkouts:CO;H=Array.isArray(data.history)?data.history:H;R=Array.isArray(data.repairs)?data.repairs:R;KY=JSON.parse(localStorage.getItem('kt_keys')||'[]');IS=JSON.parse(localStorage.getItem('kt_insp')||'[]');if(!T.length)await seedDefaults();setSyncStatus('ok');}catch(e){setSyncStatus('error');T=JSON.parse(localStorage.getItem('kt_tpl')||'[]');CO=JSON.parse(localStorage.getItem('kt_co')||'[]');H=JSON.parse(localStorage.getItem('kt_hist')||'[]');R=JSON.parse(localStorage.getItem('kt_rep')||'[]');KY=JSON.parse(localStorage.getItem('kt_keys')||'[]');IS=JSON.parse(localStorage.getItem('kt_insp')||'[]');if(!T.length)seedDefaultsLocal();}finally{isSyncing=false;refresh();}}
+async function syncNow(){if(isSyncing)return;isSyncing=true;setSyncStatus('syncing');try{const data=await apiCall({action:'getAll'});if(data.error)throw new Error(data.error);T=Array.isArray(data.templates)?data.templates:T;CO=Array.isArray(data.checkouts)?data.checkouts:CO;H=Array.isArray(data.history)?data.history:H;R=Array.isArray(data.repairs)?data.repairs:R;KY=JSON.parse(localStorage.getItem('kt_keys')||'[]');IS=JSON.parse(localStorage.getItem('kt_insp')||'[]');if(!T.length)await seedDefaults();setSyncStatus('ok');}catch(e){setSyncStatus('error');T=JSON.parse(localStorage.getItem('kt_tpl')||'[]');CO=JSON.parse(localStorage.getItem('kt_co')||'[]');H=JSON.parse(localStorage.getItem('kt_hist')||'[]');R=JSON.parse(localStorage.getItem('kt_rep')||'[]');KY=JSON.parse(localStorage.getItem('kt_keys')||'[]');IS=JSON.parse(localStorage.getItem('kt_insp')||'[]');if(!T.length)seedDefaultsLocal();}finally{isSyncing=false;loadKof();refresh();}}
 async function pushData(){localStorage.setItem('kt_tpl',JSON.stringify(T));localStorage.setItem('kt_co',JSON.stringify(CO));localStorage.setItem('kt_hist',JSON.stringify(H));localStorage.setItem('kt_rep',JSON.stringify(R));localStorage.setItem('kt_keys',JSON.stringify(KY));localStorage.setItem('kt_insp',JSON.stringify(IS));try{await apiCall({action:'setAll'},{templates:T,checkouts:CO,history:H,repairs:R});setSyncStatus('ok');}catch(e){setSyncStatus('error');}}
 function setSyncStatus(s){const dot=document.getElementById('sync-dot');if(dot)dot.className='sync-dot'+(s==='error'?' offline':'');}
 
@@ -712,21 +765,41 @@ document.addEventListener('click',()=>{if(currentMode==='warehouse')resetAutoLoc
 
 function setMode(mode){currentMode=mode;document.getElementById('btn-tech').classList.toggle('active',mode==='tech');document.getElementById('btn-warehouse').classList.toggle('active',mode==='warehouse');document.getElementById('warehouse-mode').style.display=mode==='warehouse'?'':'none';document.getElementById('tech-mode').style.display=mode==='tech'?'':'none';document.getElementById('warehouse-nav').style.display=mode==='warehouse'?'':'none';const badge=document.getElementById('mode-badge');badge.textContent=mode==='warehouse'?'Warehouse':'Tech View';badge.className='mode-badge mode-'+mode;if(mode==='warehouse'){resetAutoLock();updateLockTimerDisplay();refresh();}if(mode==='tech'){clearTimeout(autoLockTimer);document.getElementById('tech-kit-area').innerHTML='<div class="empty"><div class="ei">&#128119;</div><p>Enter your name above<br>to see your active kit</p></div>';}}
 
-function nav(id){document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.bn').forEach(b=>b.classList.remove('active'));document.getElementById('panel-'+id).classList.add('active');const ids=['dashboard','checkout','returns','keys','inspections','templates','history'];document.querySelectorAll('.bn')[ids.indexOf(id)]?.classList.add('active');document.querySelector('.scroll').scrollTop=0;if(id==='returns')renderRetSel();if(id==='templates')renderTplGrid();if(id==='history')renderHistory();if(id==='inspections')renderInspList();if(id==='keys')renderKeys();}
+function nav(id){document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.bn').forEach(b=>b.classList.remove('active'));document.getElementById('panel-'+id).classList.add('active');const ids=['dashboard','checkout','returns','keys','inspections','templates','history'];document.querySelectorAll('.bn')[ids.indexOf(id)]?.classList.add('active');document.querySelector('.scroll').scrollTop=0;if(id==='returns')renderRetSel();if(id==='templates')renderTplGrid();if(id==='history')renderHistory();if(id==='inspections')renderInspList();if(id==='keys'){renderKeys();renderKeysOnFile();}if(id==='checkout')fillKeyPickers();}
 
 function refresh(){document.getElementById('dash-date').textContent=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});document.getElementById('s-out').textContent=CO.length;document.getElementById('s-rep').textContent=R.length;document.getElementById('s-jobs').textContent=H.length;renderDash();fillProjSel();renderRetSel();renderTplGrid();renderHistory();renderInspList();renderKeys();renderInspAlerts();}
 
-function renderDash(){const al=document.getElementById('active-list');al.innerHTML=CO.length?CO.map(c=>'<div class="hrow"><div class="hicon" style="background:var(--acc-dim)">&#128203;</div><div class="hinfo"><div class="htitle">'+esc(c.projName)+' -- '+esc(c.bldg||c.addr||'no site')+'</div><div class="hmeta">'+esc(c.names||'--')+' · '+c.numTechs+' tech'+(c.numTechs>1?'s':'')+'</div><div class="hmeta">WO: '+esc(c.jobnum||'--')+' · '+fd(c.coDate)+(c.vehicle?' · '+esc(c.vehicle):'')+'</div>'+(c.confirmed?'<div style="font-size:10px;color:var(--grn)">Tech confirmed receipt</div>':'')+'</div><div class="hact"><span class="badge bg-p">Out</span><button class="btn btn-xs btn-s" onclick="nav(\'returns\')">Return</button></div></div>').join(''):'<div class="empty"><div class="ei">&#128230;</div><p>No active checkouts</p></div>';const rl=document.getElementById('repair-list');rl.innerHTML=R.length?R.map((r,i)=>'<div class="repair-item '+(r.status==='lost'?'lost':'')+'"><div><div style="font-weight:600;font-size:12px">'+esc(r.item)+'</div><div style="font-size:10px;color:var(--txt2);font-family:var(--mono)">'+(r.status==='lost'?'LOST':'REPAIR')+' · '+esc(r.projName)+'</div>'+(r.notes?'<div style="font-size:10px;color:var(--txt2)">'+esc(r.notes)+'</div>':'')+'</div><button class="btn btn-g btn-xs" onclick="resolveRepair('+i+')">Done</button></div>').join(''):'<div class="empty"><div class="ei">&#128295;</div><p>All clear</p></div>';}
+function renderDash(){const al=document.getElementById('active-list');al.innerHTML=CO.length?CO.map(c=>'<div class="hrow"><div class="hicon" style="background:var(--acc-dim)">&#128203;</div><div class="hinfo"><div class="htitle">'+esc(c.projName)+' -- '+esc(c.bldg||c.addr||'no site')+'</div><div class="hmeta">'+esc(c.names||'--')+' · '+c.numTechs+' tech'+(c.checkedoutBy?' · Picked up by: '+esc(c.checkedoutBy):'')+(c.numTechs>1?'s':'')+'</div><div class="hmeta">WO: '+esc(c.jobnum||'--')+' · '+fd(c.coDate)+(c.vehicle?' · '+esc(c.vehicle):'')+'</div>'+(c.confirmed?'<div style="font-size:10px;color:var(--grn)">Tech confirmed receipt</div>':'')+'</div><div class="hact"><span class="badge bg-p">Out</span><button class="btn btn-xs btn-s" onclick="nav(\'returns\')">Return</button></div></div>').join(''):'<div class="empty"><div class="ei">&#128230;</div><p>No active checkouts</p></div>';const rl=document.getElementById('repair-list');rl.innerHTML=R.length?R.map((r,i)=>'<div class="repair-item '+(r.status==='lost'?'lost':'')+'"><div><div style="font-weight:600;font-size:12px">'+esc(r.item)+'</div><div style="font-size:10px;color:var(--txt2);font-family:var(--mono)">'+(r.status==='lost'?'LOST':'REPAIR')+' · '+esc(r.projName)+'</div>'+(r.notes?'<div style="font-size:10px;color:var(--txt2)">'+esc(r.notes)+'</div>':'')+'</div><button class="btn btn-g btn-xs" onclick="resolveRepair('+i+')">Done</button></div>').join(''):'<div class="empty"><div class="ei">&#128295;</div><p>All clear</p></div>';}
 async function resolveRepair(i){R.splice(i,1);await pushData();renderDash();}
 
 function dashSearch(){const q=(document.getElementById('dash-search').value||'').toLowerCase().trim();const el=document.getElementById('dash-results');if(!q){el.innerHTML='';return;}const hits=H.filter(h=>[h.projName,h.addr,h.bldg,h.jobnum,h.names].join(' ').toLowerCase().includes(q));if(!hits.length){el.innerHTML='<div style="font-size:12px;color:var(--txt2);padding:8px 0">No matching jobs.</div>';return;}el.innerHTML=hits.map(h=>'<div style="background:var(--sur2);border:1px solid var(--bdr);border-radius:9px;padding:11px;margin-bottom:7px;display:flex;align-items:center;gap:10px"><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13px">'+esc(h.projName)+' -- '+esc(h.bldg||h.addr||'no site')+'</div><div style="font-size:11px;color:var(--txt2);font-family:var(--mono)">WO: '+esc(h.jobnum||'--')+' · '+fd(h.coDate)+'</div></div><button class="btn btn-p btn-xs" onclick="openRerun(\''+h.id+'\')">Re-run</button></div>').join('');}
 function openRerun(hid){const h=H.find(x=>x.id===hid);if(!h)return;rerunData=h;document.getElementById('rerun-t').textContent='Re-run: '+h.projName;document.getElementById('rr-job').value='';document.getElementById('rr-date').value=today();document.getElementById('rr-names').value=h.names||'';document.getElementById('rr-techs').value=h.numTechs||1;document.getElementById('rr-vehicle').value=h.vehicle||'';document.getElementById('rerun-modal').classList.add('open');}
-function confirmRerun(){if(!rerunData)return;const h=rerunData;document.getElementById('co-jobnum').value=document.getElementById('rr-job').value||'';document.getElementById('co-date').value=document.getElementById('rr-date').value;document.getElementById('co-names').value=document.getElementById('rr-names').value||h.names||'';document.getElementById('co-techs').value=document.getElementById('rr-techs').value||h.numTechs||1;document.getElementById('co-addr').value=h.addr||'';document.getElementById('co-bldg').value=h.bldg||'';document.getElementById('co-vehicle').value=document.getElementById('rr-vehicle').value||h.vehicle||'';const sel=document.getElementById('co-proj');const opt=[...sel.options].find(o=>o.text===h.projName);if(opt)sel.value=opt.value;calcKit();document.getElementById('rerun-modal').classList.remove('open');nav('checkout');goStep(1);}
+function confirmRerun(){if(!rerunData)return;const h=rerunData;document.getElementById('co-jobnum').value=document.getElementById('rr-job').value||'';document.getElementById('co-date').value=document.getElementById('rr-date').value;document.getElementById('co-names').value=document.getElementById('rr-names').value||h.names||'';document.getElementById('co-techs').value=document.getElementById('rr-techs').value||h.numTechs||1;document.getElementById('co-addr').value=h.addr||'';document.getElementById('co-bldg').value=h.bldg||'';document.getElementById('co-vehicle').value=document.getElementById('rr-vehicle').value||h.vehicle||'';
+  document.getElementById('co-checkedout').value='';const sel=document.getElementById('co-proj');const opt=[...sel.options].find(o=>o.text===h.projName);if(opt)sel.value=opt.value;calcKit();document.getElementById('rerun-modal').classList.remove('open');nav('checkout');goStep(1);}
 
 function fillProjSel(){const sel=document.getElementById('co-proj');const cur=sel.value;sel.innerHTML='<option value="">- select template -</option>'+T.map(t=>'<option value="'+t.id+'">'+esc(t.name)+'</option>').join('');if(cur)sel.value=cur;}
 function tryHCPLoad(){const jn=(document.getElementById('co-jobnum').value||'').trim();const hint=document.getElementById('hcp-hint');if(jn.length<3){hint.style.display='none';return;}const past=H.find(h=>h.jobnum&&h.jobnum.toLowerCase()===jn.toLowerCase());if(past){hint.className='info info-b';hint.innerHTML='Found -- '+esc(past.projName)+' @ '+esc(past.bldg||past.addr||'--')+' · '+fd(past.coDate);hint.style.display='';document.getElementById('co-addr').value=past.addr||'';document.getElementById('co-bldg').value=past.bldg||'';document.getElementById('co-names').value=past.names||'';document.getElementById('co-techs').value=past.numTechs||1;document.getElementById('co-vehicle').value=past.vehicle||'';const sel=document.getElementById('co-proj');const opt=[...sel.options].find(o=>o.text===past.projName);if(opt)sel.value=opt.value;calcKit();}else{hint.style.display='none';}}
 function calcKit(){const tid=document.getElementById('co-proj').value;const n=parseInt(document.getElementById('co-techs').value)||1;const tpl=T.find(t=>t.id===tid);if(!tpl){document.getElementById('kit-preview').innerHTML='<div style="color:var(--txt2);font-size:12px;padding:6px 0">Select a project type to see the kit.</div>';return;}coItems=tpl.items.map(it=>({id:uid(),name:it.name,qty:it.mode==='fixed'?it.q:it.q*n,removed:false,oneoff:false}));renderKitPreview();}
-function renderKitPreview(){const el=document.getElementById('kit-preview');if(!coItems.length){el.innerHTML='';return;}el.innerHTML=coItems.map((item,i)=>'<div class="kit-item-row '+(item.removed?'removed':'')+'" id="kit-item-'+i+'"><input type="checkbox" '+(item.removed?'':'checked')+' onclick="toggleItem('+i+')"><span class="kit-item-label">'+esc(item.name)+(item.oneoff?'<span style="font-size:9px;color:var(--acc);margin-left:5px">+ADDED</span>':'')+'</span><span class="kit-item-qty">'+item.qty+'</span><button class="kit-item-remove" onclick="removeItem('+i+')">'+(item.removed?'Restore':'X')+'</button></div>').join('');}
+function renderKitPreview(){
+  const el=document.getElementById('kit-preview');
+  if(!coItems.length){el.innerHTML='';return;}
+  el.innerHTML=coItems.map((item,i)=>{
+    const qtyField=item.removed
+      ?'<span class="kit-item-qty" style="opacity:.4">'+item.qty+'</span>'
+      :'<input type="number" min="1" value="'+item.qty+'" style="width:54px;text-align:center;padding:4px 6px;font-size:13px;font-family:var(--mono);color:var(--acc);background:var(--acc-dim);border:1px solid rgba(245,166,35,.3);border-radius:6px;margin:0" onchange="updateItemQty('+i+',this.value)" onclick="this.select()">';
+    return'<div class="kit-item-row '+(item.removed?'removed':'')+'" id="kit-item-'+i+'">'
+      +'<input type="checkbox" '+(item.removed?'':'checked')+' onclick="toggleItem('+i+')">'
+      +'<span class="kit-item-label">'+esc(item.name)+(item.oneoff?'<span style="font-size:9px;color:var(--acc);margin-left:5px">+ADDED</span>':'')+'</span>'
+      +qtyField
+      +'<button class="kit-item-remove" onclick="removeItem('+i+')">'+(item.removed?'Restore':'X')+'</button>'
+      +'</div>';
+  }).join('');
+}
+function updateItemQty(i,val){
+  const n=parseInt(val);
+  if(isNaN(n)||n<1){renderKitPreview();return;}
+  coItems[i].qty=n;
+}
 function toggleItem(i){coItems[i].removed=!coItems[i].removed;renderKitPreview();}
 function removeItem(i){coItems[i].removed=!coItems[i].removed;renderKitPreview();}
 function addOneOff(){const name=document.getElementById('addon-name').value.trim();const qty=parseInt(document.getElementById('addon-qty').value)||1;if(!name){alert('Enter item name.');return;}coItems.push({id:uid(),name,qty,removed:false,oneoff:true});document.getElementById('addon-name').value='';document.getElementById('addon-qty').value='1';renderKitPreview();}
@@ -737,15 +810,15 @@ function removeCoKey(i){coKeys.splice(i,1);renderCoKeys();}
 const STEP_LABELS=['Job details','Review and adjust kit','Confirm and sign out','Complete'];
 function goStep(n){if(n===2){if(!document.getElementById('co-proj').value){alert('Select a project type.');return;}calcKit();coKeys=[];document.getElementById('co-keys-list').innerHTML='';}if(n===3){const tid=document.getElementById('co-proj').value,tpl=T.find(t=>t.id===tid);const num=parseInt(document.getElementById('co-techs').value)||1;const activeItems=coItems.filter(i=>!i.removed);const keysList=coKeys.length?'<br><b>Keys:</b><br>'+coKeys.map(k=>k.qty+'x '+k.tag).join('<br>'):'';document.getElementById('co-summary').innerHTML='<b>Project:</b> '+esc(tpl.name)+'<br><b>WO:</b> '+esc(document.getElementById('co-jobnum').value||'--')+'<br><b>Techs ('+num+'):</b> '+esc(document.getElementById('co-names').value||'--')+'<br><b>Site:</b> '+esc(document.getElementById('co-addr').value||'--')+'<br><b>Building:</b> '+esc(document.getElementById('co-bldg').value||'--')+'<br><b>Vehicle:</b> '+esc(document.getElementById('co-vehicle').value||'--')+'<br><b>Date:</b> '+esc(document.getElementById('co-date').value||'--')+'<br><br><b>Kit ('+activeItems.length+' items):</b><br>'+activeItems.map(i=>i.qty+'x '+i.name).join('<br>')+keysList;}document.querySelectorAll('.wiz-step').forEach(s=>s.classList.remove('active'));document.getElementById('s'+n).classList.add('active');const dots=document.querySelectorAll('#sdots .sdot');dots.forEach((d,i)=>{d.classList.remove('cur','done');if(i<n-1)d.classList.add('done');else if(i===n-1)d.classList.add('cur');});document.getElementById('step-lbl').textContent=STEP_LABELS[n-1];document.querySelector('.scroll').scrollTop=0;}
 
-async function completeCheckout(){const att=document.getElementById('co-att').value.trim();if(!att){alert('Enter attendant name.');return;}const tid=document.getElementById('co-proj').value,tpl=T.find(t=>t.id===tid);const num=parseInt(document.getElementById('co-techs').value)||1;const activeItems=coItems.filter(i=>!i.removed);const co={id:uid(),projId:tid,projName:tpl.name,numTechs:num,names:document.getElementById('co-names').value,jobnum:document.getElementById('co-jobnum').value,addr:document.getElementById('co-addr').value,bldg:document.getElementById('co-bldg').value,vehicle:document.getElementById('co-vehicle').value,date:document.getElementById('co-date').value,notes:document.getElementById('co-notes').value,attendant:att,coDate:new Date().toISOString(),kit:activeItems.map(i=>({name:i.name,qty:i.qty})),keys:coKeys.map(k=>({...k,returned:false})),confirmed:false};CO.push(co);coKeys.forEach(k=>{KY.push({id:uid(),tag:k.tag,qty:k.qty,jobnum:co.jobnum,projName:co.projName,tech:co.names,client:co.bldg||co.addr,checkoutDate:co.coDate,returned:false});});await pushData();document.getElementById('tech-share-info').innerHTML='<b>Project:</b> '+esc(co.projName)+'<br><b>WO:</b> '+esc(co.jobnum||'--')+'<br><b>Techs:</b> '+esc(co.names||'--')+'<br><b>Vehicle:</b> '+esc(co.vehicle||'--')+'<br><b>Attendant:</b> '+esc(att)+'<br><br><b>Kit:</b><br>'+activeItems.map(i=>i.qty+'x '+i.name).join('<br>')+(co.keys.length?'<br><br><b>Keys:</b><br>'+co.keys.map(k=>k.qty+'x '+k.tag).join('<br>'):'');goStep(4);['co-names','co-jobnum','co-addr','co-bldg','co-vehicle','co-notes','co-att'].forEach(id=>document.getElementById(id).value='');document.getElementById('co-proj').value='';document.getElementById('co-techs').value='1';document.getElementById('hcp-hint').style.display='none';coItems=[];coKeys=[];}
+async function completeCheckout(){const att=document.getElementById('co-att').value.trim();if(!att){alert('Enter attendant name.');return;}const tid=document.getElementById('co-proj').value,tpl=T.find(t=>t.id===tid);const num=parseInt(document.getElementById('co-techs').value)||1;const activeItems=coItems.filter(i=>!i.removed);const co={id:uid(),projId:tid,projName:tpl.name,numTechs:num,names:document.getElementById('co-names').value,checkedoutBy:document.getElementById('co-checkedout').value,jobnum:document.getElementById('co-jobnum').value,addr:document.getElementById('co-addr').value,bldg:document.getElementById('co-bldg').value,vehicle:document.getElementById('co-vehicle').value,date:document.getElementById('co-date').value,notes:document.getElementById('co-notes').value,attendant:att,coDate:new Date().toISOString(),kit:activeItems.map(i=>({name:i.name,qty:i.qty})),keys:coKeys.map(k=>({...k,returned:false})),confirmed:false};CO.push(co);coKeys.forEach(k=>{KY.push({id:uid(),tag:k.tag,qty:k.qty,jobnum:co.jobnum,projName:co.projName,tech:co.names,client:co.bldg||co.addr,checkoutDate:co.coDate,returned:false});});await pushData();document.getElementById('tech-share-info').innerHTML='<b>Project:</b> '+esc(co.projName)+'<br><b>WO:</b> '+esc(co.jobnum||'--')+'<br><b>Techs:</b> '+esc(co.names||'--')+'<br><b>Checked out by:</b> '+esc(co.checkedoutBy||'--')+'<br><b>Vehicle:</b> '+esc(co.vehicle||'--')+'<br><b>Attendant:</b> '+esc(att)+'<br><br><b>Kit:</b><br>'+activeItems.map(i=>i.qty+'x '+i.name).join('<br>')+(co.keys.length?'<br><br><b>Keys:</b><br>'+co.keys.map(k=>k.qty+'x '+k.tag).join('<br>'):'');goStep(4);['co-names','co-checkedout','co-jobnum','co-addr','co-bldg','co-vehicle','co-notes','co-att'].forEach(id=>document.getElementById(id).value='');document.getElementById('co-proj').value='';document.getElementById('co-techs').value='1';document.getElementById('hcp-hint').style.display='none';coItems=[];coKeys=[];}
 
-function loadTechView(){const name=(document.getElementById('tech-name-input').value||'').trim().toLowerCase();if(!name){alert('Enter your name.');return;}const area=document.getElementById('tech-kit-area');const all=CO.filter(c=>c.names&&c.names.toLowerCase().includes(name));if(!all.length){area.innerHTML='<div class="empty"><div class="ei">&#128237;</div><p>No active kit found for <strong>'+esc(name)+'</strong>.<br><br>Check that your name matches what the warehouse attendant entered.</p></div>';return;}area.innerHTML=all.map(co=>'<div class="tech-kit-card"><div style="font-size:18px;font-weight:700;margin-bottom:4px">'+esc(co.projName)+'</div><div style="font-size:12px;color:var(--txt2);margin-bottom:14px;line-height:1.8">WO: '+esc(co.jobnum||'--')+' · '+fd(co.coDate)+'<br>Site: '+esc(co.bldg||co.addr||'--')+(co.vehicle?'<br>Vehicle: '+esc(co.vehicle):'')+'<br>Attendant: '+esc(co.attendant||'--')+'</div><div class="ctitle">Your kit ('+co.kit.length+' items)</div>'+co.kit.map(item=>'<div class="tech-item"><span style="font-size:16px">&#128230;</span><span class="tech-item-name">'+esc(item.name)+'</span><span class="tech-item-qty">'+item.qty+'</span></div>').join('')+(co.keys&&co.keys.length?'<div class="ctitle" style="margin-top:12px">Keys ('+co.keys.length+')</div>'+co.keys.map(k=>'<div class="tech-item"><span style="font-size:16px">&#128273;</span><span class="tech-item-name">'+esc(k.tag)+'</span><span class="tech-item-qty">'+k.qty+'</span></div>').join(''):'')+(co.notes?'<div style="margin-top:10px;font-size:12px;color:var(--txt2);background:var(--sur2);border-radius:8px;padding:10px">'+esc(co.notes)+'</div>':'')+(co.confirmed?'<div class="confirmed-banner">You confirmed receipt on '+fd(co.confirmedDate)+'</div>':'<button class="confirm-btn" onclick="confirmReceipt(\''+co.id+'\')">I confirm I received all items</button>')+'</div>').join('');}
+function loadTechView(){const name=(document.getElementById('tech-name-input').value||'').trim().toLowerCase();if(!name){alert('Enter your name.');return;}const area=document.getElementById('tech-kit-area');const all=CO.filter(c=>c.names&&c.names.toLowerCase().includes(name));if(!all.length){area.innerHTML='<div class="empty"><div class="ei">&#128237;</div><p>No active kit found for <strong>'+esc(name)+'</strong>.<br><br>Check that your name matches what the warehouse attendant entered.</p></div>';return;}area.innerHTML=all.map(co=>'<div class="tech-kit-card"><div style="font-size:18px;font-weight:700;margin-bottom:4px">'+esc(co.projName)+'</div><div style="font-size:12px;color:var(--txt2);margin-bottom:14px;line-height:1.8">WO: '+esc(co.jobnum||'--')+' · '+fd(co.coDate)+'<br>Site: '+esc(co.bldg||co.addr||'--')+(co.vehicle?'<br>Vehicle: '+esc(co.vehicle):'')+'<br>Checked out by: '+esc(co.checkedoutBy||'--')+'<br>Attendant: '+esc(co.attendant||'--')+'</div><div class="ctitle">Your kit ('+co.kit.length+' items)</div>'+co.kit.map(item=>'<div class="tech-item"><span style="font-size:16px">&#128230;</span><span class="tech-item-name">'+esc(item.name)+'</span><span class="tech-item-qty">'+item.qty+'</span></div>').join('')+(co.keys&&co.keys.length?'<div class="ctitle" style="margin-top:12px">Keys ('+co.keys.length+')</div>'+co.keys.map(k=>'<div class="tech-item"><span style="font-size:16px">&#128273;</span><span class="tech-item-name">'+esc(k.tag)+'</span><span class="tech-item-qty">'+k.qty+'</span></div>').join(''):'')+(co.notes?'<div style="margin-top:10px;font-size:12px;color:var(--txt2);background:var(--sur2);border-radius:8px;padding:10px">'+esc(co.notes)+'</div>':'')+(co.confirmed?'<div class="confirmed-banner">You confirmed receipt on '+fd(co.confirmedDate)+'</div>':'<button class="confirm-btn" onclick="confirmReceipt(\''+co.id+'\')">I confirm I received all items</button>')+'</div>').join('');}
 async function confirmReceipt(coId){const co=CO.find(c=>c.id===coId);if(!co)return;co.confirmed=true;co.confirmedDate=new Date().toISOString();await pushData();loadTechView();}
 
 function renderRetSel(){const sel=document.getElementById('ret-sel');sel.innerHTML='<option value="">- choose job -</option>'+CO.map(c=>'<option value="'+c.id+'">'+esc(c.projName)+' · '+esc(c.bldg||c.addr||'no site')+' · '+fd(c.coDate)+'</option>').join('');}
-function loadReturn(){const id=document.getElementById('ret-sel').value;const co=CO.find(c=>c.id===id);const el=document.getElementById('ret-area');if(!co){el.innerHTML='';return;}el.innerHTML='<hr><div class="ctitle">Return -- '+esc(co.projName)+'</div><div style="font-size:11px;color:var(--txt2);margin-bottom:12px;font-family:var(--mono)">'+esc(co.names||'--')+' · WO: '+esc(co.jobnum||'--')+' · '+fd(co.coDate)+(co.vehicle?' · '+esc(co.vehicle):'')+'</div>'+co.kit.map((item,i)=>'<div style="background:var(--sur2);border:1px solid var(--bdr);border-radius:10px;padding:12px;margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px"><span style="font-weight:600;font-size:13px">'+esc(item.name)+'</span><span class="kit-item-qty">'+item.qty+'</span></div><div class="cond-grid"><div class="cond-opt sel-good" id="c'+i+'g" onclick="setCond('+i+',\'good\')"><div class="oi">&#9989;</div><div class="ol">Good</div></div><div class="cond-opt" id="c'+i+'r" onclick="setCond('+i+',\'repair\')"><div class="oi">&#128295;</div><div class="ol">Repair</div></div><div class="cond-opt" id="c'+i+'l" onclick="setCond('+i+',\'lost\')"><div class="oi">&#10060;</div><div class="ol">Lost</div></div></div><input type="text" id="n'+i+'" placeholder="Damage / loss notes" style="margin-top:8px"></div>').join('')+(co.keys&&co.keys.length?'<div class="ctitle" style="margin-top:4px">Keys return</div>'+co.keys.map((k,i)=>'<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--sur2);border-radius:8px;margin-bottom:6px;border:1px solid var(--bdr)"><span>Key</span><span style="flex:1;font-size:12px;font-weight:500">'+esc(k.tag)+' ('+k.qty+')</span><label style="display:flex;align-items:center;gap:5px;font-size:12px;margin:0"><input type="checkbox" id="kr'+i+'" style="width:15px;height:15px;accent-color:var(--grn)"> Returned</label></div>').join(''):'')+'<div class="fg" style="margin-top:12px"><label>Returned by (tech name)</label><input type="text" id="ret-by" placeholder="Tech name"></div><div class="fg"><label>Warehouse attendant</label><input type="text" id="ret-att" placeholder="Your name"></div><div class="info-a">Only warehouse attendant can complete returns.</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-s btn-sm" onclick="printReturnPreview(\''+co.id+'\')">Print</button><button class="btn btn-p btn-full" onclick="completeReturn(\''+id+'\')">Complete Return</button></div>';window._conds={};co.kit.forEach((_,i)=>window._conds[i]='good');}
+function loadReturn(){const id=document.getElementById('ret-sel').value;const co=CO.find(c=>c.id===id);const el=document.getElementById('ret-area');if(!co){el.innerHTML='';return;}el.innerHTML='<hr><div class="ctitle">Return -- '+esc(co.projName)+'</div><div style="font-size:11px;color:var(--txt2);margin-bottom:12px;font-family:var(--mono)">'+esc(co.names||'--')+' · WO: '+esc(co.jobnum||'--')+' · '+fd(co.coDate)+(co.checkedoutBy?' · Picked up by: '+esc(co.checkedoutBy):'')+(co.vehicle?' · '+esc(co.vehicle):'')+'</div>'+co.kit.map((item,i)=>'<div style="background:var(--sur2);border:1px solid var(--bdr);border-radius:10px;padding:12px;margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px"><span style="font-weight:600;font-size:13px">'+esc(item.name)+'</span><span class="kit-item-qty">'+item.qty+'</span></div><div class="cond-grid"><div class="cond-opt sel-good" id="c'+i+'g" onclick="setCond('+i+',\'good\')"><div class="oi">&#9989;</div><div class="ol">Good</div></div><div class="cond-opt" id="c'+i+'r" onclick="setCond('+i+',\'repair\')"><div class="oi">&#128295;</div><div class="ol">Repair</div></div><div class="cond-opt" id="c'+i+'l" onclick="setCond('+i+',\'lost\')"><div class="oi">&#10060;</div><div class="ol">Lost</div></div></div><input type="text" id="n'+i+'" placeholder="Damage / loss notes" style="margin-top:8px"></div>').join('')+(co.keys&&co.keys.length?'<div class="ctitle" style="margin-top:4px">Keys return</div>'+co.keys.map((k,i)=>'<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--sur2);border-radius:8px;margin-bottom:6px;border:1px solid var(--bdr)"><span>Key</span><span style="flex:1;font-size:12px;font-weight:500">'+esc(k.tag)+' ('+k.qty+')</span><label style="display:flex;align-items:center;gap:5px;font-size:12px;margin:0"><input type="checkbox" id="kr'+i+'" style="width:15px;height:15px;accent-color:var(--grn)"> Returned</label></div>').join(''):'')+'<div class="fg" style="margin-top:12px"><label>Returned by (tech name)</label><input type="text" id="ret-by" placeholder="Tech name"></div><div class="fg"><label>Warehouse attendant</label><input type="text" id="ret-att" placeholder="Your name"></div><div class="info-a">Only warehouse attendant can complete returns.</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-s btn-sm" onclick="printReturnPreview(\''+co.id+'\')">Print</button><button class="btn btn-p btn-full" onclick="completeReturn(\''+id+'\')">Complete Return</button></div>';window._conds={};co.kit.forEach((_,i)=>window._conds[i]='good');}
 function setCond(i,v){window._conds[i]=v;[['g','good'],['r','repair'],['l','lost']].forEach(([k,cls])=>{const el=document.getElementById('c'+i+k);if(el){el.className='cond-opt';if(cls===v)el.classList.add('sel-'+v);}});}
-async function completeReturn(coId){const co=CO.find(c=>c.id===coId);if(!co)return;const att=document.getElementById('ret-att').value.trim();if(!att){alert('Enter attendant name.');return;}const retBy=document.getElementById('ret-by').value.trim()||'--';const items=co.kit.map((item,i)=>({name:item.name,qty:item.qty,cond:window._conds[i]||'good',notes:(document.getElementById('n'+i)||{}).value||''}));const flagged=items.filter(r=>r.cond!=='good');flagged.forEach(r=>R.push({id:uid(),item:r.name,status:r.cond,notes:r.notes,projName:co.projName,date:new Date().toISOString()}));if(co.keys&&co.keys.length){co.keys.forEach((k,i)=>{const returned=document.getElementById('kr'+i)?.checked;if(returned){const kyIdx=KY.findIndex(x=>x.tag===k.tag&&x.jobnum===co.jobnum&&!x.returned);if(kyIdx>-1){KY[kyIdx].returned=true;KY[kyIdx].returnDate=new Date().toISOString();}}});}const rec={id:uid(),projId:co.projId,projName:co.projName,numTechs:co.numTechs,names:co.names,jobnum:co.jobnum,addr:co.addr,bldg:co.bldg,vehicle:co.vehicle,coDate:co.coDate,retDate:new Date().toISOString(),retBy,attendant:att,items,keys:co.keys||[]};H.unshift(rec);lastRetData=rec;CO.splice(CO.findIndex(c=>c.id===coId),1);await pushData();const good=items.filter(r=>r.cond==='good').length,rep=flagged.filter(f=>f.cond==='repair').length,lost=flagged.filter(f=>f.cond==='lost').length;document.getElementById('ret-summary').innerHTML='<strong>Project:</strong> '+esc(co.projName)+'<br><strong>WO:</strong> '+esc(co.jobnum||'--')+'<br><strong>Vehicle:</strong> '+esc(co.vehicle||'--')+'<br><strong>Returned by:</strong> '+esc(retBy)+'<br><strong>Time:</strong> '+ft()+'<br><br><span class="badge bg-g" style="margin-right:5px">'+good+' good</span>'+(rep?'<span class="badge bg-a" style="margin-right:5px">'+rep+' repair</span>':'')+(lost?'<span class="badge bg-r">'+lost+' lost</span>':'')+(flagged.length?'<br><br><strong>Flagged:</strong><br>'+flagged.map(f=>'-- '+esc(f.name)+': '+f.cond+(f.notes?' ('+esc(f.notes)+')':'')).join('<br>'):'');document.getElementById('ret-modal').classList.add('open');document.getElementById('ret-area').innerHTML='';document.getElementById('ret-sel').value='';}
+async function completeReturn(coId){const co=CO.find(c=>c.id===coId);if(!co)return;const att=document.getElementById('ret-att').value.trim();if(!att){alert('Enter attendant name.');return;}const retBy=document.getElementById('ret-by').value.trim()||'--';const items=co.kit.map((item,i)=>({name:item.name,qty:item.qty,cond:window._conds[i]||'good',notes:(document.getElementById('n'+i)||{}).value||''}));const flagged=items.filter(r=>r.cond!=='good');flagged.forEach(r=>R.push({id:uid(),item:r.name,status:r.cond,notes:r.notes,projName:co.projName,date:new Date().toISOString()}));if(co.keys&&co.keys.length){co.keys.forEach((k,i)=>{const returned=document.getElementById('kr'+i)?.checked;if(returned){const kyIdx=KY.findIndex(x=>x.tag===k.tag&&x.jobnum===co.jobnum&&!x.returned);if(kyIdx>-1){KY[kyIdx].returned=true;KY[kyIdx].returnDate=new Date().toISOString();}}});}const rec={id:uid(),projId:co.projId,projName:co.projName,numTechs:co.numTechs,names:co.names,checkedoutBy:co.checkedoutBy,jobnum:co.jobnum,addr:co.addr,bldg:co.bldg,vehicle:co.vehicle,coDate:co.coDate,retDate:new Date().toISOString(),retBy,attendant:att,items,keys:co.keys||[]};H.unshift(rec);lastRetData=rec;CO.splice(CO.findIndex(c=>c.id===coId),1);await pushData();const good=items.filter(r=>r.cond==='good').length,rep=flagged.filter(f=>f.cond==='repair').length,lost=flagged.filter(f=>f.cond==='lost').length;document.getElementById('ret-summary').innerHTML='<strong>Project:</strong> '+esc(co.projName)+'<br><strong>WO:</strong> '+esc(co.jobnum||'--')+'<br><strong>Vehicle:</strong> '+esc(co.vehicle||'--')+'<br><strong>Returned by:</strong> '+esc(retBy)+'<br><strong>Time:</strong> '+ft()+'<br><br><span class="badge bg-g" style="margin-right:5px">'+good+' good</span>'+(rep?'<span class="badge bg-a" style="margin-right:5px">'+rep+' repair</span>':'')+(lost?'<span class="badge bg-r">'+lost+' lost</span>':'')+(flagged.length?'<br><br><strong>Flagged:</strong><br>'+flagged.map(f=>'-- '+esc(f.name)+': '+f.cond+(f.notes?' ('+esc(f.notes)+')':'')).join('<br>'):'');document.getElementById('ret-modal').classList.add('open');document.getElementById('ret-area').innerHTML='';document.getElementById('ret-sel').value='';}
 function closeRetModal(){document.getElementById('ret-modal').classList.remove('open');refresh();}
 
 function renderTplGrid(){const el=document.getElementById('tpl-grid');if(!T.length){el.innerHTML='<div class="empty"><div class="ei">&#128194;</div><p>No templates yet</p></div>';return;}el.innerHTML=T.map((t,i)=>'<div class="tpl-card"><span class="badge bg-b tcount" style="font-size:9px">'+t.items.length+'</span><h3>'+esc(t.name)+'</h3><div class="tdesc">'+esc(t.desc||'')+'</div><div class="tlist">'+t.items.slice(0,5).map(it=>it.q+(it.mode==='per'?'/tech':'x')+' '+esc(it.name)).join('<br>')+(t.items.length>5?'<br><em style="color:var(--txt3)">+'+( t.items.length-5)+' more</em>':'')+'</div><div class="tacts"><button class="btn btn-s btn-xs" onclick="editTpl('+i+')">Edit</button><button class="btn btn-r btn-xs" onclick="delTpl('+i+')">Delete</button></div></div>').join('');}
@@ -765,6 +838,124 @@ function closeInsp(){document.getElementById('insp-modal').classList.remove('ope
 function saveInsp(){const name=document.getElementById('insp-name').value.trim();if(!name){alert('Enter item name.');return;}const item={id:editInspIdx!==null?IS[editInspIdx].id:uid(),name,serial:document.getElementById('insp-serial').value.trim(),lastDate:document.getElementById('insp-last').value,interval:document.getElementById('insp-interval').value,notes:document.getElementById('insp-notes').value.trim()};if(editInspIdx!==null)IS[editInspIdx]=item;else IS.push(item);localStorage.setItem('kt_insp',JSON.stringify(IS));closeInsp();renderInspList();renderInspAlerts();}
 function delInsp(i){if(!confirm('Remove this item?'))return;IS.splice(i,1);localStorage.setItem('kt_insp',JSON.stringify(IS));renderInspList();renderInspAlerts();}
 
+// ── KEYS ON FILE (permanent registry) ──
+let KOF = []; // keys on file — loaded from localStorage
+
+function loadKof(){KOF=JSON.parse(localStorage.getItem('kt_kof')||'[]');}
+function saveKof_local(){localStorage.setItem('kt_kof',JSON.stringify(KOF));}
+
+function openAddKofModal_edit(id){
+  const k=KOF.find(x=>x.id===id);if(!k)return;
+  document.getElementById('kof-modal-t').textContent='Edit Key on File';
+  document.getElementById('kof-tag').value=k.tag||'';
+  document.getElementById('kof-client').value=k.client||'';
+  document.getElementById('kof-addr').value=k.addr||'';
+  document.getElementById('kof-qty').value=k.qty||1;
+  document.getElementById('kof-notes').value=k.notes||'';
+  document.getElementById('kof-modal').dataset.editId=id;
+  document.getElementById('kof-modal').classList.add('open');
+}
+function openAddKeyOnFile(){
+  document.getElementById('kof-modal-t').textContent='\u{1F511} Save Key on File';
+  ['kof-tag','kof-client','kof-addr','kof-notes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('kof-qty').value='1';
+  delete document.getElementById('kof-modal').dataset.editId;
+  document.getElementById('kof-modal').classList.add('open');
+}
+function closeKofModal(){document.getElementById('kof-modal').classList.remove('open');}
+function saveKof(){
+  const tag=document.getElementById('kof-tag').value.trim();
+  const client=document.getElementById('kof-client').value.trim();
+  if(!tag){alert('Enter a key tag or description.');return;}
+  if(!client){alert('Enter a building or property name.');return;}
+  const editId=document.getElementById('kof-modal').dataset.editId;
+  const entry={
+    id:editId||uid(),
+    tag,client,
+    addr:document.getElementById('kof-addr').value.trim(),
+    qty:parseInt(document.getElementById('kof-qty').value)||1,
+    notes:document.getElementById('kof-notes').value.trim(),
+    createdAt:editId?undefined:new Date().toISOString(),
+  };
+  if(editId){const i=KOF.findIndex(x=>x.id===editId);if(i>-1){KOF[i]={...KOF[i],...entry};}}
+  else KOF.push(entry);
+  saveKof_local();
+  closeKofModal();
+  renderKeysOnFile();
+  fillKeyPickers();
+}
+function deleteKof(id){
+  if(!confirm('Remove this key from file?'))return;
+  KOF=KOF.filter(x=>x.id!==id);
+  saveKof_local();renderKeysOnFile();fillKeyPickers();
+}
+function renderKeysOnFile(){
+  const el=document.getElementById('keys-onfile-list');if(!el)return;
+  if(!KOF.length){
+    el.innerHTML='<div class="empty" style="padding:16px"><div class="ei" style="font-size:24px;margin-bottom:6px">\u{1F511}</div><p style="font-size:12px">No keys on file yet.<br>Tap + Key on File to save a property key.</p></div>';
+    return;
+  }
+  // Group by client/property
+  const byProp={};
+  KOF.forEach(k=>{const p=k.client||k.addr||'Unknown';if(!byProp[p])byProp[p]=[];byProp[p].push(k);});
+  el.innerHTML=Object.entries(byProp).map(([prop,keys])=>{
+    const rows=keys.map(k=>{
+      const outNow=KY.filter(x=>!x.returned&&(x.tag===k.tag)&&(x.client===k.client||x.addr===k.addr));
+      const statusDot=outNow.length
+        ?'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--acc);margin-right:5px;flex-shrink:0"></span>'
+        :'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--grn);margin-right:5px;flex-shrink:0"></span>';
+      return'<div style="display:flex;align-items:center;gap:8px;padding:9px 10px;background:var(--sur3);border-radius:8px;margin-bottom:6px;border:1px solid var(--bdr)">'
+        +'<div style="display:flex;align-items:center;flex:1;min-width:0">'
+          +statusDot
+          +'<div style="min-width:0">'
+            +'<div style="font-weight:600;font-size:13px">'+esc(k.tag)+(k.qty>1?' <span style="font-size:10px;color:var(--txt2)">x'+k.qty+'</span>':'')+'</div>'
+            +(k.addr?'<div style="font-size:10px;color:var(--txt3);margin-top:1px">'+esc(k.addr)+'</div>':'')
+            +(k.notes?'<div style="font-size:10px;color:var(--txt3)">'+esc(k.notes)+'</div>':'')
+            +(outNow.length?'<div style="font-size:10px;color:var(--acc);margin-top:2px">\u{1F477} Currently out: '+outNow.map(x=>esc(x.tech)).join(', ')+'</div>':'')
+          +'</div>'
+        +'</div>'
+        +'<div style="display:flex;gap:5px;flex-shrink:0">'
+          +'<button class="btn btn-s btn-xs" onclick="openAddKofModal_edit(\''+k.id+'\')">Edit</button>'
+          +'<button class="btn btn-r btn-xs" onclick="deleteKof(\''+k.id+'\')">Del</button>'
+        +'</div>'
+        +'</div>';
+    }).join('');
+    return'<div style="margin-bottom:12px">'
+      +'<div style="font-size:10px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;padding:6px 0 6px;border-bottom:1px solid var(--bdr);margin-bottom:8px">'+esc(prop)+'</div>'
+      +rows+'</div>';
+  }).join('');
+}
+
+// Fill all key pickers (checkout + log checkout modal) from KOF
+function fillKeyPickers(){
+  const opts='<option value="">— pick from keys on file —</option>'
+    +KOF.map(k=>'<option value="'+k.id+'">'+esc(k.tag)+' — '+esc(k.client||k.addr||'')+'</option>').join('');
+  const p1=document.getElementById('co-key-pick');
+  const p2=document.getElementById('ak-kof-pick');
+  if(p1)p1.innerHTML=opts;
+  if(p2)p2.innerHTML='<option value="">— or fill in manually below —</option>'+KOF.map(k=>'<option value="'+k.id+'">'+esc(k.tag)+' — '+esc(k.client||k.addr||'')+'</option>').join('');
+}
+
+// Checkout Step 2: picking a key from file pre-fills the tag field
+function pickKeyFromFile(kofId){
+  if(!kofId)return;
+  const k=KOF.find(x=>x.id===kofId);if(!k)return;
+  document.getElementById('key-tag').value=k.tag;
+  document.getElementById('key-qty').value=k.qty||1;
+  document.getElementById('co-key-pick').value='';
+}
+
+// Log checkout modal: picking from KOF pre-fills fields
+function prefillFromKof(kofId){
+  if(!kofId)return;
+  const k=KOF.find(x=>x.id===kofId);if(!k)return;
+  document.getElementById('ak-tag').value=k.tag||'';
+  document.getElementById('ak-client').value=k.client||'';
+  document.getElementById('ak-addr').value=k.addr||'';
+  document.getElementById('ak-qty').value=k.qty||1;
+}
+
+// ── CHECKOUT LOG (who has keys right now) ──
 let kyFilter='all';
 function setKeyFilter(f){
   kyFilter=f;
@@ -786,59 +977,50 @@ function updateKeyStats(){
 }
 function renderKeys(){
   updateKeyStats();
+  renderKeysOnFile();
   const q=(document.getElementById('key-search').value||'').toLowerCase();
   const el=document.getElementById('keys-list');
   let filtered=KY.filter(k=>[k.tag,k.tech,k.client,k.addr||''].join(' ').toLowerCase().includes(q));
   if(kyFilter==='out')filtered=filtered.filter(k=>!k.returned);
   if(kyFilter==='in')filtered=filtered.filter(k=>k.returned);
   if(!filtered.length){
-    el.innerHTML='<div class="empty"><div class="ei">&#128273;</div><p>'+(q?'No matching keys.':kyFilter==='out'?'No keys currently out.':kyFilter==='in'?'No returned keys yet.':'No keys logged yet.<br>Tap + Add Key to get started.')+'</p></div>';
+    el.innerHTML='<div class="empty"><div class="ei">\u{1F511}</div><p>'+(q?'No matching keys.':kyFilter==='out'?'No keys currently out.':kyFilter==='in'?'No returned keys yet.':'No keys checked out yet.')+'</p></div>';
     return;
   }
   const sorted=[...filtered].sort((a,b)=>{
     if(a.returned!==b.returned)return a.returned?1:-1;
     return(a.client||'').localeCompare(b.client||'');
   });
-  // Group by property
   const byProp={};
-  sorted.forEach(k=>{
-    const prop=(k.client||k.addr||'Unknown property');
-    if(!byProp[prop])byProp[prop]=[];
-    byProp[prop].push(k);
-  });
+  sorted.forEach(k=>{const prop=(k.client||k.addr||'Unknown property');if(!byProp[prop])byProp[prop]=[];byProp[prop].push(k);});
   el.innerHTML=Object.entries(byProp).map(([prop,keys])=>{
     const outCount=keys.filter(k=>!k.returned).length;
-    const header='<div style="font-size:10px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;padding:10px 0 6px;border-bottom:1px solid var(--bdr);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">'+
-      '<span>'+esc(prop)+'</span>'+
-      (outCount?'<span class="badge bg-p">'+outCount+' out</span>':'<span class="badge bg-g">all in</span>')+
-      '</div>';
+    const header='<div style="font-size:10px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;padding:10px 0 6px;border-bottom:1px solid var(--bdr);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">'
+      +'<span>'+esc(prop)+'</span>'
+      +(outCount?'<span class="badge bg-p">'+outCount+' out</span>':'<span class="badge bg-g">all in</span>')
+      +'</div>';
     const cards=keys.map(k=>{
       const addrLine=k.addr?'<div style="font-size:11px;color:var(--txt2);margin-top:1px">'+esc(k.addr)+'</div>':'';
       const statusDot=k.returned
         ?'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--grn);margin-right:5px"></span>'
         :'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--acc);margin-right:5px"></span>';
-      return'<div class="key-item '+(k.returned?'key-status-in':'key-status-out')+'" style="margin-bottom:8px">'+
-        '<div style="flex:1;min-width:0">'+
-          '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">'+
-            statusDot+
-            '<span style="font-weight:600;font-size:13px">'+esc(k.tag)+'</span>'+
-            (k.qty>1?'<span class="badge bg-b" style="font-size:9px">x'+k.qty+'</span>':'')+
-          '</div>'+
-          addrLine+
-          '<div style="font-size:11px;color:var(--txt2);margin-top:3px;font-family:var(--mono)">&#128119; '+esc(k.tech)+'</div>'+
-          '<div style="font-size:10px;color:var(--txt3);margin-top:2px">Out: '+fd(k.checkoutDate)+(k.returned?' &nbsp;·&nbsp; <span style="color:var(--grn)">Returned '+fd(k.returnDate)+'</span>':'')+'</div>'+
-        '</div>'+
-        '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">'+
-          (k.returned
-            ?'<span class="badge bg-g">Returned</span>'
-            :'<button class="btn btn-g btn-xs" onclick="openReturnKey(\''+k.id+'\')">Return</button>')+
-          '<button class="btn btn-r btn-xs" onclick="deleteKey(\''+k.id+'\')">Delete</button>'+
-        '</div>'+
-      '</div>';
+      return'<div class="key-item '+(k.returned?'key-status-in':'key-status-out')+'" style="margin-bottom:8px">'
+        +'<div style="flex:1;min-width:0">'
+          +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">'+statusDot+'<span style="font-weight:600;font-size:13px">'+esc(k.tag)+'</span>'+(k.qty>1?'<span class="badge bg-b" style="font-size:9px">x'+k.qty+'</span>':'')+'</div>'
+          +addrLine
+          +'<div style="font-size:11px;color:var(--txt2);margin-top:3px;font-family:var(--mono)">\u{1F477} '+esc(k.tech)+'</div>'
+          +'<div style="font-size:10px;color:var(--txt3);margin-top:2px">Out: '+fd(k.checkoutDate)+(k.returned?' &nbsp;·&nbsp; <span style="color:var(--grn)">Returned '+fd(k.returnDate)+'</span>':'')+'</div>'
+        +'</div>'
+        +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">'
+          +(k.returned?'<span class="badge bg-g">Returned</span>':'<button class="btn btn-g btn-xs" onclick="openReturnKey(\''+k.id+'\')">Return</button>')
+          +'<button class="btn btn-r btn-xs" onclick="deleteKey(\''+k.id+'\')">Delete</button>'
+        +'</div>'
+        +'</div>';
     }).join('');
     return'<div style="margin-bottom:16px">'+header+cards+'</div>';
   }).join('');
 }
+
 let _retKeyId=null;
 function openReturnKey(id){
   const k=KY.find(x=>x.id===id);if(!k)return;
@@ -863,9 +1045,9 @@ async function deleteKey(id){
   await pushData();renderKeys();
 }
 
-function renderHistory(){const q=(document.getElementById('hist-search').value||'').toLowerCase();const el=document.getElementById('hist-list');const hits=H.filter(h=>[h.projName,h.addr,h.bldg,h.jobnum,h.names].join(' ').toLowerCase().includes(q));if(!hits.length){el.innerHTML='<div class="empty"><div class="ei">&#128220;</div><p>No completed jobs yet</p></div>';return;}el.innerHTML=hits.map(h=>{const flagged=(h.items||[]).filter(i=>i.cond!=='good').length;return'<div class="hrow"><div class="hicon" style="background:var(--grn-dim)">&#10003;</div><div class="hinfo"><div class="htitle">'+h.projName+' -- '+(h.bldg||h.addr||'no site')+'</div><div class="hmeta">WO: '+(h.jobnum||'--')+' '+h.numTechs+' tech'+(h.numTechs>1?'s':'')+'</div><div class="hmeta">'+fd(h.coDate)+' to '+fd(h.retDate)+(h.vehicle?' '+h.vehicle:'')+'</div>'+(flagged?'<div style="font-size:10px;color:var(--amb)">'+flagged+' flagged</div>':'')+'</div><div class="hact"><span class="badge bg-g">Done</span><button class="btn btn-xs btn-p" onclick="openRerun(\''+h.id+'\')">Re-run</button></div></div>';}).join('');}
+function renderHistory(){const q=(document.getElementById('hist-search').value||'').toLowerCase();const el=document.getElementById('hist-list');const hits=H.filter(h=>[h.projName,h.addr,h.bldg,h.jobnum,h.names].join(' ').toLowerCase().includes(q));if(!hits.length){el.innerHTML='<div class="empty"><div class="ei">&#128220;</div><p>No completed jobs yet</p></div>';return;}el.innerHTML=hits.map(h=>{const flagged=(h.items||[]).filter(i=>i.cond!=='good').length;return'<div class="hrow"><div class="hicon" style="background:var(--grn-dim)">&#10003;</div><div class="hinfo"><div class="htitle">'+h.projName+' -- '+(h.bldg||h.addr||'no site')+'</div><div class="hmeta">WO: '+(h.jobnum||'--')+' '+h.numTechs+' tech'+(h.numTechs>1?'s':'')+(h.checkedoutBy?' · '+esc(h.checkedoutBy):'')+'</div><div class="hmeta">'+fd(h.coDate)+' to '+fd(h.retDate)+(h.vehicle?' '+h.vehicle:'')+'</div>'+(flagged?'<div style="font-size:10px;color:var(--amb)">'+flagged+' flagged</div>':'')+'</div><div class="hact"><span class="badge bg-g">Done</span><button class="btn btn-xs btn-p" onclick="openRerun(\''+h.id+'\')">Re-run</button></div></div>';}).join('');}
 
-function printCheckout(lang){const tid=document.getElementById('co-proj').value;const tpl=T.find(t=>t.id===tid);const activeItems=coItems.filter(i=>!i.removed);if(!activeItems.length){alert('No items to print.');return;}const es=lang==='es';const title=es?'Recibo de Materiales':'Kit Checkout Slip';const verify=es?'Confirmo haber recibido todos los articulos en buen estado.':'I confirm receipt of all items in good condition.';const data={projName:tpl?tpl.name:'',jobnum:document.getElementById('co-jobnum').value,addr:document.getElementById('co-addr').value,bldg:document.getElementById('co-bldg').value,vehicle:document.getElementById('co-vehicle').value,names:document.getElementById('co-names').value,numTechs:parseInt(document.getElementById('co-techs').value)||1,date:document.getElementById('co-date').value};const rows=[['Project/Proyecto',data.projName],['WO #',data.jobnum||'--'],['Site/Direccion',data.addr||'--'],['Building/Edificio',data.bldg||'--'],['Vehicle/Vehiculo',data.vehicle||'--'],['Techs',data.names+' ('+data.numTechs+')'],['Date/Fecha',data.date||'--']];const html='<h2 style="margin-bottom:4px;font-size:18px">'+title+'</h2><p style="color:#666;font-size:11px;margin-bottom:16px">PF Building Services - '+new Date().toLocaleString()+'</p><table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11px">'+rows.map(([k,v])=>'<tr><td style="font-weight:bold;padding:4px 8px;border:1px solid #ccc;width:35%">'+k+'</td><td style="padding:4px 8px;border:1px solid #ccc">'+v+'</td></tr>').join('')+'</table><table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11px"><tr style="background:#1a237e;color:#fff"><th style="padding:6px 8px;text-align:left">Item</th><th style="padding:6px 8px;text-align:center;width:60px">Qty</th><th style="padding:6px 8px;text-align:center;width:80px">[ ] OK</th></tr>'+activeItems.map((it,i)=>'<tr style="background:'+(i%2===0?'#fff':'#f8f8f8')+'"><td style="padding:6px 8px;border:1px solid #ddd">'+it.name+'</td><td style="padding:6px 8px;border:1px solid #ddd;text-align:center">'+it.qty+'</td><td style="padding:6px 8px;border:1px solid #ddd;text-align:center">[ ]</td></tr>').join('')+'</table>'+(coKeys.length?'<p style="font-weight:bold;margin-bottom:6px;font-size:11px">Keys/Llaves:</p><table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11px">'+coKeys.map((k,i)=>'<tr style="background:'+(i%2===0?'#fff':'#f8f8f8')+'"><td style="padding:5px 8px;border:1px solid #ddd">'+k.tag+'</td><td style="padding:5px 8px;border:1px solid #ddd;text-align:center">'+k.qty+'</td><td style="padding:5px 8px;border:1px solid #ddd;text-align:center">[ ]</td></tr>').join('')+'</table>':'')+'<p style="font-size:11px;color:#555;margin-bottom:20px;font-style:italic">'+verify+'</p><div style="display:flex;gap:40px;margin-top:16px"><div><div style="border-top:1px solid #000;width:220px;padding-top:5px;font-size:10px;color:#666">Tech signature + date</div></div><div><div style="border-top:1px solid #000;width:220px;padding-top:5px;font-size:10px;color:#666">Attendant + date</div></div></div>';showPrint(html);}
+function printCheckout(lang){const tid=document.getElementById('co-proj').value;const tpl=T.find(t=>t.id===tid);const activeItems=coItems.filter(i=>!i.removed);if(!activeItems.length){alert('No items to print.');return;}const es=lang==='es';const title=es?'Recibo de Materiales':'Kit Checkout Slip';const verify=es?'Confirmo haber recibido todos los articulos en buen estado.':'I confirm receipt of all items in good condition.';const data={projName:tpl?tpl.name:'',jobnum:document.getElementById('co-jobnum').value,addr:document.getElementById('co-addr').value,bldg:document.getElementById('co-bldg').value,vehicle:document.getElementById('co-vehicle').value,names:document.getElementById('co-names').value,checkedoutBy:document.getElementById('co-checkedout').value,numTechs:parseInt(document.getElementById('co-techs').value)||1,date:document.getElementById('co-date').value};const rows=[['Project/Proyecto',data.projName],['WO #',data.jobnum||'--'],['Site/Direccion',data.addr||'--'],['Building/Edificio',data.bldg||'--'],['Vehicle/Vehiculo',data.vehicle||'--'],['Techs',data.names+' ('+data.numTechs+')'],['Checked out by',document.getElementById('co-checkedout').value||'--'],['Date/Fecha',data.date||'--']];const html='<h2 style="margin-bottom:4px;font-size:18px">'+title+'</h2><p style="color:#666;font-size:11px;margin-bottom:16px">PF Building Services - '+new Date().toLocaleString()+'</p><table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11px">'+rows.map(([k,v])=>'<tr><td style="font-weight:bold;padding:4px 8px;border:1px solid #ccc;width:35%">'+k+'</td><td style="padding:4px 8px;border:1px solid #ccc">'+v+'</td></tr>').join('')+'</table><table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11px"><tr style="background:#1a237e;color:#fff"><th style="padding:6px 8px;text-align:left">Item</th><th style="padding:6px 8px;text-align:center;width:60px">Qty</th><th style="padding:6px 8px;text-align:center;width:80px">[ ] OK</th></tr>'+activeItems.map((it,i)=>'<tr style="background:'+(i%2===0?'#fff':'#f8f8f8')+'"><td style="padding:6px 8px;border:1px solid #ddd">'+it.name+'</td><td style="padding:6px 8px;border:1px solid #ddd;text-align:center">'+it.qty+'</td><td style="padding:6px 8px;border:1px solid #ddd;text-align:center">[ ]</td></tr>').join('')+'</table>'+(coKeys.length?'<p style="font-weight:bold;margin-bottom:6px;font-size:11px">Keys/Llaves:</p><table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11px">'+coKeys.map((k,i)=>'<tr style="background:'+(i%2===0?'#fff':'#f8f8f8')+'"><td style="padding:5px 8px;border:1px solid #ddd">'+k.tag+'</td><td style="padding:5px 8px;border:1px solid #ddd;text-align:center">'+k.qty+'</td><td style="padding:5px 8px;border:1px solid #ddd;text-align:center">[ ]</td></tr>').join('')+'</table>':'')+'<p style="font-size:11px;color:#555;margin-bottom:20px;font-style:italic">'+verify+'</p><div style="display:flex;gap:40px;margin-top:16px"><div><div style="border-top:1px solid #000;width:220px;padding-top:5px;font-size:10px;color:#666">Tech signature + date</div></div><div><div style="border-top:1px solid #000;width:220px;padding-top:5px;font-size:10px;color:#666">Attendant + date</div></div></div>';showPrint(html);}
 
 function printReturnPreview(coId){const co=CO.find(c=>c.id===coId);if(!co)return;showPrint(buildRetSlip(co,false));}
 function printReturn(){if(!lastRetData)return;showPrint(buildRetSlip(lastRetData,true));}
@@ -879,7 +1061,9 @@ async function installApp(){if(!deferredPrompt)return;deferredPrompt.prompt();aw
 function openAddKeyDirect(){
   ['ak-addr','ak-client','ak-tag','ak-tech'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('ak-qty').value='1';
-  document.getElementById('addkey-modal-t').textContent='\u{1F511} Add Key';
+  document.getElementById('ak-date').value=today();
+  const pick=document.getElementById('ak-kof-pick');if(pick)pick.value='';
+  fillKeyPickers();
   document.getElementById('addkey-modal').classList.add('open');
 }
 function closeAddKeyDirect(){document.getElementById('addkey-modal').classList.remove('open');}
@@ -889,10 +1073,12 @@ async function saveKeyDirect(){
   const tag=document.getElementById('ak-tag').value.trim();
   const qty=parseInt(document.getElementById('ak-qty').value)||1;
   const tech=document.getElementById('ak-tech').value.trim();
+  const dateVal=document.getElementById('ak-date').value;
   if(!addr&&!client){alert('Enter a property address or building name.');return;}
   if(!tag){alert('Enter a key description.');return;}
   if(!tech){alert('Enter the tech name who has the key.');return;}
-  KY.push({id:uid(),tag,qty,addr,client,tech,jobnum:'',checkoutDate:new Date().toISOString(),returned:false});
+  const checkoutDate=dateVal?new Date(dateVal+'T08:00:00').toISOString():new Date().toISOString();
+  KY.push({id:uid(),tag,qty,addr,client,tech,jobnum:'',checkoutDate,returned:false});
   await pushData();
   closeAddKeyDirect();
   renderKeys();
@@ -903,7 +1089,7 @@ if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catc
 document.getElementById('co-date').value=today();
 document.getElementById('rr-date').value=today();
 document.getElementById('insp-last').value=today();
-setMode('tech');
+loadKof();setMode('tech');
 syncNow();
 setInterval(()=>syncNow(),60000);
 </script>
