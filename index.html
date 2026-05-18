@@ -311,7 +311,8 @@ hr{border:none;border-top:1px solid var(--bdr);margin:13px 0}
     <div class="panel" id="panel-keys">
       <div class="sec-hdr">
         <div><div class="sec-title">Client Keys</div><div class="sec-sub">Keys on file &amp; checkout log</div></div>
-        <div style="display:flex;gap:6px">
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-s btn-sm" onclick="forceSyncKof()" title="Force re-sync keys from cloud">&#8635; Sync</button>
           <button class="btn btn-s btn-sm" onclick="openAddKeyOnFile()">+ Key on File</button>
           <button class="btn btn-p btn-sm" onclick="openAddKeyDirect()">+ Log Checkout</button>
         </div>
@@ -785,6 +786,13 @@ async function syncNow(){
   }
 }
 async function pushData(){localStorage.setItem('kt_tpl',JSON.stringify(T));localStorage.setItem('kt_co',JSON.stringify(CO));localStorage.setItem('kt_hist',JSON.stringify(H));localStorage.setItem('kt_rep',JSON.stringify(R));localStorage.setItem('kt_keys',JSON.stringify(KY));localStorage.setItem('kt_kof',JSON.stringify(KOF));localStorage.setItem('kt_insp',JSON.stringify(IS));try{await apiCall({action:'setAll'},{templates:T,checkouts:CO,history:H,repairs:R,keys:KY,keysOnFile:KOF});setSyncStatus('ok');}catch(e){setSyncStatus('error');}}
+function showSync(state,msg){
+  const bar=document.getElementById('sync-bar');
+  if(!bar)return;
+  bar.textContent=msg;
+  bar.className='show '+state;
+  if(state==='ok')setTimeout(()=>bar.classList.remove('show'),2500);
+}
 function setSyncStatus(s){const dot=document.getElementById('sync-dot');if(dot)dot.className='sync-dot'+(s==='error'?' offline':'');}
 
 async function seedDefaults(){T=[{id:uid(),name:'Bosun Chair',desc:'Suspended platform',items:[{name:'Bosun chair',q:1,mode:'per'},{name:'Carabiner (locking)',q:2,mode:'per'},{name:'Safety line',q:2,mode:'per'},{name:'Descent device',q:1,mode:'per'},{name:'Full body harness',q:1,mode:'per'},{name:'Helmet',q:1,mode:'per'},{name:'Gloves (pair)',q:1,mode:'per'},{name:'First aid kit',q:1,mode:'fixed'}]},{id:uid(),name:'Rope Access',desc:'IRATA rope access',items:[{name:'Dynamic rope 50m',q:1,mode:'per'},{name:'Static rope 30m',q:1,mode:'per'},{name:'Full body harness',q:1,mode:'per'},{name:'Descender',q:1,mode:'per'},{name:'Rope clamp',q:2,mode:'per'},{name:'Carabiner (locking)',q:4,mode:'per'},{name:'Helmet',q:1,mode:'per'},{name:'First aid kit',q:1,mode:'fixed'}]},{id:uid(),name:'Window Cleaning',desc:'Exterior window washing',items:[{name:'Squeegee',q:2,mode:'per'},{name:'T-bar and sleeve',q:2,mode:'per'},{name:'Extension pole',q:1,mode:'per'},{name:'Bucket',q:1,mode:'per'},{name:'Safety harness',q:1,mode:'per'},{name:'Lanyard',q:1,mode:'per'}]},{id:uid(),name:'Pressure Washing',desc:'High-pressure cleaning',items:[{name:'Pressure washer',q:1,mode:'fixed'},{name:'Hose reel (100ft)',q:1,mode:'fixed'},{name:'Spray wand',q:1,mode:'per'},{name:'Safety goggles',q:1,mode:'per'},{name:'Rain suit',q:1,mode:'per'},{name:'Non-slip boots',q:1,mode:'per'}]}];await pushData();}
@@ -808,7 +816,7 @@ document.addEventListener('click',()=>{if(currentMode==='warehouse')resetAutoLoc
 
 function setMode(mode){currentMode=mode;document.getElementById('btn-tech').classList.toggle('active',mode==='tech');document.getElementById('btn-warehouse').classList.toggle('active',mode==='warehouse');document.getElementById('warehouse-mode').style.display=mode==='warehouse'?'':'none';document.getElementById('tech-mode').style.display=mode==='tech'?'':'none';document.getElementById('warehouse-nav').style.display=mode==='warehouse'?'':'none';const badge=document.getElementById('mode-badge');badge.textContent=mode==='warehouse'?'Warehouse':'Tech View';badge.className='mode-badge mode-'+mode;if(mode==='warehouse'){resetAutoLock();updateLockTimerDisplay();refresh();}if(mode==='tech'){clearTimeout(autoLockTimer);document.getElementById('tech-kit-area').innerHTML='<div class="empty"><div class="ei">&#128119;</div><p>Enter your name above<br>to see your active kit</p></div>';}}
 
-function nav(id){document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.bn').forEach(b=>b.classList.remove('active'));document.getElementById('panel-'+id).classList.add('active');const ids=['dashboard','checkout','returns','keys','inspections','templates','history'];document.querySelectorAll('.bn')[ids.indexOf(id)]?.classList.add('active');document.querySelector('.scroll').scrollTop=0;if(id==='returns')renderRetSel();if(id==='templates')renderTplGrid();if(id==='history')renderHistory();if(id==='inspections')renderInspList();if(id==='keys'){loadKof(null);renderKeys();}if(id==='checkout'){loadKof(null);fillKeyPickers();}}
+function nav(id){document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.bn').forEach(b=>b.classList.remove('active'));document.getElementById('panel-'+id).classList.add('active');const ids=['dashboard','checkout','returns','keys','inspections','templates','history'];document.querySelectorAll('.bn')[ids.indexOf(id)]?.classList.add('active');document.querySelector('.scroll').scrollTop=0;if(id==='returns')renderRetSel();if(id==='templates')renderTplGrid();if(id==='history')renderHistory();if(id==='inspections')renderInspList();if(id==='keys'){forceSyncKof();}if(id==='checkout'){loadKof(null);fillKeyPickers();}}
 
 function refresh(){document.getElementById('dash-date').textContent=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});document.getElementById('s-out').textContent=CO.length;document.getElementById('s-rep').textContent=R.length;document.getElementById('s-jobs').textContent=H.length;renderDash();fillProjSel();renderRetSel();renderTplGrid();renderHistory();renderInspList();renderKeys();renderInspAlerts();}
 
@@ -883,6 +891,29 @@ function delInsp(i){if(!confirm('Remove this item?'))return;IS.splice(i,1);local
 
 // ── KEYS ON FILE (permanent registry) ──
 let KOF = []; // keys on file — loaded from localStorage
+
+// Force pull latest KOF from cloud and re-render
+async function forceSyncKof(){
+  try{
+    showSync('syncing','⟳ Syncing keys...');
+    const data=await apiCall({action:'getAll'});
+    if(data.error)throw new Error(data.error);
+    if(Array.isArray(data.keysOnFile)){
+      KOF=data.keysOnFile;
+      localStorage.setItem('kt_kof',JSON.stringify(KOF));
+    }
+    if(Array.isArray(data.keys)){
+      KY=data.keys;
+      localStorage.setItem('kt_keys',JSON.stringify(KY));
+    }
+    renderKeysOnFile();
+    renderKeys();
+    fillKeyPickers();
+    showSync('ok','✓ Keys synced');
+  }catch(e){
+    showSync('error','✗ Sync failed — check connection');
+  }
+}
 
 function loadKof(cloudData){
   if(cloudData&&Array.isArray(cloudData)){
