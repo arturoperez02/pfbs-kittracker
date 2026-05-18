@@ -298,8 +298,28 @@ hr{border:none;border-top:1px solid var(--bdr);margin:13px 0}
     </div>
 
     <div class="panel" id="panel-keys">
-      <div class="sec-hdr"><div><div class="sec-title">Client Keys</div></div></div>
-      <div class="card"><div class="search-wrap"><span class="search-ico">&#128273;</span><input type="text" id="key-search" placeholder="Search key #, client, tech..." oninput="renderKeys()"></div><div id="keys-list"><div class="empty"><div class="ei">&#128273;</div><p>No keys logged yet</p></div></div></div>
+      <div class="sec-hdr">
+        <div><div class="sec-title">Client Keys</div><div class="sec-sub">Keys in &amp; out by property</div></div>
+        <button class="btn btn-p btn-sm" onclick="openAddKeyDirect()">+ Add Key</button>
+      </div>
+
+      <!-- Stats row -->
+      <div class="g2" style="margin-bottom:12px">
+        <div class="stat"><div class="stat-v" id="k-stat-out" style="color:var(--acc)">0</div><div class="stat-l">Keys out</div></div>
+        <div class="stat"><div class="stat-v" id="k-stat-in" style="color:var(--grn)">0</div><div class="stat-l">Returned</div></div>
+      </div>
+
+      <!-- Filter tabs -->
+      <div style="display:flex;gap:6px;margin-bottom:12px">
+        <button class="btn btn-sm" id="kf-all" style="flex:1;justify-content:center;background:var(--acc);color:#0d1117;border:none" onclick="setKeyFilter('all')">All</button>
+        <button class="btn btn-sm btn-s" id="kf-out" style="flex:1;justify-content:center" onclick="setKeyFilter('out')">&#128275; Out</button>
+        <button class="btn btn-sm btn-s" id="kf-in" style="flex:1;justify-content:center" onclick="setKeyFilter('in')">&#9989; Returned</button>
+      </div>
+
+      <div class="card">
+        <div class="search-wrap"><span class="search-ico">&#128269;</span><input type="text" id="key-search" placeholder="Search key, address, tech..." oninput="renderKeys()"></div>
+        <div id="keys-list"><div class="empty"><div class="ei">&#128273;</div><p>No keys logged yet.<br>Tap + Add Key to get started.</p></div></div>
+      </div>
     </div>
 
     <div class="panel" id="panel-history">
@@ -448,7 +468,62 @@ hr{border:none;border-top:1px solid var(--bdr);margin:13px 0}
   </div>
 </div>
 
+<!-- ADD KEY DIRECT MODAL -->
+<div class="ov" id="addkey-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-t"><span>&#128273; Add Key</span><button class="xbtn" onclick="closeAddKeyDirect()">X</button></div>
+    <div class="fg"><label>Key # / description</label><input type="text" id="ak-tag" placeholder="Master key, Unit 4B, Roof access..."></div>
+    <div class="fg"><label>Quantity</label><input type="number" id="ak-qty" min="1" value="1"></div>
+    <div class="fg"><label>Client / building</label><input type="text" id="ak-client" placeholder="Salesforce Tower, 400 Howard..."></div>
+    <div class="fg"><label>Tech name (who has it)</label><input type="text" id="ak-tech" placeholder="Rigo, Baldemar..."></div>
+    <div class="fg"><label>WO / Job # <span style="color:var(--txt3)">(optional)</span></label><input type="text" id="ak-jobnum" placeholder="HCP-2026-..."></div>
+    <div class="fg"><label>Notes <span style="color:var(--txt3)">(optional)</span></label><input type="text" id="ak-notes" placeholder="Return by Friday, spare copy..."></div>
+    <hr>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="flex:1" onclick="closeAddKeyDirect()">Cancel</button>
+      <button class="btn btn-p" style="flex:1" onclick="saveKeyDirect()">Save Key</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ NEW: Import from Schedule modal ══ -->
+<!-- ADD KEY MODAL -->
+<div class="ov" id="addkey-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-t"><span id="addkey-modal-t">&#128273; Add Key</span><button class="xbtn" onclick="closeAddKeyDirect()">X</button></div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="fg" style="grid-column:1/-1"><label>Property address</label><input type="text" id="ak-addr" placeholder="400 Howard St, San Francisco..."></div>
+      <div class="fg" style="grid-column:1/-1"><label>Building / client name</label><input type="text" id="ak-client" placeholder="Salesforce Tower, City Hall..."></div>
+      <div class="fg"><label>Key tag / description</label><input type="text" id="ak-tag" placeholder="Master, Unit 4B, Roof..."></div>
+      <div class="fg"><label>Quantity</label><input type="number" id="ak-qty" min="1" value="1"></div>
+      <div class="fg" style="grid-column:1/-1"><label>Tech who has it</label><input type="text" id="ak-tech" placeholder="Rigo, Baldemar..."></div>
+    </div>
+    <hr>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="flex:1" onclick="closeAddKeyDirect()">Cancel</button>
+      <button class="btn btn-p" style="flex:1" onclick="saveKeyDirect()">&#128273; Save Key</button>
+    </div>
+  </div>
+</div>
+
+<!-- MARK RETURNED MODAL -->
+<div class="ov" id="retkey-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-t"><span>Mark Key Returned</span><button class="xbtn" onclick="document.getElementById('retkey-modal').classList.remove('open')">X</button></div>
+    <div id="retkey-info" style="background:var(--sur2);border-radius:9px;padding:13px;font-family:var(--mono);font-size:12px;line-height:2;margin-bottom:14px"></div>
+    <div class="fg"><label>Received by (warehouse attendant)</label><input type="text" id="retkey-att" placeholder="Your name"></div>
+    <hr>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="flex:1" onclick="document.getElementById('retkey-modal').classList.remove('open')">Cancel</button>
+      <button class="btn btn-g" style="flex:1" onclick="confirmKeyReturn()">&#9989; Mark Returned</button>
+    </div>
+  </div>
+</div>
+
 <div class="ov" id="import-modal">
   <div class="modal">
     <div class="modal-handle"></div>
@@ -521,6 +596,9 @@ async function fetchScheduleJobs(){
   return(data.documents||[]).map(parseFirestoreDoc);
 }
 
+// Stores fetched schedule jobs so cards can reference by index — avoids broken onclick JSON
+let _schedJobs=[];
+
 window.openImportModal=async function(){
   document.getElementById('import-modal').classList.add('open');
   const listEl=document.getElementById('import-job-list');
@@ -528,39 +606,48 @@ window.openImportModal=async function(){
   try{
     const jobs=await fetchScheduleJobs();
     const todayStr=today();
-    const filtered=jobs
+    _schedJobs=jobs
       .filter(j=>j.jobStatus!=='complete'&&j.status!=='complete')
       .filter(j=>!j.date||j.date>=todayStr)
       .sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.start||'').localeCompare(b.start||''));
-    if(!filtered.length){listEl.innerHTML='<div class="empty"><div class="ei">&#128197;</div><p>No upcoming jobs in TechSched</p></div>';return;}
-    listEl.innerHTML=filtered.map(j=>{
+    if(!_schedJobs.length){
+      listEl.innerHTML='<div class="empty"><div class="ei">&#128197;</div><p>No upcoming jobs in TechSched</p></div>';
+      return;
+    }
+    listEl.innerHTML=_schedJobs.map((j,idx)=>{
       const mapped=mapJobType(j.type);
-      const techStr=j.techs.join(', ')||'--';
+      const techStr=j.techs.length?j.techs.join(', '):'--';
       const statusColor=j.jobStatus==='inprogress'?'var(--amb)':'var(--teal)';
       const statusLabel=j.jobStatus==='inprogress'?'In Progress':'Scheduled';
-      return`<div class="sched-job-card" onclick="applyScheduleJob(${JSON.stringify(JSON.stringify(j))})">
-        <div class="sched-job-icon">&#128198;</div>
-        <div class="sched-job-info">
-          <div class="sched-job-title">${esc(j.client||j.address.split(',')[0]||'--')}</div>
-          <div class="sched-job-sub">
-            ${j.jobNum?esc(j.jobNum)+' · ':''}${fmtSchedDate(j.date)}<br>
-            ${esc(j.address)}<br>
-            ${esc(j.type)}${mapped?' → <span style="color:var(--teal)">'+esc(mapped)+'</span>':''}<br>
-            &#128119; ${esc(techStr)} (${j.techs.length||1})${j.vehicle?' · &#128663; '+esc(j.vehicle):''}
-          </div>
-        </div>
-        <span style="font-size:10px;font-weight:700;font-family:var(--mono);color:${statusColor};flex-shrink:0">${statusLabel}</span>
-      </div>`;
+      return'<div class="sched-job-card" data-idx="'+idx+'">'
+        +'<div class="sched-job-icon">&#128198;</div>'
+        +'<div class="sched-job-info">'
+          +'<div class="sched-job-title">'+esc(j.client||j.address.split(',')[0]||'--')+'</div>'
+          +'<div class="sched-job-sub">'
+            +(j.jobNum?esc(j.jobNum)+' &nbsp;·&nbsp; ':'')+fmtSchedDate(j.date)+'<br>'
+            +esc(j.address)+'<br>'
+            +esc(j.type)+(mapped?' &rarr; <span style="color:var(--teal)">'+esc(mapped)+'</span>':'')+'<br>'
+            +'&#128119; '+esc(techStr)+' ('+( j.techs.length||1)+')'+(j.vehicle?' &nbsp;·&nbsp; &#128663; '+esc(j.vehicle):'')
+          +'</div>'
+        +'</div>'
+        +'<span style="font-size:10px;font-weight:700;font-family:var(--mono);color:'+statusColor+';flex-shrink:0">'+statusLabel+'</span>'
+        +'</div>';
     }).join('');
+    // Attach click handlers after rendering — no inline JSON needed
+    listEl.querySelectorAll('.sched-job-card').forEach(card=>{
+      card.addEventListener('click',function(){
+        applyScheduleJob(parseInt(this.dataset.idx));
+      });
+    });
   }catch(e){
-    listEl.innerHTML=`<div class="info-a">&#9888;&#65039; Could not load TechSched jobs.<br><span style="font-size:11px;opacity:.8">${esc(e.message)}</span><br><br>Fill the form manually or check your Firebase project settings.</div>`;
+    listEl.innerHTML='<div class="info-a">&#9888; Could not load TechSched jobs.<br><span style="font-size:11px;opacity:.8">'+esc(e.message)+'</span><br><br>Fill the form manually or check your Firebase settings.</div>';
     console.error('Import from Schedule:',e);
   }
 };
 
-window.applyScheduleJob=function(jsonStr){
-  const j=JSON.parse(jsonStr);
-  // Fill all Step 1 fields
+function applyScheduleJob(idx){
+  const j=_schedJobs[idx];
+  if(!j)return;
   if(j.jobNum)document.getElementById('co-jobnum').value=j.jobNum;
   if(j.date)document.getElementById('co-date').value=j.date;
   document.getElementById('co-addr').value=j.address||'';
@@ -570,21 +657,21 @@ window.applyScheduleJob=function(jsonStr){
     document.getElementById('co-names').value=j.techs.join(', ');
     document.getElementById('co-techs').value=j.techs.length;
   }
-  // Auto-match template
   const mapped=mapJobType(j.type);
   if(mapped){
     const sel=document.getElementById('co-proj');
     const opt=[...sel.options].find(o=>o.text===mapped);
     if(opt){sel.value=opt.value;calcKit();}
   }
-  // Show teal confirmation hint
   const hint=document.getElementById('hcp-hint');
   hint.className='info info-t';
-  hint.innerHTML='&#128197; <strong>Imported from TechSched</strong> — '+esc(j.client||j.address.split(',')[0])
-    +' · '+fmtSchedDate(j.date)+(mapped?' · Template: '+esc(mapped):'');
+  hint.innerHTML='&#128197; <strong>Imported from TechSched</strong> — '
+    +esc(j.client||j.address.split(',')[0])
+    +' &nbsp;·&nbsp; '+fmtSchedDate(j.date)
+    +(mapped?' &nbsp;·&nbsp; Template: '+esc(mapped):'');
   hint.style.display='';
   closeImportModal();
-};
+}
 
 window.closeImportModal=function(){
   document.getElementById('import-modal').classList.remove('open');
@@ -678,7 +765,103 @@ function closeInsp(){document.getElementById('insp-modal').classList.remove('ope
 function saveInsp(){const name=document.getElementById('insp-name').value.trim();if(!name){alert('Enter item name.');return;}const item={id:editInspIdx!==null?IS[editInspIdx].id:uid(),name,serial:document.getElementById('insp-serial').value.trim(),lastDate:document.getElementById('insp-last').value,interval:document.getElementById('insp-interval').value,notes:document.getElementById('insp-notes').value.trim()};if(editInspIdx!==null)IS[editInspIdx]=item;else IS.push(item);localStorage.setItem('kt_insp',JSON.stringify(IS));closeInsp();renderInspList();renderInspAlerts();}
 function delInsp(i){if(!confirm('Remove this item?'))return;IS.splice(i,1);localStorage.setItem('kt_insp',JSON.stringify(IS));renderInspList();renderInspAlerts();}
 
-function renderKeys(){const q=(document.getElementById('key-search').value||'').toLowerCase();const el=document.getElementById('keys-list');const filtered=KY.filter(k=>[k.tag,k.jobnum,k.tech,k.client].join(' ').toLowerCase().includes(q));if(!filtered.length){el.innerHTML='<div class="empty"><div class="ei">&#128273;</div><p>No keys logged yet</p></div>';return;}const sorted=[...filtered].sort((a,b)=>a.returned===b.returned?0:a.returned?1:-1);el.innerHTML=sorted.map(k=>'<div class="key-item '+(k.returned?'key-status-in':'key-status-out')+'"><div><div style="font-weight:600;font-size:13px">Key: '+k.tag+' <span style="font-size:10px;color:var(--txt2)">('+k.qty+')</span></div><div style="font-size:11px;color:var(--txt2);margin-top:2px">'+k.client+' WO: '+k.jobnum+'</div><div style="font-size:11px;color:var(--txt2);font-family:var(--mono)">Tech: '+k.tech+' '+fd(k.checkoutDate)+'</div>'+(k.returned?'<div style="font-size:10px;color:var(--grn)">Returned '+fd(k.returnDate)+'</div>':'')+'</div><span class="badge '+(k.returned?'bg-g':'bg-p')+'">'+(k.returned?'Returned':'Out')+'</span></div>').join('');}
+let kyFilter='all';
+function setKeyFilter(f){
+  kyFilter=f;
+  ['all','out','in'].forEach(x=>{
+    const btn=document.getElementById('kf-'+x);
+    if(!btn)return;
+    if(x===f){btn.style.background='var(--acc)';btn.style.color='#0d1117';btn.style.border='none';}
+    else{btn.style.background='var(--sur2)';btn.style.color='var(--txt)';btn.style.border='1px solid var(--bdr)';}
+  });
+  renderKeys();
+}
+function updateKeyStats(){
+  const out=KY.filter(k=>!k.returned).length;
+  const inp=KY.filter(k=>k.returned).length;
+  const so=document.getElementById('k-stat-out');
+  const si=document.getElementById('k-stat-in');
+  if(so)so.textContent=out;
+  if(si)si.textContent=inp;
+}
+function renderKeys(){
+  updateKeyStats();
+  const q=(document.getElementById('key-search').value||'').toLowerCase();
+  const el=document.getElementById('keys-list');
+  let filtered=KY.filter(k=>[k.tag,k.tech,k.client,k.addr||''].join(' ').toLowerCase().includes(q));
+  if(kyFilter==='out')filtered=filtered.filter(k=>!k.returned);
+  if(kyFilter==='in')filtered=filtered.filter(k=>k.returned);
+  if(!filtered.length){
+    el.innerHTML='<div class="empty"><div class="ei">&#128273;</div><p>'+(q?'No matching keys.':kyFilter==='out'?'No keys currently out.':kyFilter==='in'?'No returned keys yet.':'No keys logged yet.<br>Tap + Add Key to get started.')+'</p></div>';
+    return;
+  }
+  const sorted=[...filtered].sort((a,b)=>{
+    if(a.returned!==b.returned)return a.returned?1:-1;
+    return(a.client||'').localeCompare(b.client||'');
+  });
+  // Group by property
+  const byProp={};
+  sorted.forEach(k=>{
+    const prop=(k.client||k.addr||'Unknown property');
+    if(!byProp[prop])byProp[prop]=[];
+    byProp[prop].push(k);
+  });
+  el.innerHTML=Object.entries(byProp).map(([prop,keys])=>{
+    const outCount=keys.filter(k=>!k.returned).length;
+    const header='<div style="font-size:10px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;padding:10px 0 6px;border-bottom:1px solid var(--bdr);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">'+
+      '<span>'+esc(prop)+'</span>'+
+      (outCount?'<span class="badge bg-p">'+outCount+' out</span>':'<span class="badge bg-g">all in</span>')+
+      '</div>';
+    const cards=keys.map(k=>{
+      const addrLine=k.addr?'<div style="font-size:11px;color:var(--txt2);margin-top:1px">'+esc(k.addr)+'</div>':'';
+      const statusDot=k.returned
+        ?'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--grn);margin-right:5px"></span>'
+        :'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--acc);margin-right:5px"></span>';
+      return'<div class="key-item '+(k.returned?'key-status-in':'key-status-out')+'" style="margin-bottom:8px">'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">'+
+            statusDot+
+            '<span style="font-weight:600;font-size:13px">'+esc(k.tag)+'</span>'+
+            (k.qty>1?'<span class="badge bg-b" style="font-size:9px">x'+k.qty+'</span>':'')+
+          '</div>'+
+          addrLine+
+          '<div style="font-size:11px;color:var(--txt2);margin-top:3px;font-family:var(--mono)">&#128119; '+esc(k.tech)+'</div>'+
+          '<div style="font-size:10px;color:var(--txt3);margin-top:2px">Out: '+fd(k.checkoutDate)+(k.returned?' &nbsp;·&nbsp; <span style="color:var(--grn)">Returned '+fd(k.returnDate)+'</span>':'')+'</div>'+
+        '</div>'+
+        '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">'+
+          (k.returned
+            ?'<span class="badge bg-g">Returned</span>'
+            :'<button class="btn btn-g btn-xs" onclick="openReturnKey(\''+k.id+'\')">Return</button>')+
+          '<button class="btn btn-r btn-xs" onclick="deleteKey(\''+k.id+'\')">Delete</button>'+
+        '</div>'+
+      '</div>';
+    }).join('');
+    return'<div style="margin-bottom:16px">'+header+cards+'</div>';
+  }).join('');
+}
+let _retKeyId=null;
+function openReturnKey(id){
+  const k=KY.find(x=>x.id===id);if(!k)return;
+  _retKeyId=id;
+  document.getElementById('retkey-att').value='';
+  document.getElementById('retkey-info').innerHTML=
+    '<b>Key:</b> '+esc(k.tag)+'<br><b>Property:</b> '+esc(k.client||k.addr||'--')+'<br><b>Tech:</b> '+esc(k.tech)+'<br><b>Out since:</b> '+fd(k.checkoutDate);
+  document.getElementById('retkey-modal').classList.add('open');
+}
+async function confirmKeyReturn(){
+  const att=document.getElementById('retkey-att').value.trim();
+  if(!att){alert('Enter your name.');return;}
+  const k=KY.find(x=>x.id===_retKeyId);if(!k)return;
+  k.returned=true;k.returnDate=new Date().toISOString();k.returnedBy=att;
+  await pushData();
+  document.getElementById('retkey-modal').classList.remove('open');
+  renderKeys();
+}
+async function deleteKey(id){
+  if(!confirm('Remove this key record?'))return;
+  KY=KY.filter(k=>k.id!==id);
+  await pushData();renderKeys();
+}
 
 function renderHistory(){const q=(document.getElementById('hist-search').value||'').toLowerCase();const el=document.getElementById('hist-list');const hits=H.filter(h=>[h.projName,h.addr,h.bldg,h.jobnum,h.names].join(' ').toLowerCase().includes(q));if(!hits.length){el.innerHTML='<div class="empty"><div class="ei">&#128220;</div><p>No completed jobs yet</p></div>';return;}el.innerHTML=hits.map(h=>{const flagged=(h.items||[]).filter(i=>i.cond!=='good').length;return'<div class="hrow"><div class="hicon" style="background:var(--grn-dim)">&#10003;</div><div class="hinfo"><div class="htitle">'+h.projName+' -- '+(h.bldg||h.addr||'no site')+'</div><div class="hmeta">WO: '+(h.jobnum||'--')+' '+h.numTechs+' tech'+(h.numTechs>1?'s':'')+'</div><div class="hmeta">'+fd(h.coDate)+' to '+fd(h.retDate)+(h.vehicle?' '+h.vehicle:'')+'</div>'+(flagged?'<div style="font-size:10px;color:var(--amb)">'+flagged+' flagged</div>':'')+'</div><div class="hact"><span class="badge bg-g">Done</span><button class="btn btn-xs btn-p" onclick="openRerun(\''+h.id+'\')">Re-run</button></div></div>';}).join('');}
 
@@ -692,6 +875,29 @@ function showPrint(html){document.getElementById('print-content').innerHTML=html
 let deferredPrompt=null;
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;document.getElementById('install-prompt').innerHTML='<div class="install-banner"><p>Install KitTracker on your home screen</p><button class="btn btn-p btn-sm" onclick="installApp()">Install</button><button class="btn btn-s btn-sm" onclick="this.closest(\'.install-banner\').remove()">X</button></div>';});
 async function installApp(){if(!deferredPrompt)return;deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;document.getElementById('install-prompt').innerHTML='';}
+
+function openAddKeyDirect(){
+  ['ak-addr','ak-client','ak-tag','ak-tech'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('ak-qty').value='1';
+  document.getElementById('addkey-modal-t').textContent='\u{1F511} Add Key';
+  document.getElementById('addkey-modal').classList.add('open');
+}
+function closeAddKeyDirect(){document.getElementById('addkey-modal').classList.remove('open');}
+async function saveKeyDirect(){
+  const addr=document.getElementById('ak-addr').value.trim();
+  const client=document.getElementById('ak-client').value.trim();
+  const tag=document.getElementById('ak-tag').value.trim();
+  const qty=parseInt(document.getElementById('ak-qty').value)||1;
+  const tech=document.getElementById('ak-tech').value.trim();
+  if(!addr&&!client){alert('Enter a property address or building name.');return;}
+  if(!tag){alert('Enter a key description.');return;}
+  if(!tech){alert('Enter the tech name who has the key.');return;}
+  KY.push({id:uid(),tag,qty,addr,client,tech,jobnum:'',checkoutDate:new Date().toISOString(),returned:false});
+  await pushData();
+  closeAddKeyDirect();
+  renderKeys();
+}
+
 if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
 
 document.getElementById('co-date').value=today();
