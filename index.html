@@ -960,7 +960,7 @@ window.openAddKeyOnFile=function openAddKeyOnFile(){
   document.getElementById('kof-modal').classList.add('open');
 }
 window.closeKofModal=function closeKofModal(){document.getElementById('kof-modal').classList.remove('open');}
-window.saveKof=function saveKof(){
+window.saveKof=async function saveKof(){
   const tag=document.getElementById('kof-tag').value.trim();
   const client=document.getElementById('kof-client').value.trim();
   if(!tag){alert('Enter a key tag or description.');return;}
@@ -1266,7 +1266,7 @@ window.openAddKeyDirect=function openAddKeyDirect(){
   document.getElementById('addkey-modal').classList.add('open');
 }
 window.closeAddKeyDirect=function closeAddKeyDirect(){document.getElementById('addkey-modal').classList.remove('open');}
-async window.saveKeyDirect=function saveKeyDirect(){
+window.saveKeyDirect=async function saveKeyDirect(){
   const addr=document.getElementById('ak-addr').value.trim();
   const client=document.getElementById('ak-client').value.trim();
   const tag=document.getElementById('ak-tag').value.trim();
