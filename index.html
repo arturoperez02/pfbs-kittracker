@@ -312,7 +312,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:13px 0}
       <div class="sec-hdr">
         <div><div class="sec-title">Client Keys</div><div class="sec-sub">Keys on file &amp; checkout log</div></div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button class="btn btn-s btn-sm" onclick="forceSyncKof()" title="Force re-sync keys from cloud">&#8635; Sync</button>
+          <button class="btn btn-s btn-sm" id="kof-sync-btn" onclick="window.forceSyncKof()" title="Force re-sync keys from cloud">&#8635; Sync</button>
           <button class="btn btn-s btn-sm" onclick="openAddKeyOnFile()">+ Key on File</button>
           <button class="btn btn-p btn-sm" onclick="openAddKeyDirect()">+ Log Checkout</button>
         </div>
@@ -893,12 +893,20 @@ function delInsp(i){if(!confirm('Remove this item?'))return;IS.splice(i,1);local
 let KOF = []; // keys on file — loaded from localStorage
 
 // Force pull latest KOF from cloud and re-render
-async function forceSyncKof(){
+window.forceSyncKof=async function forceSyncKof(){
+  alert('Sync button tapped — connecting to cloud...');
   try{
     showSync('syncing','⟳ Syncing keys...');
     const data=await apiCall({action:'getAll'});
     if(data.error)throw new Error(data.error);
-    if(Array.isArray(data.keysOnFile)){
+
+    // DEBUG — show exactly what came back from cloud
+    const kofCount=Array.isArray(data.keysOnFile)?data.keysOnFile.length:0;
+    const kyCount=Array.isArray(data.keys)?data.keys.length:0;
+    const allFields=Object.keys(data).join(', ');
+    alert('Cloud returned:\nkeysOnFile: '+kofCount+' record(s)\nkeys: '+kyCount+' record(s)\nAll fields: '+allFields+(kofCount>0?'\n\nFirst KOF: '+JSON.stringify(data.keysOnFile[0]):'\n\nKeysonfile sheet may be empty or missing — run initSheets in Apps Script then re-save the key on PC'));
+
+    if(Array.isArray(data.keysOnFile)&&data.keysOnFile.length>0){
       KOF=data.keysOnFile;
       localStorage.setItem('kt_kof',JSON.stringify(KOF));
     }
@@ -909,9 +917,10 @@ async function forceSyncKof(){
     renderKeysOnFile();
     renderKeys();
     fillKeyPickers();
-    showSync('ok','✓ Keys synced');
+    showSync('ok','✓ Keys synced — '+kofCount+' key(s) on file');
   }catch(e){
-    showSync('error','✗ Sync failed — check connection');
+    alert('Sync error: '+e.message);
+    showSync('error','✗ Sync failed: '+e.message);
   }
 }
 
@@ -943,15 +952,15 @@ function openAddKofModal_edit(id){
   document.getElementById('kof-modal').dataset.editId=id;
   document.getElementById('kof-modal').classList.add('open');
 }
-function openAddKeyOnFile(){
+window.openAddKeyOnFile=function openAddKeyOnFile(){
   document.getElementById('kof-modal-t').textContent='\u{1F511} Save Key on File';
   ['kof-tag','kof-client','kof-addr','kof-notes'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('kof-qty').value='1';
   delete document.getElementById('kof-modal').dataset.editId;
   document.getElementById('kof-modal').classList.add('open');
 }
-function closeKofModal(){document.getElementById('kof-modal').classList.remove('open');}
-function saveKof(){
+window.closeKofModal=function closeKofModal(){document.getElementById('kof-modal').classList.remove('open');}
+window.saveKof=function saveKof(){
   const tag=document.getElementById('kof-tag').value.trim();
   const client=document.getElementById('kof-client').value.trim();
   if(!tag){alert('Enter a key tag or description.');return;}
@@ -1248,7 +1257,7 @@ let deferredPrompt=null;
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;document.getElementById('install-prompt').innerHTML='<div class="install-banner"><p>Install KitTracker on your home screen</p><button class="btn btn-p btn-sm" onclick="installApp()">Install</button><button class="btn btn-s btn-sm" onclick="this.closest(\'.install-banner\').remove()">X</button></div>';});
 async function installApp(){if(!deferredPrompt)return;deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;document.getElementById('install-prompt').innerHTML='';}
 
-function openAddKeyDirect(){
+window.openAddKeyDirect=function openAddKeyDirect(){
   ['ak-addr','ak-client','ak-tag','ak-tech'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('ak-qty').value='1';
   document.getElementById('ak-date').value=today();
@@ -1256,8 +1265,8 @@ function openAddKeyDirect(){
   fillKeyPickers();
   document.getElementById('addkey-modal').classList.add('open');
 }
-function closeAddKeyDirect(){document.getElementById('addkey-modal').classList.remove('open');}
-async function saveKeyDirect(){
+window.closeAddKeyDirect=function closeAddKeyDirect(){document.getElementById('addkey-modal').classList.remove('open');}
+async window.saveKeyDirect=function saveKeyDirect(){
   const addr=document.getElementById('ak-addr').value.trim();
   const client=document.getElementById('ak-client').value.trim();
   const tag=document.getElementById('ak-tag').value.trim();
@@ -1281,6 +1290,7 @@ document.getElementById('rr-date').value=today();
 document.getElementById('insp-last').value=today();
 setMode('tech');
 syncNow(); // syncNow calls loadKof() after cloud data arrives
+// kof-sync-btn wired via direct onclick
 setInterval(()=>syncNow(),60000);
 </script>
 </body>
