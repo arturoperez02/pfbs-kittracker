@@ -595,6 +595,18 @@ hr{border:none;border-top:1px solid var(--bdr);margin:13px 0}
 </div>
 <!-- ══ END Import modal ══ -->
 
+<!-- HISTORY DETAIL MODAL -->
+<div class="ov" id="hist-detail-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-t">
+      <span id="hist-detail-title" style="font-size:14px;max-width:80%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Job details</span>
+      <button class="xbtn" onclick="closeHistDetail()">X</button>
+    </div>
+    <div id="hist-detail-body"></div>
+  </div>
+</div>
+
 <!-- PRINT AREA -->
 <div id="print-area" style="display:none;position:fixed;inset:0;background:#fff;z-index:999;padding:28px;font-family:Arial,sans-serif;font-size:12px;color:#000;overflow-y:auto">
   <div id="print-content"></div>
@@ -1045,7 +1057,109 @@ async function deleteKey(id){
   await pushData();renderKeys();
 }
 
-function renderHistory(){const q=(document.getElementById('hist-search').value||'').toLowerCase();const el=document.getElementById('hist-list');const hits=H.filter(h=>[h.projName,h.addr,h.bldg,h.jobnum,h.names].join(' ').toLowerCase().includes(q));if(!hits.length){el.innerHTML='<div class="empty"><div class="ei">&#128220;</div><p>No completed jobs yet</p></div>';return;}el.innerHTML=hits.map(h=>{const flagged=(h.items||[]).filter(i=>i.cond!=='good').length;return'<div class="hrow"><div class="hicon" style="background:var(--grn-dim)">&#10003;</div><div class="hinfo"><div class="htitle">'+h.projName+' -- '+(h.bldg||h.addr||'no site')+'</div><div class="hmeta">WO: '+(h.jobnum||'--')+' '+h.numTechs+' tech'+(h.numTechs>1?'s':'')+(h.checkedoutBy?' · '+esc(h.checkedoutBy):'')+'</div><div class="hmeta">'+fd(h.coDate)+' to '+fd(h.retDate)+(h.vehicle?' '+h.vehicle:'')+'</div>'+(flagged?'<div style="font-size:10px;color:var(--amb)">'+flagged+' flagged</div>':'')+'</div><div class="hact"><span class="badge bg-g">Done</span><button class="btn btn-xs btn-p" onclick="openRerun(\''+h.id+'\')">Re-run</button></div></div>';}).join('');}
+function renderHistory(){
+  const q=(document.getElementById('hist-search').value||'').toLowerCase();
+  const el=document.getElementById('hist-list');
+  const hits=H.filter(h=>[h.projName,h.addr,h.bldg,h.jobnum,h.names,h.checkedoutBy||''].join(' ').toLowerCase().includes(q));
+  if(!hits.length){el.innerHTML='<div class="empty"><div class="ei">&#128220;</div><p>No completed jobs yet</p></div>';return;}
+  el.innerHTML=hits.map(h=>{
+    const flagged=(h.items||[]).filter(i=>i.cond!=='good').length;
+    return'<div class="hrow" style="cursor:pointer" onclick="openHistDetail(\''+h.id+'\')">'
+      +'<div class="hicon" style="background:var(--grn-dim)">&#10003;</div>'
+      +'<div class="hinfo">'
+        +'<div class="htitle">'+esc(h.projName)+' -- '+esc(h.bldg||h.addr||'no site')+'</div>'
+        +'<div class="hmeta">WO: '+esc(h.jobnum||'--')+' · '+h.numTechs+' tech'+(h.numTechs>1?'s':'')+(h.checkedoutBy?' · '+esc(h.checkedoutBy):'')+'</div>'
+        +'<div class="hmeta">'+fd(h.coDate)+' → '+fd(h.retDate)+(h.vehicle?' · '+esc(h.vehicle):'')+'</div>'
+        +(flagged?'<div style="font-size:10px;color:var(--amb)">&#9888; '+flagged+' flagged</div>':'')
+      +'</div>'
+      +'<div class="hact">'
+        +'<span class="badge bg-g">Done</span>'
+        +'<button class="btn btn-xs btn-p" onclick="event.stopPropagation();openRerun(\''+h.id+'\')">Re-run</button>'
+      +'</div>'
+      +'</div>';
+  }).join('');
+}
+
+function openHistDetail(hid){
+  const h=H.find(x=>x.id===hid);if(!h)return;
+  const flagged=(h.items||[]).filter(i=>i.cond!=='good');
+  const good=(h.items||[]).filter(i=>i.cond==='good');
+
+  let body='';
+
+  // Header info
+  body+='<div style="background:var(--sur2);border-radius:9px;padding:13px;font-family:var(--mono);font-size:12px;line-height:2;margin-bottom:14px">'
+    +'<b>Project:</b> '+esc(h.projName)+'<br>'
+    +'<b>WO #:</b> '+esc(h.jobnum||'--')+'<br>'
+    +'<b>Site:</b> '+esc(h.bldg||h.addr||'--')+'<br>'
+    +(h.bldg&&h.addr?'<b>Address:</b> '+esc(h.addr)+'<br>':'')
+    +'<b>Techs ('+h.numTechs+'):</b> '+esc(h.names||'--')+'<br>'
+    +(h.checkedoutBy?'<b>Checked out by:</b> '+esc(h.checkedoutBy)+'<br>':'')
+    +(h.vehicle?'<b>Vehicle:</b> '+esc(h.vehicle)+'<br>':'')
+    +'<b>Attendant:</b> '+esc(h.attendant||'--')+'<br>'
+    +'<b>Returned by:</b> '+esc(h.retBy||'--')+'<br>'
+    +'<b>Checked out:</b> '+fd(h.coDate)+'<br>'
+    +'<b>Returned:</b> '+fd(h.retDate)
+    +'</div>';
+
+  // Kit items
+  body+='<div style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Kit ('+( (h.items||[]).length)+' items)</div>';
+  if((h.items||[]).length){
+    body+=(h.items||[]).map(it=>{
+      const condColor=it.cond==='good'?'var(--grn)':it.cond==='repair'?'var(--amb)':'var(--red)';
+      const condIcon=it.cond==='good'?'&#9989;':it.cond==='repair'?'&#128295;':'&#10060;';
+      return'<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--sur2);border-radius:7px;margin-bottom:5px;border:1px solid var(--bdr)">'
+        +'<div style="display:flex;align-items:center;gap:8px">'
+          +'<span>'+condIcon+'</span>'
+          +'<div>'
+            +'<div style="font-size:13px;font-weight:500">'+esc(it.name)+'</div>'
+            +(it.notes?'<div style="font-size:10px;color:var(--txt2)">'+esc(it.notes)+'</div>':'')
+          +'</div>'
+        +'</div>'
+        +'<div style="text-align:right">'
+          +'<span style="font-family:var(--mono);font-size:12px;color:var(--acc);background:var(--acc-dim);padding:2px 8px;border-radius:5px">'+it.qty+'</span>'
+          +'<div style="font-size:10px;font-weight:700;color:'+condColor+';margin-top:3px">'+it.cond.toUpperCase()+'</div>'
+        +'</div>'
+        +'</div>';
+    }).join('');
+  } else {
+    body+='<div style="font-size:12px;color:var(--txt2);padding:8px 0">No item detail saved.</div>';
+  }
+
+  // Keys
+  if(h.keys&&h.keys.length){
+    body+='<div style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;margin:14px 0 8px">Keys ('+h.keys.length+')</div>';
+    body+=h.keys.map(k=>'<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--sur2);border-radius:7px;margin-bottom:5px;border:1px solid var(--bdr)">'
+      +'<span style="font-weight:500">&#128273; '+esc(k.tag)+' <span style="font-size:10px;color:var(--txt2)">x'+k.qty+'</span></span>'
+      +'<span class="badge '+(k.returned?'bg-g':'bg-a')+'">'+(k.returned?'Returned':'Not returned')+'</span>'
+      +'</div>').join('');
+  }
+
+  // Flagged summary
+  if(flagged.length){
+    body+='<div style="margin-top:14px"><div class="info info-a" style="margin-bottom:0">'
+      +'<strong>&#9888; '+flagged.length+' flagged item'+(flagged.length>1?'s':'')+'</strong><br>'
+      +flagged.map(f=>'— '+esc(f.name)+': '+f.cond+(f.notes?' ('+esc(f.notes)+')':'')).join('<br>')
+      +'</div></div>';
+  }
+
+  body+='<hr><div style="display:flex;gap:8px;margin-top:4px">'
+    +'<button class="btn btn-s" style="flex:1" onclick="printReturn_byId(\''+h.id+'\')">&#128424; Print</button>'
+    +'<button class="btn btn-p" style="flex:1" onclick="openRerun(\''+h.id+'\');closeHistDetail()">&#8617; Re-run</button>'
+    +'</div>';
+
+  document.getElementById('hist-detail-title').textContent=h.projName+' — '+(h.bldg||h.addr||'');
+  document.getElementById('hist-detail-body').innerHTML=body;
+  document.getElementById('hist-detail-modal').classList.add('open');
+}
+
+function closeHistDetail(){document.getElementById('hist-detail-modal').classList.remove('open');}
+
+function printReturn_byId(hid){
+  const h=H.find(x=>x.id===hid);if(!h)return;
+  showPrint(buildRetSlip(h,true));
+}
+
 
 function printCheckout(lang){const tid=document.getElementById('co-proj').value;const tpl=T.find(t=>t.id===tid);const activeItems=coItems.filter(i=>!i.removed);if(!activeItems.length){alert('No items to print.');return;}const es=lang==='es';const title=es?'Recibo de Materiales':'Kit Checkout Slip';const verify=es?'Confirmo haber recibido todos los articulos en buen estado.':'I confirm receipt of all items in good condition.';const data={projName:tpl?tpl.name:'',jobnum:document.getElementById('co-jobnum').value,addr:document.getElementById('co-addr').value,bldg:document.getElementById('co-bldg').value,vehicle:document.getElementById('co-vehicle').value,names:document.getElementById('co-names').value,checkedoutBy:document.getElementById('co-checkedout').value,numTechs:parseInt(document.getElementById('co-techs').value)||1,date:document.getElementById('co-date').value};const rows=[['Project/Proyecto',data.projName],['WO #',data.jobnum||'--'],['Site/Direccion',data.addr||'--'],['Building/Edificio',data.bldg||'--'],['Vehicle/Vehiculo',data.vehicle||'--'],['Techs',data.names+' ('+data.numTechs+')'],['Checked out by',document.getElementById('co-checkedout').value||'--'],['Date/Fecha',data.date||'--']];const html='<h2 style="margin-bottom:4px;font-size:18px">'+title+'</h2><p style="color:#666;font-size:11px;margin-bottom:16px">PF Building Services - '+new Date().toLocaleString()+'</p><table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11px">'+rows.map(([k,v])=>'<tr><td style="font-weight:bold;padding:4px 8px;border:1px solid #ccc;width:35%">'+k+'</td><td style="padding:4px 8px;border:1px solid #ccc">'+v+'</td></tr>').join('')+'</table><table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11px"><tr style="background:#1a237e;color:#fff"><th style="padding:6px 8px;text-align:left">Item</th><th style="padding:6px 8px;text-align:center;width:60px">Qty</th><th style="padding:6px 8px;text-align:center;width:80px">[ ] OK</th></tr>'+activeItems.map((it,i)=>'<tr style="background:'+(i%2===0?'#fff':'#f8f8f8')+'"><td style="padding:6px 8px;border:1px solid #ddd">'+it.name+'</td><td style="padding:6px 8px;border:1px solid #ddd;text-align:center">'+it.qty+'</td><td style="padding:6px 8px;border:1px solid #ddd;text-align:center">[ ]</td></tr>').join('')+'</table>'+(coKeys.length?'<p style="font-weight:bold;margin-bottom:6px;font-size:11px">Keys/Llaves:</p><table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11px">'+coKeys.map((k,i)=>'<tr style="background:'+(i%2===0?'#fff':'#f8f8f8')+'"><td style="padding:5px 8px;border:1px solid #ddd">'+k.tag+'</td><td style="padding:5px 8px;border:1px solid #ddd;text-align:center">'+k.qty+'</td><td style="padding:5px 8px;border:1px solid #ddd;text-align:center">[ ]</td></tr>').join('')+'</table>':'')+'<p style="font-size:11px;color:#555;margin-bottom:20px;font-style:italic">'+verify+'</p><div style="display:flex;gap:40px;margin-top:16px"><div><div style="border-top:1px solid #000;width:220px;padding-top:5px;font-size:10px;color:#666">Tech signature + date</div></div><div><div style="border-top:1px solid #000;width:220px;padding-top:5px;font-size:10px;color:#666">Attendant + date</div></div></div>';showPrint(html);}
 
