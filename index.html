@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="KitTracker">
+<meta name="theme-color" content="#f5a623">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>KitTracker</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0d1117;--sur:#161b27;--sur2:#1c2236;--sur3:#222840;
+  --bdr:#263052;--bdr2:#2e3a5e;
+  --acc:#f5a623;--acc-dim:rgba(245,166,35,.12);
+  --blue:#3b82f6;--blue-dim:rgba(59,130,246,.12);
+  --grn:#22c55e;--grn-dim:rgba(34,197,94,.12);
+  --red:#ef4444;--red-dim:rgba(239,68,68,.12);
+  --amb:#f59e0b;--amb-dim:rgba(245,158,11,.12);
+  --pur:#a78bfa;--pur-dim:rgba(167,139,250,.12);
+  --txt:#dde1f0;--txt2:#8892b0;--txt3:#4a5580;
+  --mono:'DM Mono',monospace;--sans:'Sora',sans-serif;
+  --r:10px;--r2:14px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bot: env(safe-area-inset-bottom, 0px);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:var(--sans);font-size:14px;min-height:100vh;min-height:100dvh;overscroll-behavior:none}
+
+/* ── Sync banner ── */
+#sync-bar{position:fixed;top:0;left:0;right:0;z-index:500;padding:8px 16px;padding-top:calc(8px + var(--safe-top));font-size:12px;font-weight:600;text-align:center;transition:all .3s;transform:translateY(-100%)}
+#sync-bar.show{transform:translateY(0)}
+#sync-bar.syncing{background:#1e40af;color:#bfdbfe}
+#sync-bar.ok{background:#14532d;color:#bbf7d0}
+#sync-bar.error{background:#7f1d1d;color:#fecaca}
+
+/* ── App shell ── */
+.app{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh}
+
+/* ── Top bar (mobile) ── */
+.topbar{background:var(--sur);border-bottom:1px solid var(--bdr);padding:12px 16px;padding-top:calc(12px + var(--safe-top));display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.topbar-logo{font-weight:700;font-size:16px;color:var(--acc);display:flex;align-items:center;gap:8px}
+.topbar-icon{background:var(--acc);color:#0d1117;width:28px;height:28px;border-radius:7px;display:grid;place-items:center;font-size:15px;flex-shrink:0}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.sync-btn{background:none;border:1px solid var(--bdr);color:var(--txt2);border-radius:7px;padding:5px 10px;font-size:11px;font-family:var(--sans);cursor:pointer;display:flex;align-items:center;gap:5px}
+.sync-btn:hover{border-color:var(--acc);color:var(--acc)}
+.online-dot{width:8px;height:8px;border-radius:50%;background:var(--grn);flex-shrink:0}
+.online-dot.offline{background:var(--red)}
+
+/* ── Main content ── */
+.main{flex:1;overflow-y:auto;padding:16px;padding-bottom:calc(80px + var(--safe-bot))}
+
+/* ── Bottom nav ── */
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:var(--sur);border-top:1px solid var(--bdr);display:flex;padding-bottom:var(--safe-bot);z-index:100}
+.bn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 4px;background:none;border:none;color:var(--txt2);font-family:var(--sans);font-size:10px;font-weight:500;cursor:pointer;transition:color .15s;position:relative}
+.bn:hover{color:var(--txt)}
+.bn.active{color:var(--acc)}
+.bn .bi{font-size:20px;line-height:1}
+.bn .bdot{position:absolute;top:8px;right:calc(50% - 16px);width:7px;height:7px;background:var(--red);border-radius:50%}
+
+/* ── Panels ── */
+.panel{display:none}.panel.active{display:block}
+.sec-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;gap:10px;flex-wrap:wrap}
+.sec-title{font-size:20px;font-weight:700;letter-spacing:-.5px}
+.sec-sub{font-size:12px;color:var(--txt2);margin-top:2px}
+
+/* ── Cards ── */
+.card{background:var(--sur);border:1px solid var(--bdr);border-radius:var(--r2);padding:16px;margin-bottom:12px}
+.ctitle{font-size:10px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px}
+
+/* ── Grids ── */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+
+/* ── Stats ── */
+.stat{background:var(--sur2);border:1px solid var(--bdr);border-radius:var(--r);padding:14px}
+.stat-v{font-size:26px;font-weight:700;font-family:var(--mono);line-height:1}
+.stat-l{font-size:10px;color:var(--txt2);margin-top:4px}
+
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:9px 14px;border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s;white-space:nowrap}
+.btn-p{background:var(--acc);color:#0d1117}.btn-p:hover{filter:brightness(1.08)}
+.btn-s{background:var(--sur2);color:var(--txt);border:1px solid var(--bdr)}.btn-s:hover{border-color:var(--acc);color:var(--acc)}
+.btn-g{background:var(--grn-dim);color:var(--grn);border:1px solid rgba(34,197,94,.25)}
+.btn-r{background:var(--red-dim);color:var(--red);border:1px solid rgba(239,68,68,.25)}
+.btn-b{background:var(--blue-dim);color:var(--blue);border:1px solid rgba(59,130,246,.25)}
+.btn-full{width:100%;justify-content:center}
+.btn-sm{padding:6px 11px;font-size:12px;border-radius:7px}
+.btn-xs{padding:3px 8px;font-size:11px;border-radius:6px}
+
+/* ── Forms ── */
+input,select,textarea{background:var(--sur2);border:1px solid var(--bdr);color:var(--txt);font-family:var(--sans);font-size:14px;border-radius:8px;padding:10px 12px;width:100%;transition:border-color .15s;-webkit-appearance:none}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--acc)}
+input::placeholder,textarea::placeholder{color:var(--txt3)}
+label{font-size:11px;color:var(--txt2);display:block;margin-bottom:5px;font-weight:500}
+.fg{margin-bottom:12px}
+select option{background:var(--sur2)}
+
+/* ── Badges ── */
+.badge{display:inline-flex;align-items:center;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:600;font-family:var(--mono)}
+.bg-g{background:var(--grn-dim);color:var(--grn);border:1px solid rgba(34,197,94,.25)}
+.bg-r{background:var(--red-dim);color:var(--red);border:1px solid rgba(239,68,68,.25)}
+.bg-a{background:var(--amb-dim);color:var(--amb);border:1px solid rgba(245,158,11,.25)}
+.bg-b{background:var(--blue-dim);color:var(--blue);border:1px solid rgba(59,130,246,.25)}
+.bg-p{background:var(--acc-dim);color:var(--acc);border:1px solid rgba(245,166,35,.25)}
+
+/* ── Rows ── */
+.hrow{display:flex;align-items:flex-start;gap:10px;padding:11px 0;border-bottom:1px solid rgba(38,48,82,.5)}
+.hrow:last-child{border-bottom:none}
+.hicon{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;flex-shrink:0;font-size:15px}
+.hinfo{flex:1;min-width:0}
+.htitle{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hmeta{font-size:11px;color:var(--txt2);margin-top:2px;font-family:var(--mono)}
+.hact{flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+
+/* ── Kit editor ── */
+.kit-row{display:grid;grid-template-columns:1fr 60px 100px auto;gap:6px;align-items:center;margin-bottom:6px}
+.kit-row input{margin:0}
+
+/* ── Check items ── */
+.check-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--sur2);border-radius:8px;margin-bottom:6px;border:1px solid var(--bdr)}
+.check-item input[type=checkbox]{width:18px;height:18px;flex-shrink:0;accent-color:var(--acc);cursor:pointer}
+.check-item label{margin:0;font-size:13px;cursor:pointer;flex:1;font-weight:500}
+.qty-pill{font-family:var(--mono);font-size:11px;color:var(--acc);background:var(--acc-dim);padding:2px 8px;border-radius:5px;white-space:nowrap}
+
+/* ── Condition ── */
+.cond-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.cond-opt{border:1px solid var(--bdr);border-radius:8px;padding:10px 6px;text-align:center;cursor:pointer;transition:all .15s;background:var(--sur3)}
+.sel-good{border-color:var(--grn)!important;background:var(--grn-dim)!important}
+.sel-repair{border-color:var(--amb)!important;background:var(--amb-dim)!important}
+.sel-lost{border-color:var(--red)!important;background:var(--red-dim)!important}
+.cond-opt .oi{font-size:22px;margin-bottom:3px}
+.cond-opt .ol{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--txt2)}
+
+/* ── Wizard ── */
+.wiz-step{display:none}.wiz-step.active{display:block}
+.sdots{display:flex;gap:6px;margin-bottom:18px;align-items:center}
+.sdot{width:7px;height:7px;border-radius:50%;background:var(--bdr2);transition:all .2s}
+.sdot.done{background:var(--grn)}.sdot.cur{background:var(--acc);width:20px;border-radius:4px}
+.step-lbl{font-size:11px;color:var(--txt2);margin-left:4px}
+
+/* ── Template cards ── */
+.tpl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.tpl-card{background:var(--sur);border:1px solid var(--bdr);border-radius:var(--r2);padding:14px;position:relative}
+.tpl-card h3{font-size:13px;font-weight:600;margin-bottom:3px;padding-right:44px}
+.tpl-card .tdesc{font-size:11px;color:var(--txt2)}
+.tpl-card .tcount{position:absolute;top:12px;right:12px}
+.tpl-card .tlist{margin-top:8px;font-size:10px;color:var(--txt2);line-height:1.9;font-family:var(--mono)}
+.tpl-card .tacts{display:flex;gap:5px;margin-top:10px}
+
+/* ── Search ── */
+.search-wrap{position:relative;margin-bottom:12px}
+.search-wrap input{padding-left:34px}
+.search-ico{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--txt3);pointer-events:none}
+
+/* ── Info boxes ── */
+.info{border-radius:9px;padding:10px 13px;font-size:12px;line-height:1.7;margin-bottom:12px}
+.info-a{background:var(--amb-dim);border:1px solid rgba(245,158,11,.2);color:var(--amb)}
+.info-b{background:var(--blue-dim);border:1px solid rgba(59,130,246,.2);color:#93c5fd}
+.info-g{background:var(--grn-dim);border:1px solid rgba(34,197,94,.2);color:var(--grn)}
+.info-v{background:var(--pur-dim);border:1px solid rgba(167,139,250,.2);color:var(--pur)}
+
+/* ── Repair ── */
+.repair-item{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--sur2);border-radius:8px;border-left:3px solid var(--amb);margin-bottom:7px}
+.repair-item.lost{border-left-color:var(--red)}
+
+/* ── Modal ── */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;place-items:flex-end center;z-index:300;padding-top:60px}
+.ov.open{display:grid}
+.modal{background:var(--sur);border:1px solid var(--bdr);border-radius:18px 18px 0 0;padding:20px 18px;width:100%;max-width:560px;max-height:88vh;overflow-y:auto;padding-bottom:calc(20px + var(--safe-bot))}
+.modal-t{font-size:16px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between}
+.modal-handle{width:36px;height:4px;background:var(--bdr2);border-radius:2px;margin:0 auto 14px}
+.xbtn{background:none;border:none;color:var(--txt2);font-size:20px;cursor:pointer;padding:2px;line-height:1}
+hr{border:none;border-top:1px solid var(--bdr);margin:14px 0}
+
+/* ── Empty ── */
+.empty{text-align:center;padding:32px 16px;color:var(--txt2)}
+.empty .ei{font-size:36px;margin-bottom:8px}
+
+/* ── Loading ── */
+.loading{display:flex;align-items:center;justify-content:center;gap:10px;padding:32px;color:var(--txt2);font-size:13px}
+.spinner{width:20px;height:20px;border:2px solid var(--bdr);border-top-color:var(--acc);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Install prompt ── */
+.install-banner{background:var(--acc-dim);border:1px solid rgba(245,166,35,.3);border-radius:var(--r);padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.install-banner p{font-size:12px;color:var(--acc);flex:1}
+
+@media(min-width:600px){
+  .ov{place-items:center}
+  .modal{border-radius:18px;max-height:85vh}
+  .modal-handle{display:none}
+  .main{max-width:680px;margin:0 auto;padding:24px 20px 100px}
+}
+</style>
+</head>
+<body>
+<div id="sync-bar"></div>
+
+<div class="app">
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="topbar-logo">
+      <div class="topbar-icon">📦</div>
+      KitTracker
+    </div>
+    <div class="topbar-right">
+      <div class="online-dot" id="online-dot" title="Connection status"></div>
+      <button class="sync-btn" onclick="syncNow(true)">⟳ Sync</button>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="main" id="main-content">
+
+    <!-- ── DASHBOARD ── -->
+    <div class="panel active" id="panel-dashboard">
+      <div id="install-prompt"></div>
+      <div class="sec-hdr">
+        <div><div class="sec-title">Dashboard</div><div class="sec-sub" id="dash-date"></div></div>
+        <button class="btn btn-p btn-sm" onclick="nav('checkout')">＋ Checkout</button>
+      </div>
+      <div class="g3" style="margin-bottom:12px">
+        <div class="stat"><div class="stat-v" id="s-out">—</div><div class="stat-l">Kits out</div></div>
+        <div class="stat"><div class="stat-v" style="color:var(--amb)" id="s-rep">—</div><div class="stat-l">Repairs</div></div>
+        <div class="stat"><div class="stat-v" id="s-jobs">—</div><div class="stat-l">Completed</div></div>
+      </div>
+
+      <div class="card">
+        <div class="ctitle">🔍 Find &amp; re-run previous job</div>
+        <div class="search-wrap">
+          <span class="search-ico">🔍</span>
+          <input type="text" id="dash-search" placeholder="Address, building, WO#, project…" oninput="dashSearch()">
+        </div>
+        <div id="dash-results"></div>
+      </div>
+
+      <div class="card">
+        <div class="ctitle">Active checkouts</div>
+        <div id="active-list"><div class="loading"><div class="spinner"></div>Loading…</div></div>
+      </div>
+      <div class="card">
+        <div class="ctitle">Repair / lost queue</div>
+        <div id="repair-list"><div class="loading"><div class="spinner"></div>Loading…</div></div>
+      </div>
+    </div>
+
+    <!-- ── CHECKOUT ── -->
+    <div class="panel" id="panel-checkout">
+      <div class="sec-hdr"><div><div class="sec-title">New Checkout</div><div class="sec-sub">Assign kit to technicians</div></div></div>
+      <div class="card">
+        <div class="sdots" id="sdots">
+          <div class="sdot cur"></div><div class="sdot"></div><div class="sdot"></div>
+          <span class="step-lbl" id="step-lbl">Job details</span>
+        </div>
+
+        <div class="wiz-step active" id="s1">
+          <div class="ctitle">Step 1 — Job details</div>
+          <div class="info-b" id="hcp-hint" style="display:none"></div>
+          <div class="fg"><label>HCP Job # <span style="color:var(--txt3)">(auto-fills if site done before)</span></label>
+            <input type="text" id="co-jobnum" placeholder="e.g. HCP-2025-0412" oninput="tryHCPLoad()"></div>
+          <div class="fg"><label>Project type</label>
+            <select id="co-proj" onchange="calcKit()"><option value="">— select template —</option></select></div>
+          <div class="g2">
+            <div class="fg"><label>No. of techs</label><input type="number" id="co-techs" min="1" max="30" value="1" oninput="calcKit()"></div>
+            <div class="fg"><label>Date</label><input type="date" id="co-date"></div>
+          </div>
+          <div class="fg"><label>Tech names</label><input type="text" id="co-names" placeholder="Mike R., Sara L."></div>
+          <div class="fg"><label>Site address</label><input type="text" id="co-addr" placeholder="123 Main St"></div>
+          <div class="fg"><label>Building / client name</label><input type="text" id="co-bldg" placeholder="Acme Tower, City Hall…"></div>
+          <button class="btn btn-p btn-full" onclick="goStep(2)">Next → Review Kit</button>
+        </div>
+
+        <div class="wiz-step" id="s2">
+          <div class="ctitle">Step 2 — Review kit</div>
+          <div id="kit-preview"></div>
+          <div class="fg" style="margin-top:10px"><label>Notes / extras</label>
+            <textarea id="co-notes" rows="2" placeholder="Extra items or instructions…"></textarea></div>
+          <div class="info-a">⚠️ Physically verify each item before proceeding.</div>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <button class="btn btn-s" onclick="goStep(1)">← Back</button>
+            <button class="btn btn-p" style="flex:1" onclick="goStep(3)">Next → Sign Out</button>
+          </div>
+        </div>
+
+        <div class="wiz-step" id="s3">
+          <div class="ctitle">Step 3 — Sign &amp; check out</div>
+          <div id="co-summary" style="background:var(--sur2);border-radius:9px;padding:13px;font-family:var(--mono);font-size:12px;line-height:2;margin-bottom:13px"></div>
+          <div class="fg"><label>Warehouse attendant name</label><input type="text" id="co-att" placeholder="Your name"></div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-s" onclick="goStep(2)">← Back</button>
+            <button class="btn btn-p" style="flex:1" onclick="completeCheckout()">✓ Complete</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── RETURNS ── -->
+    <div class="panel" id="panel-returns">
+      <div class="sec-hdr"><div><div class="sec-title">Process Return</div><div class="sec-sub">Inspect &amp; check in equipment</div></div></div>
+      <div class="card">
+        <div class="fg"><label>Select active checkout</label>
+          <select id="ret-sel" onchange="loadReturn()"><option value="">— choose job —</option></select></div>
+        <div id="ret-area"></div>
+      </div>
+    </div>
+
+    <!-- ── TEMPLATES ── -->
+    <div class="panel" id="panel-templates">
+      <div class="sec-hdr">
+        <div><div class="sec-title">Templates</div><div class="sec-sub">Kit per project type</div></div>
+        <button class="btn btn-p btn-sm" onclick="openTpl()">＋ New</button>
+      </div>
+      <div class="tpl-grid" id="tpl-grid"></div>
+    </div>
+
+    <!-- ── HISTORY ── -->
+    <div class="panel" id="panel-history">
+      <div class="sec-hdr">
+        <div><div class="sec-title">Job History</div><div class="sec-sub">Search, re-run, revise</div></div>
+      </div>
+      <div class="card">
+        <div class="search-wrap">
+          <span class="search-ico">🔍</span>
+          <input type="text" id="hist-search" placeholder="Address, building, WO#, project…" oninput="renderHistory()">
+        </div>
+        <div id="hist-list"><div class="loading"><div class="spinner"></div>Loading…</div></div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+
+  <!-- Bottom nav -->
+  <nav class="bottom-nav">
+    <button class="bn active" onclick="nav('dashboard')"><span class="bi">🏠</span>Home</button>
+    <button class="bn" onclick="nav('checkout')"><span class="bi">📤</span>Checkout</button>
+    <button class="bn" id="bn-returns" onclick="nav('returns')"><span class="bi">📥</span>Returns</button>
+    <button class="bn" onclick="nav('templates')"><span class="bi">📋</span>Templates</button>
+    <button class="bn" onclick="nav('history')"><span class="bi">📜</span>History</button>
+  </nav>
+</div>
+
+<!-- ── MODALS ── -->
+
+<!-- Template modal -->
+<div class="ov" id="tpl-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-t"><span id="tpl-modal-t">New Template</span><button class="xbtn" onclick="closeTpl()">✕</button></div>
+    <div class="fg"><label>Project name</label><input type="text" id="tpl-name" placeholder="Bosun Chair, Rope Access…"></div>
+    <div class="fg"><label>Description</label><input type="text" id="tpl-desc" placeholder="Brief description"></div>
+    <hr>
+    <div class="ctitle">Items &nbsp;<span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--txt2)">"Per tech" multiplies by # techs. "Fixed" stays same.</span></div>
+    <div id="kit-editor"></div>
+    <button class="btn btn-s btn-sm" onclick="addRow()" style="margin-bottom:12px">＋ Add item</button>
+    <hr>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="flex:1" onclick="closeTpl()">Cancel</button>
+      <button class="btn btn-p" style="flex:1" onclick="saveTpl()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Return complete modal -->
+<div class="ov" id="ret-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-t"><span>Return complete ✓</span><button class="xbtn" onclick="closeRetModal()">✕</button></div>
+    <div id="ret-summary" style="font-size:13px;line-height:1.9"></div>
+    <hr>
+    <div class="info-v" style="font-size:11px">Update Sortly: return good items to stock, move repairs to Repair folder, remove lost items.</div>
+    <hr>
+    <button class="btn btn-p btn-full" onclick="closeRetModal()">Done</button>
+  </div>
+</div>
+
+<!-- Re-run modal -->
+<div class="ov" id="rerun-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-t"><span id="rerun-t">Re-run project</span><button class="xbtn" onclick="document.getElementById('rerun-modal').classList.remove('open')">✕</button></div>
+    <div class="info-b" style="margin-bottom:12px">Site details pre-filled. Update job #, date, and techs.</div>
+    <div class="fg"><label>New HCP Job #</label><input type="text" id="rr-job" placeholder="HCP-2026-…"></div>
+    <div class="fg"><label>New date</label><input type="date" id="rr-date"></div>
+    <div class="fg"><label>Tech names</label><input type="text" id="rr-names"></div>
+    <div class="fg"><label>No. of techs</label><input type="number" id="rr-techs" min="1" value="1"></div>
+    <div class="fg"><label>Notes / changes vs last time</label><textarea id="rr-notes" rows="2"></textarea></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="flex:1" onclick="document.getElementById('rerun-modal').classList.remove('open')">Cancel</button>
+      <button class="btn btn-p" style="flex:1" onclick="confirmRerun()">Pre-fill →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════
+// CONFIG — your Google Apps Script Web App URL
+// ════════════════════════════════════════════════════════════
+const API = 'https://script.google.com/macros/s/AKfycbxLxdyxUBbDZ67o79JZoLUwbw2xpPwkdWX1hIMZtZcQMJGbDjIE7g48olob4f5pvRH4GA/exec';
+
+// ════════════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════════════
+let T  = [];  // templates
+let CO = [];  // active checkouts
+let H  = [];  // history
+let R  = [];  // repairs
+let IV = [];  // inventory
+let editTplIdx = null, rerunData = null, lastRet = null;
+let syncing = false, online = navigator.onLine;
+
+// ════════════════════════════════════════════════════════════
+// UTILITIES
+// ════════════════════════════════════════════════════════════
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,5) }
+function fd(d){ return d?new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'—' }
+function ft(d){ return new Date(d).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
+
+// ════════════════════════════════════════════════════════════
+// SYNC ENGINE
+// ════════════════════════════════════════════════════════════
+function showSync(state, msg) {
+  const bar = document.getElementById('sync-bar');
+  bar.textContent = msg;
+  bar.className = 'show ' + state;
+  if (state === 'ok') setTimeout(() => bar.classList.remove('show'), 2500);
+}
+
+async function apiCall(params, body=null) {
+  const url = API + '?' + new URLSearchParams(params);
+  const opts = body
+    ? { method:'POST', body: JSON.stringify(body) }
+    : { method:'GET' };
+  const res = await fetch(url, opts);
+  return res.json();
+}
+
+async function syncNow(manual=false) {
+  if (syncing) return;
+  syncing = true;
+  if (manual) showSync('syncing', '⟳ Syncing with Google Sheets…');
+  try {
+    const data = await apiCall({ action:'getAll' });
+    if (data.error) throw new Error(data.error);
+    T  = Array.isArray(data.templates)  ? data.templates  : T;
+    CO = Array.isArray(data.checkouts)  ? data.checkouts  : CO;
+    H  = Array.isArray(data.history)    ? data.history    : H;
+    R  = Array.isArray(data.repairs)    ? data.repairs    : R;
+    // Seed defaults if no templates yet
+    if (!T.length) await seedDefaults();
+    if (manual) showSync('ok', '✓ Synced successfully');
+    setOnline(true);
+  } catch(e) {
+    setOnline(false);
+    if (manual) showSync('error', '✗ Sync failed — working offline');
+    // Fall back to localStorage
+    T  = JSON.parse(localStorage.getItem('kt_tpl')  || '[]');
+    CO = JSON.parse(localStorage.getItem('kt_co')   || '[]');
+    H  = JSON.parse(localStorage.getItem('kt_hist') || '[]');
+    R  = JSON.parse(localStorage.getItem('kt_rep')  || '[]');
+    if (!T.length) seedDefaultsLocal();
+  } finally {
+    syncing = false;
+    refresh();
+  }
+}
+
+async function pushData() {
+  // Save to localStorage as backup always
+  localStorage.setItem('kt_tpl',  JSON.stringify(T));
+  localStorage.setItem('kt_co',   JSON.stringify(CO));
+  localStorage.setItem('kt_hist', JSON.stringify(H));
+  localStorage.setItem('kt_rep',  JSON.stringify(R));
+  // Push to Google Sheets
+  showSync('syncing', '⟳ Saving…');
+  try {
+    const result = await apiCall({ action:'setAll' }, { templates:T, checkouts:CO, history:H, repairs:R });
+    if (result.error) throw new Error(result.error);
+    showSync('ok', '✓ Saved to cloud');
+    setOnline(true);
+  } catch(e) {
+    setOnline(false);
+    showSync('error', '✗ Cloud save failed — saved locally');
+  }
+}
+
+function setOnline(val) {
+  online = val;
+  const dot = document.getElementById('online-dot');
+  if (dot) { dot.className = 'online-dot' + (val ? '' : ' offline'); dot.title = val ? 'Connected' : 'Offline'; }
+}
+
+window.addEventListener('online',  () => { setOnline(true);  syncNow(); });
+window.addEventListener('offline', () => setOnline(false));
+
+// ════════════════════════════════════════════════════════════
+// DEFAULT TEMPLATES
+// ════════════════════════════════════════════════════════════
+async function seedDefaults() {
+  T = [
+    {id:uid(),name:'Bosun Chair',desc:'Suspended platform access',items:[
+      {name:'Bosun chair',q:1,mode:'per'},{name:'Carabiner (locking)',q:2,mode:'per'},
+      {name:'Safety line',q:2,mode:'per'},{name:'Descent device',q:1,mode:'per'},
+      {name:'Full body harness',q:1,mode:'per'},{name:'Helmet',q:1,mode:'per'},
+      {name:'Gloves (pair)',q:1,mode:'per'},{name:'First aid kit',q:1,mode:'fixed'},
+    ]},
+    {id:uid(),name:'Rope Access',desc:'IRATA-style rope access',items:[
+      {name:'Dynamic rope 50m',q:1,mode:'per'},{name:'Static rope 30m',q:1,mode:'per'},
+      {name:'Full body harness',q:1,mode:'per'},{name:'Descender',q:1,mode:'per'},
+      {name:'Rope clamp',q:2,mode:'per'},{name:'Carabiner (locking)',q:4,mode:'per'},
+      {name:'Helmet',q:1,mode:'per'},{name:'First aid kit',q:1,mode:'fixed'},
+    ]},
+    {id:uid(),name:'Window Cleaning',desc:'Exterior window washing',items:[
+      {name:'Squeegee',q:2,mode:'per'},{name:'T-bar & sleeve',q:2,mode:'per'},
+      {name:'Extension pole',q:1,mode:'per'},{name:'Bucket',q:1,mode:'per'},
+      {name:'Safety harness',q:1,mode:'per'},{name:'Lanyard',q:1,mode:'per'},
+    ]},
+    {id:uid(),name:'Pressure Washing',desc:'High-pressure cleaning',items:[
+      {name:'Pressure washer',q:1,mode:'fixed'},{name:'Hose reel (100ft)',q:1,mode:'fixed'},
+      {name:'Spray wand',q:1,mode:'per'},{name:'Safety goggles',q:1,mode:'per'},
+      {name:'Rain suit',q:1,mode:'per'},{name:'Non-slip boots',q:1,mode:'per'},
+    ]},
+  ];
+  await pushData();
+}
+
+function seedDefaultsLocal() {
+  T = JSON.parse(localStorage.getItem('kt_tpl') || '[]');
+  if (!T.length) {
+    T = [{id:uid(),name:'Bosun Chair',desc:'Add your items',items:[{name:'Bosun chair',q:1,mode:'per'}]}];
+    localStorage.setItem('kt_tpl', JSON.stringify(T));
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// NAVIGATION
+// ════════════════════════════════════════════════════════════
+function nav(id) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.bn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-'+id).classList.add('active');
+  const ids = ['dashboard','checkout','returns','templates','history'];
+  document.querySelectorAll('.bn')[ids.indexOf(id)]?.classList.add('active');
+  if (id === 'dashboard') renderDash();
+  if (id === 'returns')   renderRetSel();
+  if (id === 'templates') renderTplGrid();
+  if (id === 'history')   renderHistory();
+}
+
+function refresh() {
+  document.getElementById('dash-date').textContent = new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  renderDash();
+  fillProjSel();
+  renderRetSel();
+  renderTplGrid();
+  renderHistory();
+  const dot = document.getElementById('bn-returns');
+  if (dot) {
+    const existing = dot.querySelector('.bdot');
+    if (CO.length && !existing) { const d=document.createElement('span'); d.className='bdot'; dot.appendChild(d); }
+    if (!CO.length && existing) existing.remove();
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// DASHBOARD
+// ════════════════════════════════════════════════════════════
+function renderDash() {
+  document.getElementById('s-out').textContent  = CO.length;
+  document.getElementById('s-rep').textContent  = R.length;
+  document.getElementById('s-jobs').textContent = H.length;
+
+  const al = document.getElementById('active-list');
+  al.innerHTML = CO.length ? CO.map(c => `
+    <div class="hrow">
+      <div class="hicon" style="background:var(--acc-dim)">📋</div>
+      <div class="hinfo">
+        <div class="htitle">${esc(c.projName)} — ${esc(c.bldg||c.addr||'no site')}</div>
+        <div class="hmeta">${esc(c.names)||'—'} · ${c.numTechs} tech${c.numTechs>1?'s':''}</div>
+        <div class="hmeta">WO: ${esc(c.jobnum)||'—'} · ${fd(c.coDate)}</div>
+      </div>
+      <div class="hact">
+        <span class="badge bg-p">Out</span>
+        <button class="btn btn-xs btn-s" onclick="nav('returns')">Return</button>
+      </div>
+    </div>`).join('')
+    : '<div class="empty"><div class="ei">📦</div><p>No active checkouts</p></div>';
+
+  const rl = document.getElementById('repair-list');
+  rl.innerHTML = R.length ? R.map((r,i) => `
+    <div class="repair-item ${r.status==='lost'?'lost':''}">
+      <div>
+        <div style="font-weight:600;font-size:12px">${esc(r.item)}</div>
+        <div style="font-size:10px;color:var(--txt2);font-family:var(--mono)">${r.status==='lost'?'LOST':'REPAIR'} · ${esc(r.projName)}</div>
+        ${r.notes?`<div style="font-size:10px;color:var(--txt2)">${esc(r.notes)}</div>`:''}
+      </div>
+      <button class="btn btn-g btn-xs" onclick="resolveRepair(${i})">✓ Done</button>
+    </div>`).join('')
+    : '<div class="empty"><div class="ei">🔧</div><p>All clear</p></div>';
+}
+
+async function resolveRepair(i) {
+  R.splice(i,1);
+  await pushData();
+  renderDash();
+}
+
+// ════════════════════════════════════════════════════════════
+// SEARCH & RE-RUN
+// ════════════════════════════════════════════════════════════
+function dashSearch() {
+  const q = (document.getElementById('dash-search').value||'').toLowerCase().trim();
+  const el = document.getElementById('dash-results');
+  if (!q) { el.innerHTML=''; return; }
+  const hits = H.filter(h => [h.projName,h.addr,h.bldg,h.jobnum,h.names].join(' ').toLowerCase().includes(q));
+  if (!hits.length) { el.innerHTML='<div style="font-size:12px;color:var(--txt2);padding:8px 0">No matching jobs found.</div>'; return; }
+  el.innerHTML = hits.map(h => `
+    <div style="background:var(--sur2);border:1px solid var(--bdr);border-radius:9px;padding:11px;margin-bottom:7px;display:flex;align-items:center;gap:10px">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:13px">${esc(h.projName)}</div>
+        <div style="font-size:11px;color:var(--txt2)">${esc(h.bldg||h.addr||'—')}</div>
+        <div style="font-size:10px;color:var(--txt3);font-family:var(--mono)">WO: ${esc(h.jobnum)||'—'} · ${fd(h.coDate)}</div>
+      </div>
+      <button class="btn btn-p btn-xs" onclick="openRerun('${h.id}')">↩ Re-run</button>
+    </div>`).join('');
+}
+
+function openRerun(hid) {
+  const h = H.find(x => x.id===hid); if (!h) return;
+  rerunData = h;
+  document.getElementById('rerun-t').textContent = 'Re-run: '+h.projName;
+  document.getElementById('rr-job').value   = '';
+  document.getElementById('rr-date').value  = new Date().toISOString().split('T')[0];
+  document.getElementById('rr-names').value = h.names||'';
+  document.getElementById('rr-techs').value = h.numTechs||1;
+  document.getElementById('rr-notes').value = '';
+  document.getElementById('rerun-modal').classList.add('open');
+}
+
+function confirmRerun() {
+  if (!rerunData) return;
+  const h = rerunData;
+  document.getElementById('co-jobnum').value = document.getElementById('rr-job').value||'';
+  document.getElementById('co-date').value   = document.getElementById('rr-date').value;
+  document.getElementById('co-names').value  = document.getElementById('rr-names').value||h.names||'';
+  document.getElementById('co-techs').value  = document.getElementById('rr-techs').value||h.numTechs||1;
+  document.getElementById('co-addr').value   = h.addr||'';
+  document.getElementById('co-bldg').value   = h.bldg||'';
+  const sel = document.getElementById('co-proj');
+  const opt = [...sel.options].find(o => o.text===h.projName);
+  if (opt) sel.value = opt.value;
+  calcKit();
+  document.getElementById('rerun-modal').classList.remove('open');
+  nav('checkout'); goStep(1);
+}
+
+// ════════════════════════════════════════════════════════════
+// CHECKOUT
+// ════════════════════════════════════════════════════════════
+function fillProjSel() {
+  const sel = document.getElementById('co-proj');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— select template —</option>' + T.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('');
+  if (cur) sel.value = cur;
+}
+
+function tryHCPLoad() {
+  const jn = (document.getElementById('co-jobnum').value||'').trim();
+  const hint = document.getElementById('hcp-hint');
+  if (jn.length < 3) { hint.style.display='none'; return; }
+  const past = H.find(h => h.jobnum && h.jobnum.toLowerCase()===jn.toLowerCase());
+  if (past) {
+    hint.className='info info-b';
+    hint.innerHTML=`📋 <strong>Found in history</strong> — ${esc(past.projName)} @ ${esc(past.bldg||past.addr||'—')} · ${fd(past.coDate)}`;
+    hint.style.display='';
+    document.getElementById('co-addr').value  = past.addr||'';
+    document.getElementById('co-bldg').value  = past.bldg||'';
+    document.getElementById('co-names').value = past.names||'';
+    document.getElementById('co-techs').value = past.numTechs||1;
+    const sel = document.getElementById('co-proj');
+    const opt = [...sel.options].find(o=>o.text===past.projName);
+    if (opt) sel.value=opt.value;
+    calcKit();
+  } else { hint.style.display='none'; }
+}
+
+function calcKit() {
+  const tid = document.getElementById('co-proj').value;
+  const n   = parseInt(document.getElementById('co-techs').value)||1;
+  const tpl = T.find(t=>t.id===tid);
+  const el  = document.getElementById('kit-preview');
+  if (!tpl) { el.innerHTML='<div style="color:var(--txt2);font-size:12px;padding:6px 0">Select a project type to see the kit.</div>'; return; }
+  el.innerHTML = `<div class="ctitle" style="margin-bottom:8px">Kit — ${esc(tpl.name)} · ${n} tech${n>1?'s':''}</div>`+
+    tpl.items.map(it=>{
+      const qty = it.mode==='fixed'?it.q:it.q*n;
+      return `<div class="check-item"><input type="checkbox" checked><label>${esc(it.name)}</label><span class="qty-pill">${qty}</span></div>`;
+    }).join('');
+}
+
+const STEP_LABELS = ['Job details','Review kit','Sign out'];
+function goStep(n) {
+  if (n===2) { if (!document.getElementById('co-proj').value){alert('Select a project type.');return;} calcKit(); }
+  if (n===3) {
+    const tid=document.getElementById('co-proj').value, tpl=T.find(t=>t.id===tid);
+    const num=parseInt(document.getElementById('co-techs').value)||1;
+    document.getElementById('co-summary').innerHTML=
+      `<b>Project:</b> ${esc(tpl.name)}<br><b>WO#:</b> ${esc(document.getElementById('co-jobnum').value)||'—'}<br>`+
+      `<b>Techs (${num}):</b> ${esc(document.getElementById('co-names').value)||'—'}<br>`+
+      `<b>Site:</b> ${esc(document.getElementById('co-addr').value)||'—'}<br>`+
+      `<b>Building:</b> ${esc(document.getElementById('co-bldg').value)||'—'}<br>`+
+      `<b>Date:</b> ${esc(document.getElementById('co-date').value)||'—'}<br><br>`+
+      `<b>Kit:</b><br>${tpl.items.map(it=>`${it.mode==='fixed'?it.q:it.q*num}× ${it.name}`).join('<br>')}`;
+  }
+  document.querySelectorAll('.wiz-step').forEach(s=>s.classList.remove('active'));
+  document.getElementById('s'+n).classList.add('active');
+  const dots=document.querySelectorAll('#sdots .sdot');
+  dots.forEach((d,i)=>{d.classList.remove('cur','done');if(i<n-1)d.classList.add('done');else if(i===n-1)d.classList.add('cur');});
+  document.getElementById('step-lbl').textContent=STEP_LABELS[n-1];
+  document.getElementById('main-content').scrollTop=0;
+}
+
+async function completeCheckout() {
+  const att = document.getElementById('co-att').value.trim();
+  if (!att) { alert('Enter attendant name.'); return; }
+  const tid=document.getElementById('co-proj').value, tpl=T.find(t=>t.id===tid);
+  const num=parseInt(document.getElementById('co-techs').value)||1;
+  CO.push({
+    id:uid(), projId:tid, projName:tpl.name, numTechs:num,
+    names:document.getElementById('co-names').value,
+    jobnum:document.getElementById('co-jobnum').value,
+    addr:document.getElementById('co-addr').value,
+    bldg:document.getElementById('co-bldg').value,
+    date:document.getElementById('co-date').value,
+    notes:document.getElementById('co-notes').value,
+    attendant:att, coDate:new Date().toISOString(),
+    kit:tpl.items.map(it=>({name:it.name,qty:it.mode==='fixed'?it.q:it.q*num})),
+  });
+  await pushData();
+  ['co-names','co-jobnum','co-addr','co-bldg','co-notes','co-att'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('co-proj').value=''; document.getElementById('co-techs').value='1';
+  document.getElementById('hcp-hint').style.display='none';
+  goStep(1);
+  alert(`✅ Checkout complete!\n${tpl.name} · ${num} tech${num>1?'s':''}\n\nRemember to update Sortly.`);
+  nav('dashboard');
+}
+
+// ════════════════════════════════════════════════════════════
+// RETURNS
+// ════════════════════════════════════════════════════════════
+function renderRetSel() {
+  const sel=document.getElementById('ret-sel');
+  sel.innerHTML='<option value="">— choose job —</option>'+
+    CO.map(c=>`<option value="${c.id}">${esc(c.projName)} · ${esc(c.bldg||c.addr||'no site')} · ${fd(c.coDate)}</option>`).join('');
+}
+
+function loadReturn() {
+  const id=document.getElementById('ret-sel').value, co=CO.find(c=>c.id===id);
+  const el=document.getElementById('ret-area');
+  if (!co){el.innerHTML='';return;}
+  el.innerHTML=`<hr><div class="ctitle">Return — ${esc(co.projName)}</div>
+    <div style="font-size:11px;color:var(--txt2);margin-bottom:12px;font-family:var(--mono)">${esc(co.names)||'—'} · WO: ${esc(co.jobnum)||'—'} · ${fd(co.coDate)}</div>
+    ${co.kit.map((item,i)=>`
+      <div style="background:var(--sur2);border:1px solid var(--bdr);border-radius:10px;padding:12px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px">
+          <span style="font-weight:600;font-size:13px">${esc(item.name)}</span><span class="qty-pill">${item.qty}</span>
+        </div>
+        <div class="cond-grid">
+          <div class="cond-opt sel-good" id="c${i}g" onclick="setCond(${i},'good')"><div class="oi">✅</div><div class="ol">Good</div></div>
+          <div class="cond-opt" id="c${i}r" onclick="setCond(${i},'repair')"><div class="oi">🔧</div><div class="ol">Repair</div></div>
+          <div class="cond-opt" id="c${i}l" onclick="setCond(${i},'lost')"><div class="oi">❌</div><div class="ol">Lost</div></div>
+        </div>
+        <input type="text" id="n${i}" placeholder="Damage notes (optional)" style="margin-top:8px">
+      </div>`).join('')}
+    <div class="fg" style="margin-top:12px"><label>Returned by</label><input type="text" id="ret-by" placeholder="Tech name"></div>
+    <div class="fg"><label>Warehouse attendant</label><input type="text" id="ret-att" placeholder="Your name"></div>
+    <div class="info-a">⚠️ Flagged items go to repair queue. Update Sortly after.</div>
+    <button class="btn btn-p btn-full" onclick="completeReturn('${id}')">✓ Complete Return</button>`;
+  window._conds={};
+  co.kit.forEach((_,i)=>window._conds[i]='good');
+}
+
+function setCond(i,v) {
+  window._conds[i]=v;
+  [['g','good'],['r','repair'],['l','lost']].forEach(([k,cls])=>{
+    const el=document.getElementById(`c${i}${k}`);
+    if(el){el.className='cond-opt';if(cls===v)el.classList.add('sel-'+v);}
+  });
+}
+
+async function completeReturn(coId) {
+  const co=CO.find(c=>c.id===coId); if(!co)return;
+  const att=document.getElementById('ret-att').value.trim();
+  if(!att){alert('Enter attendant name.');return;}
+  const retBy=document.getElementById('ret-by').value.trim()||'—';
+  const items=co.kit.map((item,i)=>({name:item.name,qty:item.qty,cond:window._conds[i]||'good',notes:(document.getElementById('n'+i)||{}).value||''}));
+  const flagged=items.filter(r=>r.cond!=='good');
+  flagged.forEach(r=>R.push({id:uid(),item:r.name,status:r.cond,notes:r.notes,projName:co.projName,date:new Date().toISOString(),resolved:false}));
+  const rec={id:uid(),projId:co.projId,projName:co.projName,numTechs:co.numTechs,names:co.names,jobnum:co.jobnum,addr:co.addr,bldg:co.bldg,coDate:co.coDate,retDate:new Date().toISOString(),retBy,attendant:att,items};
+  H.unshift(rec); lastRet=rec;
+  CO.splice(CO.findIndex(c=>c.id===coId),1);
+  await pushData();
+  const good=items.filter(r=>r.cond==='good').length, rep=flagged.filter(f=>f.cond==='repair').length, lost=flagged.filter(f=>f.cond==='lost').length;
+  document.getElementById('ret-summary').innerHTML=
+    `<strong>Project:</strong> ${esc(co.projName)}<br><strong>Site:</strong> ${esc(co.bldg||co.addr||'—')}<br>`+
+    `<strong>WO#:</strong> ${esc(co.jobnum)||'—'}<br><strong>Returned by:</strong> ${esc(retBy)}<br><strong>Time:</strong> ${ft(new Date())}<br><br>`+
+    `<span class="badge bg-g" style="margin-right:5px">${good} good</span>`+
+    (rep?`<span class="badge bg-a" style="margin-right:5px">${rep} repair</span>`:'')+
+    (lost?`<span class="badge bg-r">${lost} lost</span>`:'')+
+    (flagged.length?`<br><br><strong>Flagged:</strong><br>`+flagged.map(f=>`— ${esc(f.name)}: ${f.cond}${f.notes?' ('+esc(f.notes)+')':''}`).join('<br>'):'');
+  document.getElementById('ret-modal').classList.add('open');
+  document.getElementById('ret-area').innerHTML='';
+  document.getElementById('ret-sel').value='';
+}
+
+function closeRetModal(){document.getElementById('ret-modal').classList.remove('open');refresh();}
+
+// ════════════════════════════════════════════════════════════
+// TEMPLATES
+// ════════════════════════════════════════════════════════════
+function renderTplGrid() {
+  const el=document.getElementById('tpl-grid');
+  if(!T.length){el.innerHTML='<div class="empty"><div class="ei">📂</div><p>No templates yet</p></div>';return;}
+  el.innerHTML=T.map((t,i)=>`
+    <div class="tpl-card">
+      <span class="badge bg-b tcount" style="font-size:9px">${t.items.length}</span>
+      <h3>${esc(t.name)}</h3>
+      <div class="tdesc">${esc(t.desc||'')}</div>
+      <div class="tlist">${t.items.slice(0,4).map(it=>`${it.q}${it.mode==='per'?'/tech':'×'} ${esc(it.name)}`).join('<br>')}${t.items.length>4?`<br><em style="color:var(--txt3)">+${t.items.length-4} more</em>`:''}</div>
+      <div class="tacts">
+        <button class="btn btn-s btn-xs" onclick="editTpl(${i})">✏ Edit</button>
+        <button class="btn btn-r btn-xs" onclick="delTpl(${i})">🗑</button>
+      </div>
+    </div>`).join('');
+}
+
+function openTpl(){
+  editTplIdx=null;
+  document.getElementById('tpl-modal-t').textContent='New Template';
+  document.getElementById('tpl-name').value='';
+  document.getElementById('tpl-desc').value='';
+  document.getElementById('kit-editor').innerHTML='';
+  addRow();addRow();addRow();
+  document.getElementById('tpl-modal').classList.add('open');
+}
+
+function editTpl(i){
+  editTplIdx=i; const t=T[i];
+  document.getElementById('tpl-modal-t').textContent='Edit: '+t.name;
+  document.getElementById('tpl-name').value=t.name;
+  document.getElementById('tpl-desc').value=t.desc||'';
+  document.getElementById('kit-editor').innerHTML='';
+  t.items.forEach(it=>addRow(it.name,it.q,it.mode));
+  document.getElementById('tpl-modal').classList.add('open');
+}
+
+async function delTpl(i){
+  if(!confirm('Delete this template?'))return;
+  T.splice(i,1); await pushData(); renderTplGrid();
+}
+
+function closeTpl(){document.getElementById('tpl-modal').classList.remove('open');}
+
+function addRow(name='',q=1,mode='per'){
+  const d=document.createElement('div'); d.className='kit-row';
+  d.innerHTML=`<input type="text" placeholder="Item name" value="${esc(name)}">
+    <input type="number" min="1" value="${q}" style="text-align:center">
+    <select><option value="per"${mode==='per'?' selected':''}>per tech</option><option value="fixed"${mode==='fixed'?' selected':''}>fixed</option></select>
+    <button class="btn btn-r btn-xs" onclick="this.closest('.kit-row').remove()">✕</button>`;
+  document.getElementById('kit-editor').appendChild(d);
+}
+
+async function saveTpl(){
+  const name=document.getElementById('tpl-name').value.trim();
+  if(!name){alert('Enter a project name.');return;}
+  const rows=document.querySelectorAll('#kit-editor .kit-row'), items=[];
+  rows.forEach(r=>{
+    const nm=r.querySelectorAll('input')[0].value.trim(), q=parseInt(r.querySelectorAll('input')[1].value)||1, mode=r.querySelector('select').value;
+    if(nm) items.push({name:nm,q,mode});
+  });
+  if(!items.length){alert('Add at least one item.');return;}
+  const tpl={id:editTplIdx!==null?T[editTplIdx].id:uid(),name,desc:document.getElementById('tpl-desc').value.trim(),items};
+  if(editTplIdx!==null) T[editTplIdx]=tpl; else T.push(tpl);
+  await pushData(); closeTpl(); renderTplGrid(); fillProjSel();
+}
+
+// ════════════════════════════════════════════════════════════
+// HISTORY
+// ════════════════════════════════════════════════════════════
+function renderHistory(){
+  const q=(document.getElementById('hist-search').value||'').toLowerCase();
+  const el=document.getElementById('hist-list');
+  const hits=H.filter(h=>[h.projName,h.addr,h.bldg,h.jobnum,h.names].join(' ').toLowerCase().includes(q));
+  if(!hits.length){el.innerHTML='<div class="empty"><div class="ei">📜</div><p>No completed jobs yet</p></div>';return;}
+  el.innerHTML=hits.map(h=>{
+    const flagged=(h.items||[]).filter(i=>i.cond!=='good').length;
+    return `<div class="hrow">
+      <div class="hicon" style="background:var(--grn-dim)">✓</div>
+      <div class="hinfo">
+        <div class="htitle">${esc(h.projName)} — ${esc(h.bldg||h.addr||'no site')}</div>
+        <div class="hmeta">WO: ${esc(h.jobnum)||'—'} · ${h.numTechs} tech${h.numTechs>1?'s':''}</div>
+        <div class="hmeta">${fd(h.coDate)} → ${fd(h.retDate)}</div>
+        ${flagged?`<div style="font-size:10px;color:var(--amb)">⚠ ${flagged} flagged</div>`:''}
+      </div>
+      <div class="hact">
+        <span class="badge bg-g">Done</span>
+        <button class="btn btn-xs btn-p" onclick="openRerun('${h.id}')">↩ Re-run</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════════════════════════
+// PWA INSTALL PROMPT
+// ════════════════════════════════════════════════════════════
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault(); deferredPrompt = e;
+  const el = document.getElementById('install-prompt');
+  el.innerHTML = `<div class="install-banner">
+    <p>📲 <strong>Install KitTracker</strong> as an app on this device for quick access</p>
+    <button class="btn btn-p btn-sm" onclick="installApp()">Install</button>
+    <button class="btn btn-s btn-sm" onclick="document.getElementById('install-prompt').innerHTML=''">✕</button>
+  </div>`;
+});
+
+async function installApp() {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const {outcome} = await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  document.getElementById('install-prompt').innerHTML = outcome==='accepted'
+    ? '<div class="info info-g">✓ KitTracker installed! Find it on your home screen.</div>'
+    : '';
+}
+
+// ════════════════════════════════════════════════════════════
+// SERVICE WORKER
+// ════════════════════════════════════════════════════════════
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(()=>{});
+}
+
+// ════════════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════════════
+document.getElementById('co-date').value = new Date().toISOString().split('T')[0];
+document.getElementById('dash-date').textContent = new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+syncNow(true);
+
+// Auto-sync every 30 seconds
+setInterval(() => syncNow(false), 30000);
+</script>
+</body>
+</html>
