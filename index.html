@@ -618,6 +618,46 @@ hr{border:none;border-top:1px solid var(--bdr);margin:13px 0}
 </div>
 
 <script>
+// ── Firebase for KOF/KY sync (loaded dynamically to keep regular script scope) ──
+const FB_CONFIG={apiKey:"AIzaSyBNU68bFVjxEY96RmOLaADEH1i8B6uFQiM",authDomain:"techsched-c8c09.firebaseapp.com",projectId:"techsched-c8c09",storageBucket:"techsched-c8c09.firebasestorage.app",messagingSenderId:"134678593695",appId:"1:134678593695:web:fae594af421a1e0f9de2aa"};
+let fbDb=null;
+
+async function initFirebase(){
+  if(fbDb)return fbDb;
+  try{
+    const {initializeApp}=await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js');
+    const {getFirestore,doc,getDoc,setDoc}=await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+    const fbApp=initializeApp(FB_CONFIG,'kittracker');
+    fbDb=getFirestore(fbApp);
+    // Store doc/getDoc/setDoc on fbDb for reuse
+    fbDb._doc=doc; fbDb._getDoc=getDoc; fbDb._setDoc=setDoc;
+  }catch(e){console.warn('Firebase init failed:',e);}
+  return fbDb;
+}
+
+async function fbGetKeys(){
+  try{
+    const db=await initFirebase();if(!db)return;
+    const snap=await db._getDoc(db._doc(db,'kittracker','keys'));
+    if(snap.exists()){
+      const d=snap.data();
+      KY=Array.isArray(d.ky)?d.ky:[];
+      KOF=Array.isArray(d.kof)?d.kof:[];
+      localStorage.setItem('kt_keys',JSON.stringify(KY));
+      localStorage.setItem('kt_kof',JSON.stringify(KOF));
+    }
+  }catch(e){console.warn('Firebase KOF read failed:',e);}
+}
+
+async function fbSetKeys(){
+  try{
+    const db=await initFirebase();if(!db)return;
+    await db._setDoc(db._doc(db,'kittracker','keys'),{ky:KY,kof:KOF,updatedAt:new Date().toISOString()});
+    localStorage.setItem('kt_keys',JSON.stringify(KY));
+    localStorage.setItem('kt_kof',JSON.stringify(KOF));
+  }catch(e){console.warn('Firebase KOF write failed:',e);}
+}
+
 const API='https://script.google.com/macros/s/AKfycbxLxdyxUBbDZ67o79JZoLUwbw2xpPwkdWX1hIMZtZcQMJGbDjIE7g48olob4f5pvRH4GA/exec';
 const DEFAULT_PIN='0525';
 let T=[],CO=[],H=[],R=[],KY=[],IS=[];
@@ -785,7 +825,7 @@ async function syncNow(){
     refresh();
   }
 }
-async function pushData(){localStorage.setItem('kt_tpl',JSON.stringify(T));localStorage.setItem('kt_co',JSON.stringify(CO));localStorage.setItem('kt_hist',JSON.stringify(H));localStorage.setItem('kt_rep',JSON.stringify(R));localStorage.setItem('kt_keys',JSON.stringify(KY));localStorage.setItem('kt_kof',JSON.stringify(KOF));localStorage.setItem('kt_insp',JSON.stringify(IS));try{await apiCall({action:'setAll'},{templates:T,checkouts:CO,history:H,repairs:R,keys:KY,keysOnFile:KOF});setSyncStatus('ok');}catch(e){setSyncStatus('error');}}
+async function pushData(){localStorage.setItem('kt_tpl',JSON.stringify(T));localStorage.setItem('kt_co',JSON.stringify(CO));localStorage.setItem('kt_hist',JSON.stringify(H));localStorage.setItem('kt_rep',JSON.stringify(R));localStorage.setItem('kt_insp',JSON.stringify(IS));try{await apiCall({action:'setAll'},{templates:T,checkouts:CO,history:H,repairs:R});setSyncStatus('ok');}catch(e){setSyncStatus('error');}}
 function showSync(state,msg){
   const bar=document.getElementById('sync-bar');
   if(!bar)return;
@@ -894,51 +934,33 @@ let KOF = []; // keys on file — loaded from localStorage
 
 // Force pull latest KOF from cloud and re-render
 window.forceSyncKof=async function forceSyncKof(){
-  alert('Sync button tapped — connecting to cloud...');
   try{
     showSync('syncing','⟳ Syncing keys...');
-    const data=await apiCall({action:'getAll'});
-    if(data.error)throw new Error(data.error);
-
-    // DEBUG — show exactly what came back from cloud
-    const kofCount=Array.isArray(data.keysOnFile)?data.keysOnFile.length:0;
-    const kyCount=Array.isArray(data.keys)?data.keys.length:0;
-    const allFields=Object.keys(data).join(', ');
-    alert('Cloud returned:\nkeysOnFile: '+kofCount+' record(s)\nkeys: '+kyCount+' record(s)\nAll fields: '+allFields+(kofCount>0?'\n\nFirst KOF: '+JSON.stringify(data.keysOnFile[0]):'\n\nKeysonfile sheet may be empty or missing — run initSheets in Apps Script then re-save the key on PC'));
-
-    if(Array.isArray(data.keysOnFile)&&data.keysOnFile.length>0){
-      KOF=data.keysOnFile;
-      localStorage.setItem('kt_kof',JSON.stringify(KOF));
-    }
-    if(Array.isArray(data.keys)){
-      KY=data.keys;
-      localStorage.setItem('kt_keys',JSON.stringify(KY));
-    }
+    await fbGetKeys();
     renderKeysOnFile();
     renderKeys();
     fillKeyPickers();
-    showSync('ok','✓ Keys synced — '+kofCount+' key(s) on file');
+    showSync('ok','✓ Keys synced — '+KOF.length+' on file');
   }catch(e){
-    alert('Sync error: '+e.message);
-    showSync('error','✗ Sync failed: '+e.message);
+    showSync('error','✗ Sync failed');
+    console.error('forceSyncKof:',e);
   }
 }
 
 function loadKof(cloudData){
-  if(cloudData&&Array.isArray(cloudData)){
-    KOF=cloudData;
-    localStorage.setItem('kt_kof',JSON.stringify(KOF));
-  } else {
-    KOF=JSON.parse(localStorage.getItem('kt_kof')||'[]');
-  }
+  // Load from localStorage first (instant), then Firebase syncs in background
+  KOF=JSON.parse(localStorage.getItem('kt_kof')||'[]');
+  KY=JSON.parse(localStorage.getItem('kt_keys')||'[]');
   renderKeysOnFile();
   fillKeyPickers();
+  // Background Firebase sync
+  fbGetKeys().then(()=>{renderKeysOnFile();fillKeyPickers();renderKeys();}).catch(()=>{});
 }
 function saveKof_local(){
   localStorage.setItem('kt_kof',JSON.stringify(KOF));
   renderKeysOnFile();
   fillKeyPickers();
-  pushData();
+  fbSetKeys().catch(e=>console.warn('KOF save failed:',e));
 }
 
 function openAddKofModal_edit(id){
@@ -1139,7 +1161,9 @@ async function confirmKeyReturn(){
 async function deleteKey(id){
   if(!confirm('Remove this key record?'))return;
   KY=KY.filter(k=>k.id!==id);
-  await pushData();renderKeys();
+  await pushData();
+  fbSetKeys().catch(()=>{});
+  renderKeys();
 }
 
 function renderHistory(){
