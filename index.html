@@ -1132,6 +1132,7 @@ function renderKitPreview() {
 }
 function toggleKitItem(i) { coItems[i].removed=!coItems[i].removed; renderKitPreview(); }
 function updateItemQty(i, val) { const n=parseInt(val); if(!isNaN(n)&&n>=1) coItems[i].qty=n; }
+function addOneOff() {
   const name=document.getElementById('addon-name').value.trim();
   const qty=parseInt(document.getElementById('addon-qty').value)||1;
   if (!name){alert('Enter item name.');return;}
