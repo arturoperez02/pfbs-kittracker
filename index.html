@@ -660,6 +660,21 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
         <div id="hist-list"></div>
       </div>
 
+      <!-- KEYS -->
+      <div class="panel" id="panel-keys">
+        <div class="sec-hdr">
+          <div><div class="sec-title">Keys</div><div class="sec-sub">Track client keys in & out</div></div>
+          <button class="btn btn-p btn-sm" onclick="openAddKey()">+ Key</button>
+        </div>
+        <div class="search-wrap"><span class="search-ico">🔍</span><input type="text" id="key-search" placeholder="Key #, client, tech..." oninput="renderKeysPanel()"></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+          <button class="btn btn-xs btn-s active-filter" id="key-filter-all" onclick="setKeyFilter('all',this)">All</button>
+          <button class="btn btn-xs btn-s" id="key-filter-out" onclick="setKeyFilter('out',this)">🔑 Out</button>
+          <button class="btn btn-xs btn-s" id="key-filter-in" onclick="setKeyFilter('in',this)">✅ Returned</button>
+        </div>
+        <div id="keys-list"></div>
+      </div>
+
       <!-- REORDER -->
       <div class="panel" id="panel-reorder">
         <div class="sec-hdr"><div><div class="sec-title">Reorder Queue</div><div class="sec-sub">Track what needs ordering</div></div></div>
@@ -697,6 +712,7 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
     <button class="bn" onclick="nav('inventory')"><span class="bi">📦</span>Inventory</button>
     <button class="bn" onclick="nav('repairs')"><span class="bi">🔧</span>Repairs</button>
     <button class="bn" onclick="nav('templates')"><span class="bi">📋</span>Templates</button>
+    <button class="bn" onclick="nav('keys')"><span class="bi">🔑</span>Keys</button>
     <button class="bn" onclick="nav('history')"><span class="bi">📜</span>History</button>
   </nav>
 </div>
@@ -899,6 +915,46 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
       <button class="btn btn-s btn-sm btn-full" onclick="settingsSavePrefixes()">✓ Save All Prefixes</button>
     </div>
 
+  </div>
+</div>
+
+<!-- KEY MODAL -->
+<div class="ov" id="key-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-t"><span id="key-modal-t">Add Key</span><button class="xbtn" onclick="closeModal('key-modal')">✕</button></div>
+    <div class="fg"><label>Key # / Description</label><input type="text" id="km-tag" placeholder="Key #101, Main entrance, Suite 4B..."></div>
+    <div class="g2">
+      <div class="fg"><label>Quantity</label><input type="number" id="km-qty" min="1" value="1"></div>
+      <div class="fg"><label>Client / Building</label><input type="text" id="km-client" placeholder="Acme Tower..."></div>
+    </div>
+    <div class="fg"><label>Checked out to (Tech name)</label><input type="text" id="km-tech" placeholder="Mike R..."></div>
+    <div class="fg"><label>Job # (optional)</label><input type="text" id="km-job" placeholder="HCP-2025-0412"></div>
+    <div class="fg"><label>Notes</label><input type="text" id="km-notes" placeholder="Copy, original, fob..."></div>
+    <hr>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="flex:1" onclick="closeModal('key-modal')">Cancel</button>
+      <button class="btn btn-p" style="flex:1" onclick="saveKey()">Check Out Key</button>
+    </div>
+  </div>
+</div>
+
+<!-- RERUN MODAL -->
+<div class="ov" id="rerun-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-t"><span id="rerun-modal-t">Re-run Job</span><button class="xbtn" onclick="closeModal('rerun-modal')">✕</button></div>
+    <div class="info-b" style="margin-bottom:13px">Same site, techs, and kit — just update the job number and date.</div>
+    <div id="rerun-summary" style="background:var(--sur2);border-radius:9px;padding:12px;font-size:12px;font-family:var(--mono);line-height:2;margin-bottom:14px"></div>
+    <div class="fg"><label>New Job # / Número de Trabajo</label><input type="text" id="rr-jobnum" placeholder="HCP-2025-0500"></div>
+    <div class="fg"><label>New Date / Fecha</label><input type="date" id="rr-date"></div>
+    <div class="fg"><label>Tech Names (update if needed)</label><input type="text" id="rr-names"></div>
+    <div class="fg"><label>Vehicle (update if needed)</label><input type="text" id="rr-vehicle"></div>
+    <hr>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="flex:1" onclick="closeModal('rerun-modal')">Cancel</button>
+      <button class="btn btn-p" style="flex:1" onclick="confirmRerun()">Pre-fill & Pack →</button>
+    </div>
   </div>
 </div>
 
@@ -1118,7 +1174,7 @@ function nav(id) {
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.bn').forEach(b=>b.classList.remove('active'));
   document.getElementById('panel-'+id).classList.add('active');
-  const ids=['dashboard','checkout','returns','rentals','inventory','repairs','templates','history'];
+  const ids=['dashboard','checkout','returns','rentals','inventory','repairs','templates','keys','history'];
   const idx=ids.indexOf(id);
   if (idx>=0) document.querySelectorAll('.bn')[idx]?.classList.add('active');
   document.querySelector('.scroll').scrollTop=0;
@@ -1129,6 +1185,7 @@ function nav(id) {
   if (id==='history') renderHistory();
   if (id==='rentals') renderRentals();
   if (id==='reorder') renderReorderQueue();
+  if (id==='keys') renderKeysPanel();
 }
 
 // ─── CHECKOUT WIZARD ────────────────────────────────────────
@@ -2013,7 +2070,7 @@ function editTpl(id) {
   document.getElementById('tpl-name-es').value=t.name_es||'';
   document.getElementById('tpl-desc').value=t.description||'';
   document.getElementById('kit-editor').innerHTML='';
-  (t.template_items||[]).forEach(ti=>addKitRow(ti.item_name,ti.quantity,ti.quantity_mode,ti.item_name_es));
+  (t.template_items||[]).forEach(ti=>addKitRow(ti.item_name,ti.quantity,ti.quantity_mode,ti.item_name_es,ti.inventory_item_id));
   document.getElementById('tpl-modal').classList.add('open');
 }
 
@@ -2023,39 +2080,56 @@ async function delTpl(id) {
   await loadAll();
 }
 
-function addKitRow(name,q,mode,nameEs) {
-  name=name||''; q=q||1; mode=mode||'per_tech'; nameEs=nameEs||'';
-  const d=document.createElement('div');
-  d.className='kit-row';
-  d.innerHTML=`<input type="text" placeholder="Item name (EN)" value="${esc(name)}"><input type="number" min="1" value="${q}" style="text-align:center"><select><option value="per_tech"${mode==='per_tech'?' selected':''}>per tech</option><option value="fixed"${mode==='fixed'?' selected':''}>fixed</option></select><button class="btn btn-r btn-xs" onclick="this.closest('.kit-row').remove()">✕</button>`;
+function addKitRow(name, q, mode, nameEs, inventoryItemId) {
+  name = name||''; q = q||1; mode = mode||'per_tech'; nameEs = nameEs||''; inventoryItemId = inventoryItemId||'';
+  const invOptions = inventoryItems.map(i =>
+    `<option value="${i.id}" ${i.id===inventoryItemId?'selected':''}>${esc(i.part_number?i.part_number+' — ':'')}${esc(i.name)}</option>`
+  ).join('');
+  const d = document.createElement('div');
+  d.className = 'kit-row';
+  d.style.cssText = 'grid-template-columns:1fr 60px 100px 1fr auto;gap:6px;align-items:center;margin-bottom:7px;display:grid';
+  d.innerHTML = `
+    <input type="text" placeholder="Item name" value="${esc(name)}">
+    <input type="number" min="1" value="${q}" style="text-align:center">
+    <select><option value="per_tech"${mode==='per_tech'?' selected':''}>per tech</option><option value="fixed"${mode==='fixed'?' selected':''}>fixed</option></select>
+    <select class="inv-link-sel" style="font-size:11px"><option value="">— link inventory —</option>${invOptions}</select>
+    <button class="btn btn-r btn-xs" onclick="this.closest('.kit-row').remove()">✕</button>`;
   document.getElementById('kit-editor').appendChild(d);
 }
 
 async function saveTpl() {
-  const name=document.getElementById('tpl-name').value.trim();
-  if (!name){alert('Enter template name.');return;}
-  const rows=document.querySelectorAll('#kit-editor .kit-row'), items=[];
-  rows.forEach((r,i)=>{
-    const nm=r.querySelectorAll('input')[0].value.trim();
-    const q=parseInt(r.querySelectorAll('input')[1].value)||1;
-    const mode=r.querySelector('select').value;
-    if (nm) items.push({item_name:nm,quantity:q,quantity_mode:mode,sort_order:i});
+  const name = document.getElementById('tpl-name').value.trim();
+  if (!name) { alert('Enter template name.'); return; }
+  const rows = document.querySelectorAll('#kit-editor .kit-row');
+  const items = [];
+  rows.forEach((r, i) => {
+    const nm = r.querySelectorAll('input')[0].value.trim();
+    const q = parseInt(r.querySelectorAll('input')[1].value) || 1;
+    const mode = r.querySelectorAll('select')[0].value;
+    const invId = r.querySelector('.inv-link-sel')?.value || null;
+    if (nm) items.push({
+      item_name: nm,
+      quantity: q,
+      quantity_mode: mode,
+      inventory_item_id: invId || null,
+      sort_order: i
+    });
   });
-  if (!items.length){alert('Add at least one item.');return;}
+  if (!items.length) { alert('Add at least one item.'); return; }
   setSyncStatus('syncing');
   try {
     if (editTplIdx) {
-      await db.from('templates').update({name,name_es:document.getElementById('tpl-name-es').value.trim(),description:document.getElementById('tpl-desc').value.trim(),updated_at:new Date().toISOString()}).eq('id',editTplIdx);
-      await db.from('template_items').delete().eq('template_id',editTplIdx);
-      await db.from('template_items').insert(items.map(item=>({...item,template_id:editTplIdx})));
+      await db.from('templates').update({name, name_es:document.getElementById('tpl-name-es').value.trim(), description:document.getElementById('tpl-desc').value.trim(), updated_at:new Date().toISOString()}).eq('id', editTplIdx);
+      await db.from('template_items').delete().eq('template_id', editTplIdx);
+      await db.from('template_items').insert(items.map(item => ({...item, template_id:editTplIdx})));
     } else {
-      const {data:tData}=await db.from('templates').insert({name,name_es:document.getElementById('tpl-name-es').value.trim()||name,description:document.getElementById('tpl-desc').value.trim()}).select();
-      if (tData&&tData[0]) await db.from('template_items').insert(items.map(item=>({...item,template_id:tData[0].id})));
+      const {data:tData} = await db.from('templates').insert({name, name_es:document.getElementById('tpl-name-es').value.trim()||name, description:document.getElementById('tpl-desc').value.trim()}).select();
+      if (tData&&tData[0]) await db.from('template_items').insert(items.map(item => ({...item, template_id:tData[0].id})));
     }
     closeModal('tpl-modal');
     setSyncStatus('ok');
     await loadAll();
-  } catch(e){setSyncStatus('error');alert('Error saving template.');}
+  } catch(e) { setSyncStatus('error'); alert('Error saving template.'); }
 }
 
 // ─── HISTORY ────────────────────────────────────────────────
@@ -2157,6 +2231,134 @@ async function undoReturn(jobId) {
     setSyncStatus('error');
     alert('Error undoing return. Try again.');
   }
+}
+
+// ─── KEYS ───────────────────────────────────────────────────
+let keyFilter = 'all';
+
+function setKeyFilter(f, btn) {
+  keyFilter = f;
+  document.querySelectorAll('#panel-keys .btn-xs').forEach(b => b.classList.remove('active-filter'));
+  btn.classList.add('active-filter');
+  renderKeysPanel();
+}
+
+function openAddKey() {
+  ['km-tag','km-client','km-tech','km-job','km-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('km-qty').value = '1';
+  document.getElementById('key-modal').classList.add('open');
+}
+
+async function saveKey() {
+  const tag = document.getElementById('km-tag').value.trim();
+  const tech = document.getElementById('km-tech').value.trim();
+  if (!tag) { alert('Enter key description.'); return; }
+  if (!tech) { alert('Enter tech name.'); return; }
+  const data = {
+    key_tag: tag,
+    quantity: parseInt(document.getElementById('km-qty').value) || 1,
+    client: document.getElementById('km-client').value.trim() || null,
+    tech_name: tech,
+    hcp_job_number: document.getElementById('km-job').value.trim() || null,
+    notes: document.getElementById('km-notes').value.trim() || null,
+    status: 'out',
+    checkout_date: new Date().toISOString()
+  };
+  setSyncStatus('syncing');
+  try {
+    await db.from('client_keys').insert(data);
+    closeModal('key-modal');
+    setSyncStatus('ok');
+    await loadAll();
+    renderKeysPanel();
+  } catch(e) { setSyncStatus('error'); alert('Error saving key.'); }
+}
+
+async function returnKey(id) {
+  if (!confirm('Mark this key as returned?')) return;
+  setSyncStatus('syncing');
+  try {
+    await db.from('client_keys').update({ status:'returned', return_date:new Date().toISOString() }).eq('id',id);
+    setSyncStatus('ok');
+    await loadAll();
+    renderKeysPanel();
+  } catch(e) { setSyncStatus('error'); }
+}
+
+function renderKeysPanel() {
+  const q = (document.getElementById('key-search')?.value || '').toLowerCase();
+  const el = document.getElementById('keys-list');
+  if (!el) return;
+  let keys = clientKeys.filter(k =>
+    `${k.key_tag} ${k.client||''} ${k.tech_name||''} ${k.hcp_job_number||''}`.toLowerCase().includes(q)
+  );
+  if (keyFilter === 'out') keys = keys.filter(k => k.status !== 'returned');
+  if (keyFilter === 'in') keys = keys.filter(k => k.status === 'returned');
+  if (!keys.length) { el.innerHTML = '<div class="empty"><div class="ei">🔑</div><p>No keys found</p></div>'; return; }
+  keys.sort((a,b) => {
+    if (a.status !== 'returned' && b.status === 'returned') return -1;
+    if (a.status === 'returned' && b.status !== 'returned') return 1;
+    return new Date(b.checkout_date||0) - new Date(a.checkout_date||0);
+  });
+  el.innerHTML = keys.map(k => {
+    const isOut = k.status !== 'returned';
+    return `<div style="display:flex;align-items:flex-start;gap:10px;padding:13px;background:var(--sur2);border:1px solid var(--bdr);border-left:3px solid ${isOut?'var(--acc)':'var(--grn)'};border-radius:var(--r);margin-bottom:8px">
+      <div style="font-size:22px">🔑</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:13px">${esc(k.key_tag)} <span style="font-size:10px;color:var(--txt2)">(qty: ${k.quantity})</span></div>
+        <div style="font-size:11px;color:var(--txt2);margin-top:3px;font-family:var(--mono)">${k.client?`${esc(k.client)} · `:''}${esc(k.tech_name||'--')}</div>
+        <div style="font-size:11px;color:var(--txt2);font-family:var(--mono)">${k.hcp_job_number?`Job: ${esc(k.hcp_job_number)} · `:''}Out: ${fd(k.checkout_date)}${k.status==='returned'?` · <span style="color:var(--grn)">Returned: ${fd(k.return_date)}</span>`:''}</div>
+        ${k.notes?`<div style="font-size:10px;color:var(--txt3);margin-top:2px">${esc(k.notes)}</div>`:''}
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+        <span class="badge ${isOut?'bg-p':'bg-g'}">${isOut?'Out':'Returned'}</span>
+        ${isOut?`<button class="btn btn-g btn-xs" onclick="returnKey('${k.id}')">✓ Return</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─── RE-RUN JOB ─────────────────────────────────────────────
+let rerunJob = null;
+
+function openRerun(jobId) {
+  const job = history.find(h => h.id === jobId);
+  if (!job) return;
+  rerunJob = job;
+  document.getElementById('rerun-modal-t').textContent = `Re-run: ${job.hcp_job_number||'Job'}`;
+  document.getElementById('rr-jobnum').value = '';
+  document.getElementById('rr-date').value = today();
+  document.getElementById('rr-names').value = job.tech_names || '';
+  document.getElementById('rr-vehicle').value = job.vehicle || '';
+  document.getElementById('rerun-summary').innerHTML =
+    `<strong>Site:</strong> ${esc(job.building_client||job.site_address||'--')}<br>` +
+    `<strong>Template:</strong> ${esc(job.job_type||'--')}<br>` +
+    `<strong>Techs:</strong> ${esc(job.tech_names||'--')} (${job.num_techs})<br>` +
+    `<strong>Original date:</strong> ${fd(job.scheduled_date)}`;
+  document.getElementById('rerun-modal').classList.add('open');
+}
+
+function confirmRerun() {
+  if (!rerunJob) return;
+  const j = rerunJob;
+  document.getElementById('co-jobnum').value = document.getElementById('rr-jobnum').value || '';
+  document.getElementById('co-date').value = document.getElementById('rr-date').value || today();
+  document.getElementById('co-names').value = document.getElementById('rr-names').value || j.tech_names || '';
+  document.getElementById('co-numtechs').value = j.num_techs || 1;
+  document.getElementById('co-addr').value = j.site_address || '';
+  document.getElementById('co-bldg').value = j.building_client || '';
+  document.getElementById('co-vehicle').value = document.getElementById('rr-vehicle').value || j.vehicle || '';
+  document.getElementById('co-notes').value = '';
+  const sel = document.getElementById('co-template');
+  const opt = [...sel.options].find(o => o.text.toLowerCase().includes((j.job_type||'').toLowerCase()));
+  if (opt) { sel.value = opt.value; calcKit(); }
+  closeModal('rerun-modal');
+  nav('checkout');
+  goStep(1);
+  const hint = document.getElementById('hcp-hint');
+  hint.className = 'info info-t';
+  hint.innerHTML = `↩ <strong>Re-run from history</strong> — ${esc(j.building_client||j.site_address||'--')} · Original: ${fd(j.scheduled_date)}`;
+  hint.style.display = '';
 }
 
 // ─── REORDER QUEUE ──────────────────────────────────────────
