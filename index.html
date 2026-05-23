@@ -1761,7 +1761,7 @@ function renderTplGrid() {
       <h3>${esc(t.name)}</h3>
       <div class="tdesc">${esc(t.description||'')}</div>
       <div class="tlist">${(t.template_items||[]).slice(0,6).map(ti=>{
-        const inv=inventoryItems.find(i=>i.name===ti.item_name);
+        const inv=inventoryItems.find(i=>i.name.toLowerCase()===ti.item_name.toLowerCase());
         const pn=inv&&inv.part_number?` <span style="color:var(--acc);font-size:9px">${inv.part_number}</span>`:'';
         return ti.quantity+(ti.quantity_mode==='per_tech'?'/tech':'x')+' '+esc(ti.item_name)+pn;
       }).join('<br>')}${(t.template_items||[]).length>6?'<br><em>+'+(t.template_items.length-6)+' more</em>':''}</div>
