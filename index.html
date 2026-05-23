@@ -608,19 +608,13 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
       <!-- INVENTORY -->
       <div class="panel" id="panel-inventory">
         <div class="sec-hdr">
-          <div><div class="sec-title">Inventory</div><div class="sec-sub">Items, stock, assets</div></div>
+          <div><div class="sec-title">Inventory</div><div class="sec-sub">Organized by prefix</div></div>
           <div style="display:flex;gap:7px">
             <button class="btn btn-s btn-sm" onclick="openAddItem()">+ Item</button>
             <button class="btn btn-p btn-sm" onclick="openAddAsset()">+ Asset</button>
           </div>
         </div>
-        <div class="search-wrap"><span class="search-ico">🔍</span><input type="text" id="inv-search" placeholder="Search items..." oninput="renderInventory()"></div>
-        <div id="inv-filter" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
-          <button class="btn btn-xs btn-s active-filter" onclick="setInvFilter('all',this)">All</button>
-          <button class="btn btn-xs btn-s" onclick="setInvFilter('low',this)">⚠ Low Stock</button>
-          <button class="btn btn-xs btn-s" onclick="setInvFilter('bulk',this)">Bulk</button>
-          <button class="btn btn-xs btn-s" onclick="setInvFilter('asset',this)">Assets</button>
-        </div>
+        <div class="search-wrap"><span class="search-ico">🔍</span><input type="text" id="inv-search" placeholder="Search all items..." oninput="renderInventory()"></div>
         <div id="inv-list"></div>
       </div>
 
@@ -745,8 +739,13 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
     <div class="modal-t"><span id="inv-modal-t">Add Inventory Item</span><button class="xbtn" onclick="closeModal('inv-modal')">✕</button></div>
     <div class="fg"><label>Item Name</label><input type="text" id="inv-name" placeholder="Squeegee, Harness..."></div>
     <div class="fg"><label>Spanish Name / Nombre en Español</label><input type="text" id="inv-name-es" placeholder="Limpiaparabrisas, Arnés..."></div>
-    <div class="fg"><label>Category</label><select id="inv-category" onchange="onCategoryChange()"><option value="">— select —</option></select>
-    <div id="part-num-hint" style="font-size:10px;color:var(--teal,#14b8a6);margin-top:4px;font-family:var(--mono)"></div></div>
+    <div class="g2">
+      <div class="fg"><label>Prefix / Group</label>
+        <select id="inv-prefix" onchange="onPrefixChange()"><option value="">— select prefix —</option></select>
+        <div id="part-num-hint" style="font-size:10px;color:var(--teal,#14b8a6);margin-top:4px;font-family:var(--mono)"></div>
+      </div>
+      <div class="fg"><label>Category (background)</label><select id="inv-category"><option value="">— optional —</option></select></div>
+    </div>
     <div class="fg">
       <div class="toggle-wrap">
         <div><div class="toggle-label">Track Individually (Asset Mode)</div><div class="toggle-sub">For items like pressure washers with serial numbers</div></div>
@@ -889,10 +888,15 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
 
     <!-- CATEGORY PREFIXES -->
     <div style="margin-top:14px">
-      <div style="font-size:12px;font-weight:700;color:var(--acc);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">🏷 Category Prefixes</div>
-      <div style="font-size:11px;color:var(--txt2);margin-bottom:12px">Set the part number prefix for each category. Max 5 characters.</div>
+      <div style="font-size:12px;font-weight:700;color:var(--acc);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">🏷 Prefixes / Groups</div>
+      <div style="font-size:11px;color:var(--txt2);margin-bottom:12px">These are your inventory groups. Each prefix becomes a section in Inventory.</div>
       <div id="prefix-list"></div>
-      <button class="btn btn-p btn-sm btn-full" onclick="settingsSavePrefixes()">Save Prefixes</button>
+      <div style="display:flex;gap:8px;margin-top:10px;margin-bottom:14px">
+        <input type="text" id="new-prefix-code" placeholder="Code (e.g. JTL)" maxlength="5" style="width:100px;font-family:var(--mono);font-weight:700;text-transform:uppercase" oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')">
+        <input type="text" id="new-prefix-label" placeholder="Label (e.g. Janitorial)" style="flex:1">
+        <button class="btn btn-p btn-sm" onclick="settingsAddPrefix()">+ Add</button>
+      </div>
+      <button class="btn btn-s btn-sm btn-full" onclick="settingsSavePrefixes()">✓ Save All Prefixes</button>
     </div>
 
   </div>
@@ -1575,141 +1579,233 @@ function printLastReturn() {
 
 // ─── INVENTORY ──────────────────────────────────────────────
 let currentInvItem = null;
-function setInvFilter(f,btn) {
-  invFilter=f;
-  document.querySelectorAll('#inv-filter .btn').forEach(b=>b.classList.remove('active-filter'));
-  btn.classList.add('active-filter');
+let expandedPrefixes = {};
+
+const DEFAULT_PREFIXES = [
+  {code:'CLN', label:'Cleaning Equipment'},
+  {code:'HRS', label:'High-Rise Safety'},
+  {code:'CHM', label:'Chemicals'},
+  {code:'SFT', label:'Safety & Traffic'},
+  {code:'HND', label:'Hand Tools'},
+  {code:'MDR', label:'MDR Supplies'},
+  {code:'PWS', label:'Pressure Washing'},
+  {code:'SLR', label:'Solar Panel Cleaning'},
+  {code:'WTR', label:'Water Fed'},
+  {code:'PPE', label:'PPE & Work Clothes'},
+  {code:'JTL', label:'Janitorial'},
+];
+
+function getPrefixList() {
+  const saved = localStorage.getItem('kt_prefix_list');
+  return saved ? JSON.parse(saved) : DEFAULT_PREFIXES;
+}
+function savePrefixList(list) {
+  localStorage.setItem('kt_prefix_list', JSON.stringify(list));
+}
+
+function fillPrefixSelect(selectedCode) {
+  const list = getPrefixList();
+  const sel = document.getElementById('inv-prefix');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— select prefix —</option>' +
+    list.map(p => `<option value="${p.code}" ${p.code === selectedCode ? 'selected' : ''}>${p.code} — ${p.label}</option>`).join('');
+  if (selectedCode) onPrefixChange();
+}
+
+function onPrefixChange() {
+  const code = document.getElementById('inv-prefix')?.value;
+  const hint = document.getElementById('part-num-hint');
+  if (!code || !hint) { if(hint) hint.textContent = ''; return; }
+  const existing = inventoryItems.filter(i => i.part_number && i.part_number.startsWith(code + '-'));
+  const next = existing.length + 1;
+  hint.textContent = `Will be assigned: ${code}-${String(next).padStart(3,'0')}`;
+}
+
+function togglePrefixGroup(code) {
+  expandedPrefixes[code] = expandedPrefixes[code] === false ? true : false;
   renderInventory();
 }
 
+function renderInvCard(item, inGroup=false) {
+  const isLow = item.tracking_type==='bulk' && item.quantity_on_hand <= item.low_stock_threshold;
+  const itemAssets = assets.filter(a => a.inventory_item_id === item.id);
+  const cat = categories.find(c => c.id === item.category_id);
+  const border = inGroup ? 'border-bottom:1px solid var(--bdr)' : 'border:1px solid var(--bdr);border-radius:var(--r);margin-bottom:8px';
+  return `<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--sur);${border}">
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:2px;flex-wrap:wrap">
+        ${item.part_number?`<span style="font-family:var(--mono);font-size:10px;color:var(--acc);background:var(--acc-dim);padding:2px 7px;border-radius:5px;flex-shrink:0">${item.part_number}</span>`:''}
+        <span style="font-weight:700;font-size:13px">${item.name}</span>
+      </div>
+      <div style="font-size:11px;color:var(--txt2);font-family:var(--mono)">${cat?cat.name:''} ${item.tracking_type==='asset'?'· Asset':''}</div>
+      ${item.supplier_url?`<a href="${item.supplier_url}" target="_blank" style="font-size:10px;color:var(--acc);text-decoration:none">🔗 Reorder</a>`:''}
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+      ${item.tracking_type==='bulk'
+        ? `<div style="font-family:var(--mono);font-size:18px;font-weight:700;color:${isLow?'var(--red)':'var(--grn)'}">${item.quantity_on_hand}</div><div style="font-size:9px;color:var(--txt3)">min ${item.low_stock_threshold}</div>`
+        : `<div style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--acc)">${itemAssets.filter(a=>a.status==='available').length}/${itemAssets.length}</div><div style="font-size:9px;color:var(--txt3)">available</div>`
+      }
+      <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">
+        <button class="btn btn-xs btn-s" onclick="editInvItem('${item.id}')">Edit</button>
+        <button class="btn btn-xs btn-t" onclick="printItemLabel('${item.id}')">🏷</button>
+        ${isLow?`<button class="btn btn-xs btn-warn" onclick="addToReorder('${item.id}')">Reorder</button>`:''}
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderInventory() {
-  const q=(document.getElementById('inv-search').value||'').toLowerCase();
-  const el=document.getElementById('inv-list');
-  let items=inventoryItems.filter(i=>`${i.name} ${i.sku||''}`.toLowerCase().includes(q));
-  if (invFilter==='low') items=items.filter(i=>i.tracking_type==='bulk'&&i.quantity_on_hand<=i.low_stock_threshold);
-  if (invFilter==='bulk') items=items.filter(i=>i.tracking_type==='bulk');
-  if (invFilter==='asset') items=items.filter(i=>i.tracking_type==='asset');
-  if (!items.length){el.innerHTML='<div class="empty"><div class="ei">📦</div><p>No items found</p></div>';return;}
-  el.innerHTML=items.map(item=>{
-    const isLow=item.tracking_type==='bulk'&&item.quantity_on_hand<=item.low_stock_threshold;
-    const itemAssets=assets.filter(a=>a.inventory_item_id===item.id);
-    const cat=categories.find(c=>c.id===item.category_id);
-    return`<div class="inv-card">
-      <div class="inv-card-left">
-        <div style="display:flex;align-items:center;gap:7px;margin-bottom:3px">
-          <div class="inv-card-name">${esc(item.name)}</div>
-          ${item.part_number?`<span style="font-family:var(--mono);font-size:10px;color:var(--acc);background:var(--acc-dim);padding:2px 7px;border-radius:5px;flex-shrink:0">${esc(item.part_number)}</span>`:''}
+  const q = (document.getElementById('inv-search').value || '').toLowerCase();
+  const el = document.getElementById('inv-list');
+  const list = getPrefixList();
+
+  // SEARCH MODE — flat list across all prefixes
+  if (q) {
+    const hits = inventoryItems.filter(i =>
+      `${i.name} ${i.part_number||''} ${i.notes||''}`.toLowerCase().includes(q)
+    );
+    if (!hits.length) { el.innerHTML = '<div class="empty"><div class="ei">🔍</div><p>No items found</p></div>'; return; }
+    el.innerHTML = hits.map(item => renderInvCard(item, false)).join('');
+    return;
+  }
+
+  // GROUP MODE — organized by prefix
+  const allCodes = list.map(p => p.code);
+  // Catch any items with prefixes not in list
+  inventoryItems.forEach(item => {
+    if (item.part_number) {
+      const code = item.part_number.split('-')[0];
+      if (!allCodes.includes(code)) allCodes.push(code);
+    }
+  });
+
+  const unassigned = inventoryItems.filter(i => !i.part_number);
+
+  const groups = allCodes.map(code => {
+    const prefixDef = list.find(p => p.code === code);
+    const label = prefixDef ? prefixDef.label : code;
+    const items = inventoryItems
+      .filter(i => i.part_number && i.part_number.startsWith(code + '-'))
+      .sort((a,b) => (a.part_number||'').localeCompare(b.part_number||''));
+    if (!items.length) return '';
+    const isExpanded = expandedPrefixes[code] !== false;
+    const lowCount = items.filter(i => i.tracking_type==='bulk' && i.quantity_on_hand <= i.low_stock_threshold).length;
+    return `
+      <div style="margin-bottom:10px">
+        <div onclick="togglePrefixGroup('${code}')" style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:var(--sur2);border:1px solid var(--bdr);border-radius:${isExpanded?'var(--r2) var(--r2) 0 0':'var(--r2)'};cursor:pointer;user-select:none">
+          <span style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--acc);background:var(--acc-dim);padding:3px 10px;border-radius:6px;min-width:52px;text-align:center">${code}</span>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:700">${label}</div>
+            <div style="font-size:10px;color:var(--txt2);font-family:var(--mono)">${items.length} item${items.length!==1?'s':''}${lowCount?` · <span style="color:var(--red)">⚠ ${lowCount} low</span>`:''}</div>
+          </div>
+          <span style="color:var(--txt3);font-size:18px">${isExpanded?'▾':'▸'}</span>
         </div>
-        <div class="inv-card-meta">${cat?cat.name:''} ${item.tracking_type==='asset'?'· Individual tracking':''}</div>
-        ${item.supplier_url?`<a href="${esc(item.supplier_url)}" target="_blank" style="font-size:10px;color:var(--acc);text-decoration:none;">🔗 ${esc(item.supplier_name||'Reorder')}</a>`:''}
-        ${item.tracking_type==='asset'&&itemAssets.length?`<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">${itemAssets.map(a=>`<span class="badge ${a.status==='available'?'bg-g':a.status==='repair'?'bg-r':'bg-a'}">${esc(a.asset_tag)}</span>`).join('')}</div>`:''}
-      </div>
-      <div class="inv-card-right">
-        ${item.tracking_type==='bulk'
-          ? `<div class="qty-display ${isLow?'low':'ok'}">${item.quantity_on_hand}</div><div style="font-size:9px;color:var(--txt3)">min ${item.low_stock_threshold}</div>`
-          : `<div class="qty-display">${itemAssets.filter(a=>a.status==='available').length}/${itemAssets.length}</div><div style="font-size:9px;color:var(--txt3)">available</div>`
-        }
-        <div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap;justify-content:flex-end">
-          <button class="btn btn-xs btn-s" onclick="editInvItem('${item.id}')">Edit</button>
-          <button class="btn btn-xs btn-t" onclick="printItemLabel('${item.id}')">🏷 Label</button>
-          ${isLow?`<button class="btn btn-xs btn-warn" onclick="addToReorder('${item.id}')">Reorder</button>`:''}
-        </div>
-      </div>
-    </div>`;
+        ${isExpanded ? `<div style="border:1px solid var(--bdr);border-top:none;border-radius:0 0 var(--r2) var(--r2);overflow:hidden">${items.map(item => renderInvCard(item, true)).join('')}</div>` : ''}
+      </div>`;
   }).join('');
+
+  el.innerHTML = groups + (unassigned.length ? `
+    <div style="margin-bottom:10px">
+      <div style="padding:11px 14px;background:var(--sur2);border:1px solid var(--bdr);border-radius:var(--r2)">
+        <div style="font-size:12px;color:var(--txt2);font-weight:600">⚠ No prefix assigned (${unassigned.length} items)</div>
+      </div>
+    </div>` : '');
 }
 
 function openAddItem() {
-  currentInvItem=null;
-  document.getElementById('inv-modal-t').textContent='Add Inventory Item';
-  ['inv-name','inv-name-es','inv-supplier','inv-supplier-url','inv-supplier-sku','inv-notes'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('inv-qty').value='0';
-  document.getElementById('inv-threshold').value='2';
-  document.getElementById('inv-cost').value='0';
-  document.getElementById('inv-is-asset').checked=false;
-  document.getElementById('bulk-fields').style.display='';
-  fillCategorySelect();
+  currentInvItem = null;
+  document.getElementById('inv-modal-t').textContent = 'Add Inventory Item';
+  ['inv-name','inv-name-es','inv-supplier','inv-supplier-url','inv-supplier-sku','inv-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('inv-qty').value = '0';
+  document.getElementById('inv-threshold').value = '2';
+  document.getElementById('inv-cost').value = '0';
+  document.getElementById('inv-is-asset').checked = false;
+  document.getElementById('bulk-fields').style.display = '';
+  fillPrefixSelect('');
+  fillCategorySelect('');
   document.getElementById('inv-modal').classList.add('open');
 }
 
 function editInvItem(id) {
-  const item=inventoryItems.find(i=>i.id===id);
+  const item = inventoryItems.find(i => i.id === id);
   if (!item) return;
-  currentInvItem=item;
-  document.getElementById('inv-modal-t').textContent='Edit Item';
-  document.getElementById('inv-name').value=item.name||'';
-  document.getElementById('inv-name-es').value=item.name_es||'';
-  document.getElementById('inv-qty').value=item.quantity_on_hand||0;
-  document.getElementById('inv-threshold').value=item.low_stock_threshold||2;
-  document.getElementById('inv-cost').value=item.unit_cost||0;
-  document.getElementById('inv-supplier').value=item.supplier_name||'';
-  document.getElementById('inv-supplier-url').value=item.supplier_url||'';
-  document.getElementById('inv-supplier-sku').value=item.supplier_sku||'';
-  document.getElementById('inv-notes').value=item.notes||'';
-  document.getElementById('inv-is-asset').checked=item.tracking_type==='asset';
-  document.getElementById('bulk-fields').style.display=item.tracking_type==='asset'?'none':'';
+  currentInvItem = item;
+  document.getElementById('inv-modal-t').textContent = 'Edit Item';
+  document.getElementById('inv-name').value = item.name || '';
+  document.getElementById('inv-name-es').value = item.name_es || '';
+  document.getElementById('inv-qty').value = item.quantity_on_hand || 0;
+  document.getElementById('inv-threshold').value = item.low_stock_threshold || 2;
+  document.getElementById('inv-cost').value = item.unit_cost || 0;
+  document.getElementById('inv-supplier').value = item.supplier_name || '';
+  document.getElementById('inv-supplier-url').value = item.supplier_url || '';
+  document.getElementById('inv-supplier-sku').value = item.supplier_sku || '';
+  document.getElementById('inv-notes').value = item.notes || '';
+  document.getElementById('inv-is-asset').checked = item.tracking_type === 'asset';
+  document.getElementById('bulk-fields').style.display = item.tracking_type === 'asset' ? 'none' : '';
+  // Pre-select prefix from existing part number
+  const existingPrefix = item.part_number ? item.part_number.split('-')[0] : '';
+  fillPrefixSelect(existingPrefix);
   fillCategorySelect(item.category_id);
   document.getElementById('inv-modal').classList.add('open');
 }
 
 function toggleAssetMode() {
-  document.getElementById('bulk-fields').style.display=document.getElementById('inv-is-asset').checked?'none':'';
+  document.getElementById('bulk-fields').style.display = document.getElementById('inv-is-asset').checked ? 'none' : '';
 }
 
 function fillCategorySelect(selected) {
-  const sel=document.getElementById('inv-category');
-  sel.innerHTML='<option value="">— select —</option>'+categories.map(c=>`<option value="${c.id}"${c.id===selected?' selected':''}>${esc(c.name)}</option>`).join('');
-}
-
-// Show what part number prefix will be assigned
-const CATEGORY_PREFIXES = {
-  'Cleaning Equipment': 'CLN',
-  'High-Rise Safety': 'HRS',
-  'Chemicals': 'CHM',
-  'Safety & Traffic Control': 'SFT',
-  'Hand Tools & Equipment': 'HND',
-  'MDR Supplies': 'MDR',
-  'Pressure Washing': 'PWS',
-  'Solar Panel Cleaning': 'SLR',
-  'Water Fed': 'WTR',
-  'PPE & Work Clothes': 'PPE',
-  'Janitorial': 'JTL',
-};
-
-function onCategoryChange() {
   const sel = document.getElementById('inv-category');
-  const catName = sel.options[sel.selectedIndex]?.text;
-  const prefix = CATEGORY_PREFIXES[catName] || 'GEN';
-  const hint = document.getElementById('part-num-hint');
-  if (hint) hint.textContent = `Part number will be assigned automatically: ${prefix}-###`;
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— optional —</option>' + categories.map(c =>
+    `<option value="${c.id}" ${c.id === selected ? 'selected' : ''}>${c.name}</option>`
+  ).join('');
 }
 
 async function saveInventoryItem() {
-  const name=document.getElementById('inv-name').value.trim();
-  if (!name){alert('Enter item name.');return;}
-  const isAsset=document.getElementById('inv-is-asset').checked;
-  const data={
+  const name = document.getElementById('inv-name').value.trim();
+  if (!name) { alert('Enter item name.'); return; }
+  const selectedPrefix = document.getElementById('inv-prefix')?.value;
+  if (!selectedPrefix) { alert('Select a prefix / group for this item.'); return; }
+  const isAsset = document.getElementById('inv-is-asset').checked;
+
+  // Assign next part number for this prefix
+  const existing = inventoryItems.filter(i => i.part_number && i.part_number.startsWith(selectedPrefix + '-'));
+  let nextNum = existing.length + 1;
+  let partNumber = `${selectedPrefix}-${String(nextNum).padStart(3,'0')}`;
+  // Make sure it's unique
+  while (inventoryItems.find(i => i.part_number === partNumber)) {
+    nextNum++;
+    partNumber = `${selectedPrefix}-${String(nextNum).padStart(3,'0')}`;
+  }
+  // Keep existing part number when editing
+  if (currentInvItem && currentInvItem.part_number) {
+    const curPrefix = currentInvItem.part_number.split('-')[0];
+    partNumber = curPrefix === selectedPrefix ? currentInvItem.part_number : partNumber;
+  }
+
+  const data = {
     name,
-    name_es: document.getElementById('inv-name-es').value.trim()||name,
-    category_id: document.getElementById('inv-category').value||null,
-    tracking_type: isAsset?'asset':'bulk',
-    quantity_on_hand: isAsset?0:parseInt(document.getElementById('inv-qty').value)||0,
-    low_stock_threshold: parseInt(document.getElementById('inv-threshold').value)||2,
-    unit_cost: parseFloat(document.getElementById('inv-cost').value)||0,
-    supplier_name: document.getElementById('inv-supplier').value.trim()||null,
-    supplier_url: document.getElementById('inv-supplier-url').value.trim()||null,
-    supplier_sku: document.getElementById('inv-supplier-sku').value.trim()||null,
-    notes: document.getElementById('inv-notes').value.trim()||null,
+    name_es: document.getElementById('inv-name-es').value.trim() || name,
+    category_id: document.getElementById('inv-category').value || null,
+    part_number: partNumber,
+    tracking_type: isAsset ? 'asset' : 'bulk',
+    quantity_on_hand: isAsset ? 0 : parseInt(document.getElementById('inv-qty').value) || 0,
+    low_stock_threshold: parseInt(document.getElementById('inv-threshold').value) || 2,
+    unit_cost: parseFloat(document.getElementById('inv-cost').value) || 0,
+    supplier_name: document.getElementById('inv-supplier').value.trim() || null,
+    supplier_url: document.getElementById('inv-supplier-url').value.trim() || null,
+    supplier_sku: document.getElementById('inv-supplier-sku').value.trim() || null,
+    notes: document.getElementById('inv-notes').value.trim() || null,
     updated_at: new Date().toISOString()
   };
   setSyncStatus('syncing');
   try {
-    if (currentInvItem) { await db.from('inventory_items').update(data).eq('id',currentInvItem.id); }
+    if (currentInvItem) { await db.from('inventory_items').update(data).eq('id', currentInvItem.id); }
     else { await db.from('inventory_items').insert(data); }
     closeModal('inv-modal');
     setSyncStatus('ok');
     await loadAll();
-  } catch(e){ setSyncStatus('error'); alert('Error saving item.'); }
+  } catch(e) { setSyncStatus('error'); alert('Error saving item.'); }
 }
 
 // ─── ASSETS ─────────────────────────────────────────────────
@@ -1750,34 +1846,49 @@ async function saveAsset() {
 }
 
 // ─── SETTINGS ───────────────────────────────────────────────
-function getCategoryPrefixes() {
-  return JSON.parse(localStorage.getItem('kt_prefixes') || '{}');
-}
-function saveCategoryPrefixes(map) {
-  localStorage.setItem('kt_prefixes', JSON.stringify(map));
-}
-function getPrefix(catName) {
-  const custom = getCategoryPrefixes();
-  return custom[catName] || CATEGORY_PREFIXES[catName] || 'GEN';
-}
-
 function openSettings() {
   document.getElementById('s-autolock').value = String(getAutoLock());
   document.getElementById('s-pin-new').value = '';
   document.getElementById('s-pin-confirm').value = '';
   document.getElementById('s-pin-err').textContent = '';
-  const saved = getCategoryPrefixes();
-  const el = document.getElementById('prefix-list');
-  el.innerHTML = categories.map(c => {
-    const current = saved[c.name] || CATEGORY_PREFIXES[c.name] || 'GEN';
-    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bdr)">
-      <div style="flex:1;font-size:12px;font-weight:600">${esc(c.name)}</div>
-      <input type="text" id="pfx-${c.id}" value="${esc(current)}" maxlength="5"
-        style="width:70px;text-align:center;font-family:var(--mono);font-size:13px;font-weight:700;color:var(--acc);text-transform:uppercase;padding:6px"
-        oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')">
-    </div>`;
-  }).join('');
+  document.getElementById('new-prefix-code').value = '';
+  document.getElementById('new-prefix-label').value = '';
+  renderPrefixList();
   document.getElementById('settings-modal').classList.add('open');
+}
+
+function renderPrefixList() {
+  const list = getPrefixList();
+  const el = document.getElementById('prefix-list');
+  el.innerHTML = list.map((p, i) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--bdr)">
+      <span style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--acc);background:var(--acc-dim);padding:3px 10px;border-radius:6px;min-width:52px;text-align:center">${p.code}</span>
+      <input type="text" value="${p.label}" id="pfx-label-${i}" style="flex:1;font-size:12px" placeholder="Label">
+      <button class="btn btn-r btn-xs" onclick="settingsRemovePrefix(${i})">✕</button>
+    </div>
+  `).join('');
+}
+
+function settingsAddPrefix() {
+  const code = document.getElementById('new-prefix-code').value.trim().toUpperCase();
+  const label = document.getElementById('new-prefix-label').value.trim();
+  if (!code || code.length < 2) { alert('Enter a prefix code (2–5 letters).'); return; }
+  if (!label) { alert('Enter a label for this prefix.'); return; }
+  const list = getPrefixList();
+  if (list.find(p => p.code === code)) { alert('That prefix already exists.'); return; }
+  list.push({code, label});
+  savePrefixList(list);
+  document.getElementById('new-prefix-code').value = '';
+  document.getElementById('new-prefix-label').value = '';
+  renderPrefixList();
+}
+
+function settingsRemovePrefix(i) {
+  if (!confirm('Remove this prefix? Items using it keep their part numbers.')) return;
+  const list = getPrefixList();
+  list.splice(i, 1);
+  savePrefixList(list);
+  renderPrefixList();
 }
 
 function settingsSavePin() {
@@ -1796,20 +1907,20 @@ function settingsSaveAutoLock() {
   const v = parseInt(document.getElementById('s-autolock').value);
   localStorage.setItem('kt_autolock', String(v));
   resetAutoLock();
-  const ms = v;
-  document.getElementById('lock-timer').textContent = ms === 0 ? 'Manual lock only' : ms < 3600000 ? `Auto-locks in ${ms/60000}min` : `Auto-locks in ${ms/3600000}h`;
+  document.getElementById('lock-timer').textContent = v === 0 ? 'Manual lock only' : v < 3600000 ? `Auto-locks in ${v/60000}min` : `Auto-locks in ${v/3600000}h`;
   alert('✓ Auto-lock saved!');
 }
 
 function settingsSavePrefixes() {
-  const saved = {};
-  categories.forEach(c => {
-    const inp = document.getElementById('pfx-' + c.id);
-    if (inp && inp.value.trim()) saved[c.name] = inp.value.trim().toUpperCase();
+  const list = getPrefixList();
+  list.forEach((p, i) => {
+    const inp = document.getElementById('pfx-label-' + i);
+    if (inp && inp.value.trim()) p.label = inp.value.trim();
   });
-  saveCategoryPrefixes(saved);
-  alert('✓ Prefixes saved! New items will use these prefixes automatically.');
+  savePrefixList(list);
+  alert('✓ Prefixes saved!');
   closeModal('settings-modal');
+  renderInventory();
 }
 
 // ─── REPAIRS ────────────────────────────────────────────────
