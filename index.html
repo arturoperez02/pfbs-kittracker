@@ -660,6 +660,16 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
         <div id="hist-list"></div>
       </div>
 
+      <!-- INSPECTIONS -->
+      <div class="panel" id="panel-inspections">
+        <div class="sec-hdr">
+          <div><div class="sec-title">Inspections</div><div class="sec-sub">Safety equipment due dates</div></div>
+          <button class="btn btn-p btn-sm" onclick="openAddInsp()">+ Add</button>
+        </div>
+        <div id="insp-alerts-banner"></div>
+        <div id="insp-list"><div class="empty"><div class="ei">🔍</div><p>No inspection items yet.<br>Add harnesses, ropes, carabiners, etc.</p></div></div>
+      </div>
+
       <!-- KEYS -->
       <div class="panel" id="panel-keys">
         <div class="sec-hdr">
@@ -711,6 +721,7 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
     <button class="bn" onclick="nav('rentals')"><span class="bi">🏗</span>Rentals</button>
     <button class="bn" onclick="nav('inventory')"><span class="bi">📦</span>Inventory</button>
     <button class="bn" onclick="nav('repairs')"><span class="bi">🔧</span>Repairs</button>
+    <button class="bn" onclick="nav('inspections')"><span class="bi">🔍</span>Inspect</button>
     <button class="bn" onclick="nav('templates')"><span class="bi">📋</span>Templates</button>
     <button class="bn" onclick="nav('keys')"><span class="bi">🔑</span>Keys</button>
     <button class="bn" onclick="nav('history')"><span class="bi">📜</span>History</button>
@@ -958,6 +969,57 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
   </div>
 </div>
 
+<!-- EDIT ACTIVE JOB MODAL -->
+<div class="ov" id="edit-job-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-t"><span>✏ Edit Active Job</span><button class="xbtn" onclick="closeModal('edit-job-modal')">✕</button></div>
+    <div class="info-b" style="margin-bottom:13px">Update job details or add items to an active checkout.</div>
+    <div class="fg"><label>Job # / Número</label><input type="text" id="ej-jobnum" placeholder="HCP-2025-0412"></div>
+    <div class="fg"><label>Tech Names</label><input type="text" id="ej-names" placeholder="Mike R., Sara L."></div>
+    <div class="fg"><label>Vehicle</label><input type="text" id="ej-vehicle" placeholder="Truck #3..."></div>
+    <div class="fg"><label>Notes</label><textarea id="ej-notes" rows="2" placeholder="Special instructions..."></textarea></div>
+    <hr>
+    <div class="card-title" style="margin-bottom:8px">Add Item to Kit</div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <input type="text" id="ej-item-name" placeholder="Item name" style="flex:1">
+      <input type="number" id="ej-item-qty" value="1" min="1" style="width:60px">
+      <button class="btn btn-s btn-sm" onclick="addItemToActiveJob()">+</button>
+    </div>
+    <div id="ej-items-list" style="margin-bottom:12px"></div>
+    <hr>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="flex:1" onclick="closeModal('edit-job-modal')">Cancel</button>
+      <button class="btn btn-p" style="flex:1" onclick="saveActiveJobEdits()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- INSPECTION MODAL -->
+<div class="ov" id="insp-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-t"><span id="insp-modal-t">Add Inspection Item</span><button class="xbtn" onclick="closeModal('insp-modal')">✕</button></div>
+    <div class="fg"><label>Item Name</label><input type="text" id="insp-name" placeholder="Full Body Harness, Dynamic Rope..."></div>
+    <div class="fg"><label>Serial / Tag # (optional)</label><input type="text" id="insp-serial" placeholder="SN-001, TAG-003..."></div>
+    <div class="fg"><label>Last Inspection Date</label><input type="date" id="insp-last"></div>
+    <div class="fg"><label>Inspection Interval</label>
+      <select id="insp-interval">
+        <option value="90">Every 3 months</option>
+        <option value="180">Every 6 months</option>
+        <option value="365" selected>Every year (annual)</option>
+        <option value="730">Every 2 years</option>
+      </select>
+    </div>
+    <div class="fg"><label>Notes (inspector, cert #)</label><input type="text" id="insp-notes" placeholder="Certified by..."></div>
+    <hr>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="flex:1" onclick="closeModal('insp-modal')">Cancel</button>
+      <button class="btn btn-p" style="flex:1" onclick="saveInspItem()">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- PRINT AREA -->
 <div id="print-area">
   <div id="print-content"></div>
@@ -1071,8 +1133,9 @@ function renderActiveJobs() {
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
           <span class="badge ${j.status==='picked_up'?'bg-b':'bg-p'}">${j.status==='picked_up'?'Out':'Packed'}</span>
+          <button class="btn btn-xs btn-p" onclick="editActiveJob('${j.id}')">✏ Edit</button>
           <button class="btn btn-xs btn-s" onclick="nav('returns')">Return</button>
-          <button class="btn btn-xs btn-s" onclick="showJobQR('${j.id}','${esc(j.hcp_job_number||j.id)}')">QR</button>
+          <button class="btn btn-xs btn-s" onclick="printDymoLabelById('${j.id}')">🖨 Label</button>
         </div>
       </div>
     </div>
@@ -1106,8 +1169,7 @@ function renderLowStockAlerts() {
   const low = inventoryItems.filter(i => i.tracking_type==='bulk' && i.quantity_on_hand <= i.low_stock_threshold);
   const el = document.getElementById('low-stock-alerts');
   el.innerHTML = low.length ? `<div class="alert-banner"><span class="ai">⚠️</span><p><strong>${low.length} item${low.length>1?'s':''} low on stock:</strong> ${low.map(i=>i.name).join(', ')} <button class="btn btn-xs btn-warn" style="margin-left:8px" onclick="nav('inventory')">View</button></p></div>` : '';
-  const rel = document.getElementById('repair-alerts');
-  rel.innerHTML = repairs.length ? `<div class="alert-banner"><span class="ai">🔧</span><p><strong>${repairs.length} item${repairs.length>1?'s':''} in repair queue</strong> <button class="btn btn-xs btn-warn" style="margin-left:8px" onclick="nav('repairs')">View</button></p></div>` : '';
+  renderInspAlerts();
 }
 
 // ─── MODE ───────────────────────────────────────────────────
@@ -1174,7 +1236,7 @@ function nav(id) {
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.bn').forEach(b=>b.classList.remove('active'));
   document.getElementById('panel-'+id).classList.add('active');
-  const ids=['dashboard','checkout','returns','rentals','inventory','repairs','templates','keys','history'];
+  const ids=['dashboard','checkout','returns','rentals','inventory','repairs','inspections','templates','keys','history'];
   const idx=ids.indexOf(id);
   if (idx>=0) document.querySelectorAll('.bn')[idx]?.classList.add('active');
   document.querySelector('.scroll').scrollTop=0;
@@ -1186,6 +1248,7 @@ function nav(id) {
   if (id==='rentals') renderRentals();
   if (id==='reorder') renderReorderQueue();
   if (id==='keys') renderKeysPanel();
+  if (id==='inspections') renderInspList();
 }
 
 // ─── CHECKOUT WIZARD ────────────────────────────────────────
@@ -2312,6 +2375,201 @@ async function undoReturn(jobId) {
     setSyncStatus('error');
     alert('Error undoing return. Try again.');
   }
+}
+
+// ─── INSPECTIONS ────────────────────────────────────────────
+let inspItems = [];
+
+function loadInspItems() {
+  inspItems = JSON.parse(localStorage.getItem('kt_insp') || '[]');
+}
+
+function saveInspItems() {
+  localStorage.setItem('kt_insp', JSON.stringify(inspItems));
+}
+
+function inspStatus(item) {
+  const last = new Date(item.lastDate);
+  const due = new Date(last);
+  due.setDate(due.getDate() + parseInt(item.interval));
+  const now = new Date();
+  const daysLeft = Math.ceil((due - now) / (1000*60*60*24));
+  if (daysLeft < 0) return {status:'overdue', label:'Overdue by '+Math.abs(daysLeft)+' days', color:'var(--red)', css:'insp-overdue'};
+  if (daysLeft <= 30) return {status:'soon', label:'Due in '+daysLeft+' days', color:'var(--amb)', css:'insp-soon'};
+  return {status:'ok', label:'Due '+fd(due.toISOString()), color:'var(--grn)', css:'insp-ok'};
+}
+
+function renderInspList() {
+  loadInspItems();
+  const el = document.getElementById('insp-list');
+  const bannerEl = document.getElementById('insp-alerts-banner');
+  if (!inspItems.length) {
+    el.innerHTML = '<div class="empty"><div class="ei">🔍</div><p>No inspection items yet.<br>Add harnesses, ropes, carabiners, etc.</p></div>';
+    if (bannerEl) bannerEl.innerHTML = '';
+    return;
+  }
+  // Sort: overdue first, then soon, then ok
+  const sorted = [...inspItems].sort((a,b) => {
+    const sa = inspStatus(a), sb = inspStatus(b);
+    const order = {overdue:0, soon:1, ok:2};
+    return order[sa.status] - order[sb.status];
+  });
+  const overdue = sorted.filter(i => inspStatus(i).status === 'overdue');
+  const soon = sorted.filter(i => inspStatus(i).status === 'soon');
+  if (bannerEl) {
+    bannerEl.innerHTML = overdue.length ? `<div class="info info-r" style="margin-bottom:12px">⚠ <strong>${overdue.length} item${overdue.length>1?'s':''} overdue for inspection:</strong> ${overdue.map(i=>i.name).join(', ')}</div>` :
+      soon.length ? `<div class="info info-a" style="margin-bottom:12px">⏰ <strong>${soon.length} item${soon.length>1?'s':''} due soon:</strong> ${soon.map(i=>i.name).join(', ')}</div>` : '';
+  }
+  el.innerHTML = sorted.map((item, i) => {
+    const s = inspStatus(item);
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:13px;background:var(--sur2);border:1px solid var(--bdr);border-left:3px solid ${s.color};border-radius:var(--r);margin-bottom:8px">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:13px">${esc(item.name)}${item.serial?` <span style="font-size:10px;color:var(--txt2);font-family:var(--mono)">#${esc(item.serial)}</span>`:''}</div>
+        <div style="font-size:11px;color:var(--txt2);margin-top:3px">Last inspected: ${fd(item.lastDate)}</div>
+        ${item.notes?`<div style="font-size:10px;color:var(--txt3)">${esc(item.notes)}</div>`:''}
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;margin-left:10px">
+        <span style="font-size:10px;font-weight:700;font-family:var(--mono);padding:3px 9px;border-radius:20px;background:${s.color}22;color:${s.color};border:1px solid ${s.color}44">${s.label}</span>
+        <div style="display:flex;gap:5px">
+          <button class="btn btn-g btn-xs" onclick="markInspDone(${i})">✓ Done</button>
+          <button class="btn btn-r btn-xs" onclick="deleteInsp(${i})">✕</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openAddInsp() {
+  ['insp-name','insp-serial','insp-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('insp-last').value = today();
+  document.getElementById('insp-interval').value = '365';
+  document.getElementById('insp-modal-t').textContent = 'Add Inspection Item';
+  document.getElementById('insp-modal').classList.add('open');
+}
+
+function saveInspItem() {
+  const name = document.getElementById('insp-name').value.trim();
+  if (!name) { alert('Enter item name.'); return; }
+  loadInspItems();
+  inspItems.push({
+    id: uid(),
+    name,
+    serial: document.getElementById('insp-serial').value.trim(),
+    lastDate: document.getElementById('insp-last').value || today(),
+    interval: document.getElementById('insp-interval').value || '365',
+    notes: document.getElementById('insp-notes').value.trim()
+  });
+  saveInspItems();
+  closeModal('insp-modal');
+  renderInspList();
+}
+
+function markInspDone(i) {
+  loadInspItems();
+  inspItems[i].lastDate = today();
+  saveInspItems();
+  renderInspList();
+  alert(`✓ ${inspItems[i].name} marked as inspected today.`);
+}
+
+function deleteInsp(i) {
+  if (!confirm('Remove this item?')) return;
+  loadInspItems();
+  inspItems.splice(i, 1);
+  saveInspItems();
+  renderInspList();
+}
+
+// Also render inspection alerts on dashboard
+function renderInspAlerts() {
+  loadInspItems();
+  const overdue = inspItems.filter(i => inspStatus(i).status === 'overdue');
+  const soon = inspItems.filter(i => inspStatus(i).status === 'soon');
+  const el = document.getElementById('repair-alerts');
+  if (!el) return;
+  const inspAlert = overdue.length
+    ? `<div class="alert-banner"><span class="ai">🔍</span><p><strong>${overdue.length} inspection${overdue.length>1?'s':''} overdue:</strong> ${overdue.map(i=>i.name).join(', ')} <button class="btn btn-xs btn-warn" style="margin-left:8px" onclick="nav('inspections')">View</button></p></div>`
+    : soon.length
+    ? `<div class="alert-banner" style="background:var(--amb-dim);border-color:rgba(245,158,11,.25)"><span class="ai">⏰</span><p style="color:var(--amb)"><strong>${soon.length} inspection${soon.length>1?'s':''} due soon</strong> <button class="btn btn-xs btn-s" style="margin-left:8px" onclick="nav('inspections')">View</button></p></div>`
+    : '';
+  el.innerHTML = inspAlert + (repairs.length ? `<div class="alert-banner"><span class="ai">🔧</span><p><strong>${repairs.length} item${repairs.length>1?'s':''} in repair queue</strong> <button class="btn btn-xs btn-warn" style="margin-left:8px" onclick="nav('repairs')">View</button></p></div>` : '');
+}
+
+// ─── EDIT ACTIVE JOB ────────────────────────────────────────
+let editingJob = null;
+let editingJobItems = [];
+
+function editActiveJob(jobId) {
+  const job = jobs.find(j => j.id === jobId);
+  if (!job) return;
+  editingJob = job;
+  editingJobItems = (job.job_items || []).map(i => ({...i}));
+  document.getElementById('ej-jobnum').value = job.hcp_job_number || '';
+  document.getElementById('ej-names').value = job.tech_names || '';
+  document.getElementById('ej-vehicle').value = job.vehicle || '';
+  document.getElementById('ej-notes').value = job.notes || '';
+  document.getElementById('ej-item-name').value = '';
+  document.getElementById('ej-item-qty').value = '1';
+  renderEditJobItems();
+  document.getElementById('edit-job-modal').classList.add('open');
+}
+
+function renderEditJobItems() {
+  const el = document.getElementById('ej-items-list');
+  if (!editingJobItems.length) { el.innerHTML = ''; return; }
+  el.innerHTML = editingJobItems.map((item, i) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--sur2);border-radius:8px;margin-bottom:5px;border:1px solid var(--bdr)">
+      <span style="flex:1;font-size:12px;font-weight:600">${esc(item.item_name)}</span>
+      <span class="kit-item-qty">${item.quantity}</span>
+    </div>
+  `).join('');
+}
+
+function addItemToActiveJob() {
+  const name = document.getElementById('ej-item-name').value.trim();
+  const qty = parseInt(document.getElementById('ej-item-qty').value) || 1;
+  if (!name) { alert('Enter item name.'); return; }
+  editingJobItems.push({ item_name: name, item_name_es: name, quantity: qty, is_oneoff: true, job_id: editingJob.id });
+  document.getElementById('ej-item-name').value = '';
+  document.getElementById('ej-item-qty').value = '1';
+  renderEditJobItems();
+}
+
+async function saveActiveJobEdits() {
+  if (!editingJob) return;
+  setSyncStatus('syncing');
+  try {
+    await db.from('jobs').update({
+      hcp_job_number: document.getElementById('ej-jobnum').value.trim() || null,
+      tech_names: document.getElementById('ej-names').value.trim(),
+      vehicle: document.getElementById('ej-vehicle').value.trim(),
+      notes: document.getElementById('ej-notes').value.trim(),
+      updated_at: new Date().toISOString()
+    }).eq('id', editingJob.id);
+    // Insert any new items added
+    const newItems = editingJobItems.filter(i => !i.id);
+    if (newItems.length) {
+      await db.from('job_items').insert(newItems.map(i => ({
+        job_id: editingJob.id,
+        item_name: i.item_name,
+        item_name_es: i.item_name_es || i.item_name,
+        quantity: i.quantity,
+        is_oneoff: true,
+        inventory_item_id: null
+      })));
+    }
+    closeModal('edit-job-modal');
+    setSyncStatus('ok');
+    await loadAll();
+    alert('✓ Job updated!');
+  } catch(e) { setSyncStatus('error'); alert('Error saving changes.'); }
+}
+
+function printDymoLabelById(jobId) {
+  const job = jobs.find(j => j.id === jobId);
+  if (!job) return;
+  lastJob = { ...job, projName: job.job_type };
+  printDymoLabel();
 }
 
 // ─── KEYS ───────────────────────────────────────────────────
