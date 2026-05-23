@@ -2041,8 +2041,10 @@ function renderTplGrid() {
       <h3>${esc(t.name)}</h3>
       <div class="tdesc">${esc(t.description||'')}</div>
       <div class="tlist">${(t.template_items||[]).slice(0,6).map(ti=>{
-        const inv=inventoryItems.find(i=>i.name.toLowerCase()===ti.item_name.toLowerCase());
-        const pn=inv&&inv.part_number?` <span style="color:var(--acc);font-size:9px">${inv.part_number}</span>`:'';
+        const inv = ti.inventory_item_id
+          ? inventoryItems.find(i=>i.id===ti.inventory_item_id)
+          : inventoryItems.find(i=>i.name.toLowerCase()===ti.item_name.toLowerCase());
+        const pn = inv&&inv.part_number?` <span style="color:var(--acc);font-size:9px">${inv.part_number}</span>`:'';
         return ti.quantity+(ti.quantity_mode==='per_tech'?'/tech':'x')+' '+esc(ti.item_name)+pn;
       }).join('<br>')}${(t.template_items||[]).length>6?'<br><em>+'+(t.template_items.length-6)+' more</em>':''}</div>
       <div class="tacts">
@@ -2108,6 +2110,10 @@ function addKitRow(name, q, mode, nameEs, inventoryItemId) {
 }
 
 function searchInvDropdown(input, rowId) {
+  // Close all other open dropdowns first
+  document.querySelectorAll('.inv-search-results').forEach(el => {
+    if (el.id !== 'isr-' + rowId) el.style.display = 'none';
+  });
   const q = input.value.toLowerCase();
   const resultsEl = document.getElementById('isr-' + rowId);
   if (!resultsEl) return;
@@ -2120,29 +2126,32 @@ function searchInvDropdown(input, rowId) {
     resultsEl.innerHTML = `
       <div style="padding:10px 12px;font-size:12px;color:var(--txt2)">No match found.</div>
       <div style="padding:8px 12px;border-top:1px solid var(--bdr)">
-        <button class="btn btn-p btn-xs btn-full" onclick="quickAddFromTemplate('${rowId}',document.getElementById('kr-${rowId}').querySelector('.inv-search-input').value)">+ Add "${esc(input.value)}" to Inventory</button>
+        <button class="btn btn-p btn-xs btn-full" onmousedown="quickAddFromTemplate('${rowId}',document.getElementById('kr-${rowId}').querySelector('.inv-search-input').value)">+ Add to Inventory</button>
       </div>`;
     return;
   }
   resultsEl.style.display = '';
   resultsEl.innerHTML = filtered.slice(0,12).map(i => `
-    <div onclick="selectInvItem('${rowId}','${i.id}','${esc(i.name).replace(/'/g,"\\'")}','${esc(i.part_number||'')}')"
+    <div onmousedown="selectInvItem('${rowId}','${i.id}','${esc(i.name).replace(/'/g,"\\'")}','${esc(i.part_number||'')}')"
       style="padding:9px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--bdr);transition:background .1s"
       onmouseover="this.style.background='var(--sur2)'" onmouseout="this.style.background=''">
       ${i.part_number?`<span style="font-family:var(--mono);font-size:10px;color:var(--acc);margin-right:6px">${esc(i.part_number)}</span>`:''}
       ${esc(i.name)}
     </div>
   `).join('');
-  // Close when clicking outside
-  setTimeout(() => {
-    document.addEventListener('click', function closeIt(e) {
-      if (!resultsEl.contains(e.target) && e.target !== input) {
-        resultsEl.style.display = 'none';
-        document.removeEventListener('click', closeIt);
-      }
-    });
-  }, 100);
 }
+
+// Close all dropdowns when clicking outside
+document.addEventListener('click', function(e) {
+  if (!e.target.classList.contains('inv-search-input')) {
+    document.querySelectorAll('.inv-search-results').forEach(el => el.style.display = 'none');
+  }
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.inv-search-results').forEach(el => el.style.display = 'none');
+  }
+});
 
 function selectInvItem(rowId, id, name, partNum) {
   const row = document.getElementById(rowId);
