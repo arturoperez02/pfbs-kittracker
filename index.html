@@ -1760,7 +1760,11 @@ function renderTplGrid() {
       <span class="badge bg-b tcount" style="font-size:9px">${(t.template_items||[]).length}</span>
       <h3>${esc(t.name)}</h3>
       <div class="tdesc">${esc(t.description||'')}</div>
-      <div class="tlist">${(t.template_items||[]).slice(0,5).map(ti=>ti.quantity+(ti.quantity_mode==='per_tech'?'/tech':'x')+' '+esc(ti.item_name)).join('<br>')}${(t.template_items||[]).length>5?'<br><em>+'+(t.template_items.length-5)+' more</em>':''}</div>
+      <div class="tlist">${(t.template_items||[]).slice(0,6).map(ti=>{
+        const inv=inventoryItems.find(i=>i.name===ti.item_name);
+        const pn=inv&&inv.part_number?` <span style="color:var(--acc);font-size:9px">${inv.part_number}</span>`:'';
+        return ti.quantity+(ti.quantity_mode==='per_tech'?'/tech':'x')+' '+esc(ti.item_name)+pn;
+      }).join('<br>')}${(t.template_items||[]).length>6?'<br><em>+'+(t.template_items.length-6)+' more</em>':''}</div>
       <div class="tacts">
         <button class="btn btn-s btn-xs" onclick="editTpl('${t.id}')">Edit</button>
         <button class="btn btn-r btn-xs" onclick="delTpl('${t.id}')">Delete</button>
@@ -1838,17 +1842,52 @@ function renderHistory() {
   const el=document.getElementById('hist-list');
   const hits=history.filter(h=>`${h.hcp_job_number} ${h.site_address} ${h.building_client} ${h.tech_names}`.toLowerCase().includes(q));
   if (!hits.length){el.innerHTML='<div class="empty"><div class="ei">📜</div><p>No completed jobs yet</p></div>';return;}
-  el.innerHTML=hits.map(h=>`
-    <div class="hrow">
-      <div class="hicon" style="background:var(--grn-dim)">✓</div>
-      <div class="hinfo">
-        <div class="htitle">${esc(h.hcp_job_number||'No #')} — ${esc(h.building_client||h.site_address||'no site')}</div>
-        <div class="hmeta">${esc(h.tech_names||'--')} · ${h.num_techs} tech${h.num_techs>1?'s':''}</div>
-        <div class="hmeta">${fd(h.scheduled_date)} · ${fd(h.returned_at)}</div>
+  el.innerHTML=hits.map(h=>{
+    const items=h.job_items||[];
+    const flagged=items.filter(i=>i.return_condition&&i.return_condition!=='good');
+    return`
+    <div style="background:var(--sur2);border:1px solid var(--bdr);border-radius:var(--r2);padding:14px;margin-bottom:10px;cursor:pointer" onclick="toggleHistDetail('${h.id}')">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:13px">${esc(h.hcp_job_number||'No #')} — ${esc(h.building_client||h.site_address||'no site')}</div>
+          <div style="font-size:11px;color:var(--txt2);margin-top:3px;font-family:var(--mono)">${esc(h.tech_names||'--')} · ${h.num_techs} tech${h.num_techs>1?'s':''}</div>
+          <div style="font-size:11px;color:var(--txt2);font-family:var(--mono)">${fd(h.scheduled_date)} → ${fd(h.returned_at)}</div>
+          ${flagged.length?`<div style="font-size:10px;color:var(--amb);margin-top:3px">⚠ ${flagged.length} flagged item${flagged.length>1?'s':''}</div>`:''}
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
+          <span class="badge bg-g">Done</span>
+          <span style="font-size:10px;color:var(--txt3)">tap to expand</span>
+        </div>
       </div>
-      <div class="hact"><span class="badge bg-g">Done</span></div>
-    </div>
-  `).join('');
+      <div id="hist-detail-${h.id}" style="display:none;margin-top:12px;border-top:1px solid var(--bdr);padding-top:12px">
+        <div style="font-size:10px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Items returned / Artículos devueltos</div>
+        ${items.length ? items.map(it=>{
+          const cond=it.return_condition||'good';
+          const condColor=cond==='good'?'var(--grn)':cond==='repair'?'var(--amb)':'var(--red)';
+          const condIcon=cond==='good'?'✅':cond==='repair'?'🔧':'❌';
+          const inv=inventoryItems.find(i=>i.id===it.inventory_item_id);
+          return`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--sur3);border-radius:8px;margin-bottom:5px;border:1px solid var(--bdr)">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:12px;font-weight:600">${esc(it.item_name)}${inv&&inv.part_number?` <span style="font-size:9px;color:var(--acc);background:var(--acc-dim);padding:1px 6px;border-radius:4px">${esc(inv.part_number)}</span>`:''}</div>
+              ${it.return_notes?`<div style="font-size:10px;color:var(--txt2)">${esc(it.return_notes)}</div>`:''}
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+              <span style="font-family:var(--mono);font-size:11px;color:var(--acc)">${it.returned_quantity??it.quantity}/${it.quantity}</span>
+              <span style="font-size:11px;font-weight:700;color:${condColor}">${condIcon} ${cond.toUpperCase()}</span>
+            </div>
+          </div>`;
+        }).join('') : '<div style="font-size:12px;color:var(--txt2)">No item detail available</div>'}
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn btn-s btn-xs" onclick="event.stopPropagation();openRerun('${h.id}')">↩ Re-run job</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleHistDetail(id) {
+  const el=document.getElementById('hist-detail-'+id);
+  if(el) el.style.display=el.style.display==='none'?'':'none';
 }
 
 // ─── REORDER QUEUE ──────────────────────────────────────────
