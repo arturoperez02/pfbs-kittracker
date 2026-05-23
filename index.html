@@ -444,7 +444,7 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
           <div style="font-size:11px;color:var(--txt2);margin-top:2px" id="lock-timer">Auto-locks in 8h</div>
         </div>
         <button class="btn btn-warn btn-xs" onclick="lockWarehouse()">🔒 Lock</button>
-        <button class="btn btn-s btn-xs" onclick="openChangePin()">🔑 PIN</button>
+        <button class="btn btn-s btn-xs" onclick="openSettings()">⚙️ Settings</button>
       </div>
 
       <!-- DASHBOARD -->
@@ -847,6 +847,54 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
     <div class="info-t" style="margin-bottom:14px">Tap a job to auto-fill the form — job #, site, techs, date, vehicle, and template. / Toca un trabajo para pre-llenar el formulario.</div>
     <div id="import-job-list"><div class="sched-loading"><div class="spinner"></div>Loading jobs from TechSched…</div></div>
     <button class="btn btn-s btn-full" style="margin-top:12px" onclick="closeModal('import-modal')">Cancel</button>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="ov" id="settings-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-t"><span>⚙️ Settings</span><button class="xbtn" onclick="closeModal('settings-modal')">✕</button></div>
+
+    <!-- PIN -->
+    <div style="margin-bottom:18px">
+      <div style="font-size:12px;font-weight:700;color:var(--acc);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">🔑 Warehouse PIN</div>
+      <div class="g2">
+        <div class="fg"><label>New PIN (4–6 digits)</label><input type="password" inputmode="numeric" id="s-pin-new" maxlength="6" placeholder="New PIN"></div>
+        <div class="fg"><label>Confirm PIN</label><input type="password" inputmode="numeric" id="s-pin-confirm" maxlength="6" placeholder="Confirm PIN"></div>
+      </div>
+      <div style="color:var(--red);font-size:11px;min-height:16px;margin-bottom:8px" id="s-pin-err"></div>
+      <button class="btn btn-s btn-sm" onclick="settingsSavePin()">Save PIN</button>
+    </div>
+
+    <hr>
+
+    <!-- AUTO LOCK -->
+    <div style="margin-bottom:18px;margin-top:14px">
+      <div style="font-size:12px;font-weight:700;color:var(--acc);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">⏱ Auto-lock Timer</div>
+      <div class="fg">
+        <select id="s-autolock">
+          <option value="3600000">1 hour</option>
+          <option value="14400000">4 hours</option>
+          <option value="28800000">8 hours (default)</option>
+          <option value="43200000">12 hours</option>
+          <option value="86400000">24 hours</option>
+          <option value="0">Never — manual lock only</option>
+        </select>
+      </div>
+      <button class="btn btn-s btn-sm" onclick="settingsSaveAutoLock()">Save Auto-lock</button>
+    </div>
+
+    <hr>
+
+    <!-- CATEGORY PREFIXES -->
+    <div style="margin-top:14px">
+      <div style="font-size:12px;font-weight:700;color:var(--acc);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">🏷 Category Prefixes</div>
+      <div style="font-size:11px;color:var(--txt2);margin-bottom:12px">Set the part number prefix for each category. Max 5 characters.</div>
+      <div id="prefix-list"></div>
+      <button class="btn btn-p btn-sm btn-full" onclick="settingsSavePrefixes()">Save Prefixes</button>
+    </div>
+
   </div>
 </div>
 
@@ -1699,6 +1747,69 @@ async function saveAsset() {
     setSyncStatus('ok');
     await loadAll();
   } catch(e){ setSyncStatus('error'); alert('Error saving asset. Tag may already exist.'); }
+}
+
+// ─── SETTINGS ───────────────────────────────────────────────
+function getCategoryPrefixes() {
+  return JSON.parse(localStorage.getItem('kt_prefixes') || '{}');
+}
+function saveCategoryPrefixes(map) {
+  localStorage.setItem('kt_prefixes', JSON.stringify(map));
+}
+function getPrefix(catName) {
+  const custom = getCategoryPrefixes();
+  return custom[catName] || CATEGORY_PREFIXES[catName] || 'GEN';
+}
+
+function openSettings() {
+  document.getElementById('s-autolock').value = String(getAutoLock());
+  document.getElementById('s-pin-new').value = '';
+  document.getElementById('s-pin-confirm').value = '';
+  document.getElementById('s-pin-err').textContent = '';
+  const saved = getCategoryPrefixes();
+  const el = document.getElementById('prefix-list');
+  el.innerHTML = categories.map(c => {
+    const current = saved[c.name] || CATEGORY_PREFIXES[c.name] || 'GEN';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bdr)">
+      <div style="flex:1;font-size:12px;font-weight:600">${esc(c.name)}</div>
+      <input type="text" id="pfx-${c.id}" value="${esc(current)}" maxlength="5"
+        style="width:70px;text-align:center;font-family:var(--mono);font-size:13px;font-weight:700;color:var(--acc);text-transform:uppercase;padding:6px"
+        oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')">
+    </div>`;
+  }).join('');
+  document.getElementById('settings-modal').classList.add('open');
+}
+
+function settingsSavePin() {
+  const np = document.getElementById('s-pin-new').value.trim();
+  const cp = document.getElementById('s-pin-confirm').value.trim();
+  const err = document.getElementById('s-pin-err');
+  if (np.length < 4 || np.length > 6 || !/^\d+$/.test(np)) { err.textContent = 'PIN must be 4–6 digits.'; return; }
+  if (np !== cp) { err.textContent = 'PINs do not match.'; return; }
+  localStorage.setItem('kt_pin', np);
+  err.style.color = 'var(--grn)';
+  err.textContent = '✓ PIN saved!';
+  setTimeout(() => { err.textContent = ''; err.style.color = 'var(--red)'; }, 2000);
+}
+
+function settingsSaveAutoLock() {
+  const v = parseInt(document.getElementById('s-autolock').value);
+  localStorage.setItem('kt_autolock', String(v));
+  resetAutoLock();
+  const ms = v;
+  document.getElementById('lock-timer').textContent = ms === 0 ? 'Manual lock only' : ms < 3600000 ? `Auto-locks in ${ms/60000}min` : `Auto-locks in ${ms/3600000}h`;
+  alert('✓ Auto-lock saved!');
+}
+
+function settingsSavePrefixes() {
+  const saved = {};
+  categories.forEach(c => {
+    const inp = document.getElementById('pfx-' + c.id);
+    if (inp && inp.value.trim()) saved[c.name] = inp.value.trim().toUpperCase();
+  });
+  saveCategoryPrefixes(saved);
+  alert('✓ Prefixes saved! New items will use these prefixes automatically.');
+  closeModal('settings-modal');
 }
 
 // ─── REPAIRS ────────────────────────────────────────────────
