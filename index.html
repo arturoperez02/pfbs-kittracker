@@ -449,7 +449,17 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
 
       <!-- DASHBOARD -->
       <div class="panel active" id="panel-dashboard">
-        <div id="low-stock-alerts"></div>
+        <div id="pwa-install-banner" style="display:none;background:linear-gradient(135deg,var(--blue-dim),var(--acc-dim));border:1px solid rgba(59,130,246,.3);border-radius:var(--r);padding:12px 14px;margin-bottom:14px;display:none">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:24px">📱</span>
+            <div style="flex:1">
+              <div style="font-size:13px;font-weight:700;color:var(--txt)">Install KitTracker</div>
+              <div style="font-size:11px;color:var(--txt2)">Add to home screen for quick access — works offline too</div>
+            </div>
+            <button class="btn btn-p btn-sm" onclick="installPWA()">Install</button>
+            <button class="xbtn" onclick="this.closest('[id=pwa-install-banner]').style.display='none'">✕</button>
+          </div>
+        </div>
         <div id="repair-alerts"></div>
         <div class="sec-hdr">
           <div>
@@ -491,15 +501,38 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
             <button class="btn btn-t btn-full" style="margin-bottom:14px" onclick="openImportModal()">📅 Import from TechSched Schedule</button>
             <div class="fg"><label>HCP Job # / Número de Trabajo</label><input type="text" id="co-jobnum" placeholder="HCP-2025-0412" oninput="tryHCPLookup()"></div>
             <div id="hcp-hint" style="display:none" class="info info-b"></div>
-            <div class="fg"><label>Project Type / Tipo de Proyecto</label><select id="co-template" onchange="calcKit()"><option value="">— select template —</option></select></div>
+            <div class="fg"><label>Project Type / Tipo de Proyecto</label>
+              <div id="co-template-picker" style="background:var(--sur2);border:1px solid var(--bdr);border-radius:9px;padding:8px;min-height:44px;cursor:pointer" onclick="toggleTemplatePicker()">
+                <div id="co-template-display" style="font-size:13px;color:var(--txt3)">— tap to select template(s) —</div>
+              </div>
+              <div id="co-template-dropdown" style="display:none;background:var(--sur);border:1px solid var(--acc);border-radius:0 0 9px 9px;padding:6px;margin-top:-1px;z-index:100;position:relative">
+                <div id="co-template-options"></div>
+                <button class="btn btn-p btn-xs btn-full" style="margin-top:8px" onclick="applyTemplateSelection()">✓ Apply Selection</button>
+              </div>
+              <input type="hidden" id="co-template">
+            </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
               <div class="fg"><label>No. of Techs</label><input type="number" id="co-numtechs" min="1" max="30" value="1" oninput="calcKit()"></div>
               <div class="fg"><label>Date / Fecha</label><input type="date" id="co-date"></div>
             </div>
-            <div class="fg"><label>Tech Names / Nombres</label><input type="text" id="co-names" placeholder="Mike R., Sara L."></div>
+            <div class="fg"><label>Tech Names / Nombres</label>
+            <div style="position:relative">
+              <input type="text" id="co-names" placeholder="Type names or tap to pick from TechSched roster..."
+                oninput="searchTechRoster(this)" onfocus="showTechRoster()" autocomplete="off">
+              <div id="tech-roster-results" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--sur);border:1px solid var(--acc);border-radius:0 0 9px 9px;z-index:200;max-height:180px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.5)"></div>
+            </div>
+          </div>
             <div class="fg"><label>Site Address / Dirección</label><input type="text" id="co-addr" placeholder="123 Main St"></div>
             <div class="fg"><label>Building / Client / Edificio</label><input type="text" id="co-bldg" placeholder="Acme Tower..."></div>
-            <div class="fg"><label>Vehicle / Vehículo</label><input type="text" id="co-vehicle" placeholder="Truck #3, White Ford F-150..."></div>
+            <div class="fg"><label>Vehicle / Vehículo</label>
+            <div style="display:flex;gap:6px">
+              <select id="co-vehicle-sel" onchange="document.getElementById('co-vehicle').value=this.value" style="flex:1">
+                <option value="">— select vehicle —</option>
+              </select>
+              <button class="btn btn-s btn-xs" onclick="openAddVehicle()" title="Add vehicle">+</button>
+            </div>
+            <input type="text" id="co-vehicle" placeholder="Or type vehicle..." style="margin-top:6px">
+          </div>
             <button class="btn btn-p btn-full" onclick="goStep(2)">Next — Review Kit →</button>
           </div>
 
@@ -959,6 +992,20 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
 
     <hr>
 
+    <hr>
+
+    <!-- VEHICLES -->
+    <div style="margin-bottom:18px;margin-top:14px">
+      <div style="font-size:12px;font-weight:700;color:var(--acc);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">🚗 Vehicles / Fleet</div>
+      <div id="vehicles-list" style="margin-bottom:10px"></div>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="new-vehicle-name" placeholder="Truck #1, White Ford F-150..." style="flex:1">
+        <button class="btn btn-p btn-sm" onclick="settingsAddVehicle()">+ Add</button>
+      </div>
+    </div>
+
+    <hr>
+
     <!-- CATEGORY PREFIXES -->
     <div style="margin-top:14px">
       <div style="font-size:12px;font-weight:700;color:var(--acc);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">🏷 Prefixes / Groups</div>
@@ -1228,8 +1275,11 @@ function renderDashReorder() {
 
 function renderLowStockAlerts() {
   const low = inventoryItems.filter(i => i.tracking_type==='bulk' && i.quantity_on_hand <= i.low_stock_threshold);
-  const el = document.getElementById('low-stock-alerts');
-  el.innerHTML = low.length ? `<div class="alert-banner"><span class="ai">⚠️</span><p><strong>${low.length} item${low.length>1?'s':''} low on stock:</strong> ${low.map(i=>i.name).join(', ')} <button class="btn btn-xs btn-warn" style="margin-left:8px" onclick="nav('inventory')">View</button></p></div>` : '';
+  const el = document.getElementById('repair-alerts');
+  if (!el) return;
+  let alertHtml = '';
+  if (low.length) alertHtml += `<div class="alert-banner"><span class="ai">⚠️</span><p><strong>${low.length} item${low.length>1?'s':''} low on stock:</strong> ${low.map(i=>i.name).join(', ')} <button class="btn btn-xs btn-warn" style="margin-left:8px" onclick="nav('inventory')">View</button></p></div>`;
+  el.innerHTML = alertHtml;
   renderInspAlerts();
 }
 
@@ -1314,11 +1364,69 @@ function nav(id) {
 
 // ─── CHECKOUT WIZARD ────────────────────────────────────────
 function fillTemplateSelect() {
+  // Fill hidden input options for compatibility
   const sel = document.getElementById('co-template');
-  const cur = sel.value;
-  sel.innerHTML = '<option value="">— select template —</option>' + templates.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('');
-  if (cur) sel.value=cur;
+  if (sel && sel.tagName === 'SELECT') {
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">— select template —</option>' + templates.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('');
+    if (cur) sel.value = cur;
+  }
+  // Fill multi-picker
+  const opts = document.getElementById('co-template-options');
+  if (opts) {
+    opts.innerHTML = templates.map(t => `
+      <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;transition:background .15s"
+        onmouseover="this.style.background='var(--sur2)'" onmouseout="this.style.background=''">
+        <input type="checkbox" value="${t.id}" style="width:16px;height:16px;accent-color:var(--acc);flex-shrink:0" onchange="updateTemplateDisplay()">
+        <div>
+          <div style="font-size:13px;font-weight:600">${esc(t.name)}</div>
+          <div style="font-size:11px;color:var(--txt2)">${esc(t.description||'')}</div>
+        </div>
+      </label>
+    `).join('');
+  }
+  fillVehicleSelect();
 }
+
+let selectedTemplateIds = [];
+
+function toggleTemplatePicker() {
+  const dd = document.getElementById('co-template-dropdown');
+  if (!dd) return;
+  dd.style.display = dd.style.display === 'none' ? '' : 'none';
+}
+
+function updateTemplateDisplay() {
+  const checks = document.querySelectorAll('#co-template-options input[type=checkbox]:checked');
+  selectedTemplateIds = [...checks].map(c => c.value);
+  const display = document.getElementById('co-template-display');
+  if (!display) return;
+  if (!selectedTemplateIds.length) {
+    display.style.color = 'var(--txt3)';
+    display.textContent = '— tap to select template(s) —';
+  } else {
+    display.style.color = 'var(--txt)';
+    display.textContent = selectedTemplateIds.map(id => {
+      const t = templates.find(x => x.id === id);
+      return t ? t.name : '';
+    }).filter(Boolean).join(' + ');
+  }
+}
+
+function applyTemplateSelection() {
+  const dd = document.getElementById('co-template-dropdown');
+  if (dd) dd.style.display = 'none';
+  calcKit();
+}
+
+// Close picker when clicking outside
+document.addEventListener('click', function(e) {
+  const picker = document.getElementById('co-template-picker');
+  const dd = document.getElementById('co-template-dropdown');
+  if (dd && picker && !picker.contains(e.target) && !dd.contains(e.target)) {
+    dd.style.display = 'none';
+  }
+});
 
 function tryHCPLookup() {
   const jn=(document.getElementById('co-jobnum').value||'').trim();
@@ -1338,16 +1446,42 @@ function tryHCPLookup() {
 }
 
 function calcKit() {
-  const tid=document.getElementById('co-template').value;
-  const n=parseInt(document.getElementById('co-numtechs').value)||1;
-  const tpl=templates.find(t=>t.id===tid);
-  if (!tpl||!tpl.template_items) { document.getElementById('kit-preview').innerHTML='<div style="color:var(--txt2);font-size:12px;padding:6px">Select a template to see kit items.</div>'; return; }
-  coItems = tpl.template_items.map(ti=>({
-    id: uid(), name: ti.item_name, name_es: ti.item_name_es||ti.item_name,
-    qty: ti.quantity_mode==='fixed' ? ti.quantity : ti.quantity*n,
-    removed: false, oneoff: false,
-    inventory_item_id: ti.inventory_item_id
-  }));
+  const n = parseInt(document.getElementById('co-numtechs').value) || 1;
+  // Use selectedTemplateIds if multi-picker, else fall back to hidden select
+  let tids = selectedTemplateIds.length ? selectedTemplateIds : [];
+  if (!tids.length) {
+    const sel = document.getElementById('co-template');
+    if (sel && sel.value) tids = [sel.value];
+  }
+  if (!tids.length) {
+    document.getElementById('kit-preview').innerHTML = '<div style="color:var(--txt2);font-size:12px;padding:6px">Select at least one template.</div>';
+    return;
+  }
+  // Merge items from all selected templates
+  const merged = [];
+  tids.forEach(tid => {
+    const tpl = templates.find(t => t.id === tid);
+    if (!tpl || !tpl.template_items) return;
+    tpl.template_items.forEach(ti => {
+      const qty = ti.quantity_mode === 'fixed' ? ti.quantity : ti.quantity * n;
+      // Check if item already exists (same inventory_item_id or same name)
+      const existing = merged.find(m =>
+        (ti.inventory_item_id && m.inventory_item_id === ti.inventory_item_id) ||
+        (!ti.inventory_item_id && m.name.toLowerCase() === ti.item_name.toLowerCase())
+      );
+      if (existing) {
+        existing.qty += qty; // Combine quantities
+      } else {
+        merged.push({
+          id: uid(), name: ti.item_name, name_es: ti.item_name_es || ti.item_name,
+          qty, removed: false, oneoff: false,
+          inventory_item_id: ti.inventory_item_id || null,
+          from_template: tpl.name
+        });
+      }
+    });
+  });
+  coItems = merged;
   renderKitPreview();
 }
 
@@ -1389,7 +1523,9 @@ function renderCoKeys() {
 const STEP_LABELS = ['Job Details','Review Kit','Confirm & Sign Out','Print Label'];
 function goStep(n) {
   if (n===2) {
-    if (!document.getElementById('co-template').value){alert('Select a project template.');return;}
+    if (!selectedTemplateIds.length && !document.getElementById('co-template').value) {
+      alert('Select at least one project template.');return;
+    }
     calcKit(); coKeys=[]; renderCoKeys();
   }
   if (n===3) {
@@ -1498,6 +1634,9 @@ async function completeCheckout() {
     // Reset form
     ['co-jobnum','co-names','co-addr','co-bldg','co-vehicle','co-notes','co-attendant'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('co-template').value='';
+    selectedTemplateIds = [];
+    updateTemplateDisplay();
+    document.querySelectorAll('#co-template-options input[type=checkbox]').forEach(c => c.checked = false);
     document.getElementById('co-numtechs').value='1';
     document.getElementById('co-date').value=today();
     document.getElementById('hcp-hint').style.display='none';
@@ -2127,6 +2266,63 @@ function settingsSaveCompany() {
   alert('✓ Company name saved!');
 }
 
+// ─── VEHICLES ───────────────────────────────────────────────
+function getVehicles() {
+  return JSON.parse(localStorage.getItem('kt_vehicles') || '[]');
+}
+function saveVehicles(list) {
+  localStorage.setItem('kt_vehicles', JSON.stringify(list));
+}
+function fillVehicleSelect() {
+  const vehicles = getVehicles();
+  const sel = document.getElementById('co-vehicle-sel');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— select vehicle —</option>' +
+    vehicles.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+  if (cur) sel.value = cur;
+}
+function renderVehiclesList() {
+  const vehicles = getVehicles();
+  const el = document.getElementById('vehicles-list');
+  if (!el) return;
+  if (!vehicles.length) { el.innerHTML = '<div style="font-size:12px;color:var(--txt2)">No vehicles added yet.</div>'; return; }
+  el.innerHTML = vehicles.map((v, i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bdr)">
+      <span style="font-size:18px">🚗</span>
+      <span style="flex:1;font-size:13px;font-weight:600">${esc(v)}</span>
+      <button class="btn btn-r btn-xs" onclick="deleteVehicle(${i})">✕</button>
+    </div>
+  `).join('');
+}
+function settingsAddVehicle() {
+  const name = document.getElementById('new-vehicle-name').value.trim();
+  if (!name) { alert('Enter vehicle name.'); return; }
+  const vehicles = getVehicles();
+  if (vehicles.includes(name)) { alert('Already in list.'); return; }
+  vehicles.push(name);
+  saveVehicles(vehicles);
+  document.getElementById('new-vehicle-name').value = '';
+  renderVehiclesList();
+  fillVehicleSelect();
+}
+function deleteVehicle(i) {
+  if (!confirm('Remove this vehicle?')) return;
+  const vehicles = getVehicles();
+  vehicles.splice(i, 1);
+  saveVehicles(vehicles);
+  renderVehiclesList();
+  fillVehicleSelect();
+}
+function openAddVehicle() {
+  openSettings();
+  // Scroll to vehicles section after a tick
+  setTimeout(() => {
+    const el = document.getElementById('vehicles-list');
+    if (el) el.scrollIntoView({behavior:'smooth'});
+  }, 300);
+}
+
 // ─── SETTINGS ───────────────────────────────────────────────
 function openSettings() {
   document.getElementById('s-autolock').value = String(getAutoLock());
@@ -2137,6 +2333,7 @@ function openSettings() {
   document.getElementById('new-prefix-label').value = '';
   document.getElementById('s-company').value = getCompanyName();
   renderPrefixList();
+  renderVehiclesList();
   document.getElementById('settings-modal').classList.add('open');
 }
 
@@ -3137,6 +3334,88 @@ function showPrint(html) {
   document.getElementById('print-area').style.display='block';
 }
 
+// ─── TECH ROSTER ────────────────────────────────────────────
+let _techRoster = [];
+
+async function loadTechRoster() {
+  try {
+    const url = `${FB_BASE}/jobs?key=${FB_KEY}&pageSize=200`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const techSet = new Set();
+    (data.documents || []).forEach(doc => {
+      const f = doc.fields || {};
+      const techs = (f.techs?.arrayValue?.values || []).map(x => x.stringValue).filter(Boolean);
+      techs.forEach(t => techSet.add(t));
+    });
+    _techRoster = [...techSet].sort();
+  } catch(e) {
+    console.warn('Could not load tech roster:', e);
+    // Fall back to locally saved roster
+    _techRoster = JSON.parse(localStorage.getItem('kt_tech_roster') || '[]');
+  }
+  localStorage.setItem('kt_tech_roster', JSON.stringify(_techRoster));
+}
+
+function showTechRoster() {
+  const input = document.getElementById('co-names');
+  const resultsEl = document.getElementById('tech-roster-results');
+  if (!resultsEl || !_techRoster.length) return;
+  const q = input.value.toLowerCase();
+  renderTechRosterResults(q);
+}
+
+function searchTechRoster(input) {
+  const q = input.value.toLowerCase();
+  renderTechRosterResults(q);
+}
+
+function renderTechRosterResults(q) {
+  const resultsEl = document.getElementById('tech-roster-results');
+  if (!resultsEl) return;
+  const currentNames = document.getElementById('co-names').value.toLowerCase();
+  const filtered = _techRoster.filter(t =>
+    t.toLowerCase().includes(q) && !currentNames.includes(t.toLowerCase())
+  );
+  if (!filtered.length) { resultsEl.style.display='none'; return; }
+  resultsEl.style.display = '';
+  resultsEl.innerHTML = `
+    <div style="padding:6px 12px;font-size:10px;color:var(--txt3);font-weight:700;text-transform:uppercase;letter-spacing:.06em">TechSched Roster — tap to add</div>
+    ${filtered.slice(0,10).map(t => `
+      <div onmousedown="event.preventDefault();addTechToNames('${t.replace(/'/g,"\'")}')"
+        style="padding:9px 12px;cursor:pointer;font-size:13px;font-weight:600;border-bottom:1px solid var(--bdr)"
+        onmouseover="this.style.background='var(--sur2)'" onmouseout="this.style.background=''">
+        👷 ${t}
+      </div>
+    `).join('')}
+  `;
+  // Close on outside click
+  setTimeout(() => {
+    document.addEventListener('click', function closeIt(e) {
+      const input = document.getElementById('co-names');
+      if (!resultsEl.contains(e.target) && e.target !== input) {
+        resultsEl.style.display='none';
+        document.removeEventListener('click', closeIt);
+      }
+    });
+  }, 100);
+}
+
+function addTechToNames(name) {
+  const input = document.getElementById('co-names');
+  const current = input.value.trim();
+  input.value = current ? current + ', ' + name : name;
+  // Update tech count
+  const count = input.value.split(',').filter(s=>s.trim()).length;
+  document.getElementById('co-numtechs').value = count;
+  calcKit();
+  const resultsEl = document.getElementById('tech-roster-results');
+  if (resultsEl) {
+    renderTechRosterResults('');
+    if (!resultsEl.querySelector('div:nth-child(2)')) resultsEl.style.display='none';
+  }
+}
+
 // ─── TECHSCHED IMPORT ───────────────────────────────────────
 const FB_PROJECT = 'techsched-c8c09';
 const FB_KEY = 'AIzaSyBNU68bFVjxEY96RmOLaADEH1i8B6uFQiM';
@@ -3181,6 +3460,7 @@ let _schedJobs = [];
 
 async function openImportModal() {
   document.getElementById('import-modal').classList.add('open');
+  if (!_techRoster.length) loadTechRoster();
   const listEl = document.getElementById('import-job-list');
   listEl.innerHTML = '<div class="sched-loading"><div class="spinner"></div>Loading jobs from TechSched…</div>';
   try {
@@ -3416,10 +3696,30 @@ completeCheckout = async function() {
   resetRentalUI();
 };
 
+// ─── PWA INSTALL ────────────────────────────────────────────
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  showInstallBanner();
+});
+function showInstallBanner() {
+  const el = document.getElementById('pwa-install-banner');
+  if (el) el.style.display = '';
+}
+async function installPWA() {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  const result = await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  document.getElementById('pwa-install-banner').style.display = 'none';
+}
+
 // ─── INIT ───────────────────────────────────────────────────
 document.getElementById('co-date').value=today();
 setMode('tech');
 loadAll();
+loadTechRoster();
 setInterval(loadAll, 90000); // refresh every 90 seconds
 </script>
 </body>
