@@ -517,10 +517,11 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
             </div>
             <div class="fg"><label>Tech Names / Nombres</label>
             <div style="position:relative">
-              <input type="text" id="co-names" placeholder="Type names or tap to pick from TechSched roster..."
-                oninput="searchTechRoster(this)" onfocus="showTechRoster()" autocomplete="off">
-              <div id="tech-roster-results" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--sur);border:1px solid var(--acc);border-radius:0 0 9px 9px;z-index:200;max-height:180px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.5)"></div>
+              <input type="text" id="co-names" placeholder="Type any name, or pick from roster below..."
+                oninput="searchTechRoster(this)" autocomplete="off">
+              <div id="tech-roster-results" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--sur);border:1px solid var(--acc);border-radius:0 0 9px 9px;z-index:200;max-height:200px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.5)"></div>
             </div>
+            <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap" id="tech-quick-picks"></div>
           </div>
             <div class="fg"><label>Site Address / Dirección</label><input type="text" id="co-addr" placeholder="123 Main St"></div>
             <div class="fg"><label>Building / Client / Edificio</label><input type="text" id="co-bldg" placeholder="Acme Tower..."></div>
@@ -560,41 +561,42 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
                 </label>
               </div>
               <div id="rental-section" style="display:none">
-                <div style="font-size:11px;color:var(--txt2,#7a8aaa);margin-bottom:10px">Select lift type. Will appear on checkout slip. / Selecciona el elevador. Aparecerá en el recibo.</div>
-                <div id="lift-options">
-                  <div class="lift-opt" data-lift="Boom Lift" onclick="selectLift(this)" style="border:1px solid var(--bdr,#1e2d47);border-radius:8px;padding:10px 12px;margin-bottom:6px;cursor:pointer;background:var(--sur3,#1a2438);display:flex;align-items:center;gap:10px;transition:all .15s">
-                    <span style="font-size:20px">🏗</span><div><div style="font-size:13px;font-weight:600">Boom Lift</div><div style="font-size:11px;color:var(--txt2,#7a8aaa)">Articulating or telescopic</div></div>
+                <div style="font-size:11px;color:var(--txt2,#7a8aaa);margin-bottom:10px">Add one or more equipment types with quantities. / Agrega uno o más equipos con cantidades.</div>
+                <!-- Added rentals list -->
+                <div id="rental-added-list" style="margin-bottom:10px"></div>
+                <!-- Add equipment row -->
+                <div style="background:var(--sur3);border:1px solid var(--bdr);border-radius:9px;padding:12px;margin-bottom:8px">
+                  <div style="font-size:11px;font-weight:700;color:var(--txt2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em">Add Equipment / Agregar Equipo</div>
+                  <div style="display:grid;grid-template-columns:1fr 80px auto;gap:8px;align-items:center;margin-bottom:8px">
+                    <select id="rental-type-sel" style="font-size:13px">
+                      <option value="">— select type —</option>
+                      <option value="Boom Lift">🏗 Boom Lift</option>
+                      <option value="Scissor Lift">🔼 Scissor Lift</option>
+                      <option value="Articulating Lift">🦾 Articulating Lift</option>
+                      <option value="Straight Boom Lift">📏 Straight Boom Lift</option>
+                      <option value="Spider Lift">🕷 Spider Lift</option>
+                      <option value="Forklift">🏋 Forklift</option>
+                      <option value="Other">📦 Other</option>
+                    </select>
+                    <input type="number" id="rental-add-qty" min="1" value="1" placeholder="Qty" style="text-align:center;font-family:var(--mono);font-weight:700">
+                    <button class="btn btn-p btn-sm" onclick="addRentalEquipment()">+ Add</button>
                   </div>
-                  <div class="lift-opt" data-lift="Scissor Lift" onclick="selectLift(this)" style="border:1px solid var(--bdr,#1e2d47);border-radius:8px;padding:10px 12px;margin-bottom:6px;cursor:pointer;background:var(--sur3,#1a2438);display:flex;align-items:center;gap:10px;transition:all .15s">
-                    <span style="font-size:20px">🔼</span><div><div style="font-size:13px;font-weight:600">Scissor Lift</div><div style="font-size:11px;color:var(--txt2,#7a8aaa)">Vertical platform lift</div></div>
-                  </div>
-                  <div class="lift-opt" data-lift="Articulating Lift" onclick="selectLift(this)" style="border:1px solid var(--bdr,#1e2d47);border-radius:8px;padding:10px 12px;margin-bottom:6px;cursor:pointer;background:var(--sur3,#1a2438);display:flex;align-items:center;gap:10px;transition:all .15s">
-                    <span style="font-size:20px">🦾</span><div><div style="font-size:13px;font-weight:600">Articulating Lift</div><div style="font-size:11px;color:var(--txt2,#7a8aaa)">Multi-joint boom</div></div>
-                  </div>
-                  <div class="lift-opt" data-lift="Straight Boom Lift" onclick="selectLift(this)" style="border:1px solid var(--bdr,#1e2d47);border-radius:8px;padding:10px 12px;margin-bottom:6px;cursor:pointer;background:var(--sur3,#1a2438);display:flex;align-items:center;gap:10px;transition:all .15s">
-                    <span style="font-size:20px">📏</span><div><div style="font-size:13px;font-weight:600">Straight Boom Lift</div><div style="font-size:11px;color:var(--txt2,#7a8aaa)">Telescopic boom</div></div>
-                  </div>
-                  <div class="lift-opt" data-lift="Spider Lift" onclick="selectLift(this)" style="border:1px solid var(--bdr,#1e2d47);border-radius:8px;padding:10px 12px;margin-bottom:6px;cursor:pointer;background:var(--sur3,#1a2438);display:flex;align-items:center;gap:10px;transition:all .15s">
-                    <span style="font-size:20px">🕷</span><div><div style="font-size:13px;font-weight:600">Spider Lift</div><div style="font-size:11px;color:var(--txt2,#7a8aaa)">Compact tracked lift</div></div>
-                  </div>
+                  <input type="text" id="rental-type-custom" placeholder="Custom type (if Other selected)..." style="display:none;margin-bottom:8px">
+                  <input type="text" id="rental-notes" placeholder="Notes: delivery time, lift height, access... (optional)">
                 </div>
-                <div style="margin-top:10px"><label>Rental notes / Notas (optional)</label><input type="text" id="rental-notes" placeholder="Delivery time, lift height, access notes..."></div>
-              <div style="margin-top:8px"><label>Quantity / Cantidad</label>
-                <div style="display:flex;align-items:center;gap:8px">
-                  <button onclick="adjRentalQty(-1)" class="btn btn-s btn-sm" style="width:36px;padding:6px;justify-content:center">−</button>
-                  <span id="rental-qty-display" style="font-family:var(--mono);font-size:16px;font-weight:700;color:var(--acc);min-width:30px;text-align:center">1</span>
-                  <button onclick="adjRentalQty(1)" class="btn btn-s btn-sm" style="width:36px;padding:6px;justify-content:center">+</button>
-                  <input type="hidden" id="rental-qty" value="1">
-                </div>
-              </div>
               </div>
             </div>
 
             <div style="background:var(--sur2);border:1px solid var(--bdr);border-radius:var(--r);padding:13px;margin-bottom:10px">
               <div class="card-title" style="margin-bottom:9px">Client Keys / Llaves del Cliente (optional)</div>
               <div id="co-keys-list"></div>
+              <!-- Key registry picker -->
+              <div style="margin-bottom:8px">
+                <div style="font-size:10px;color:var(--txt3);margin-bottom:5px;font-weight:700;text-transform:uppercase">From Key Registry / Del Inventario de Llaves</div>
+                <div id="co-key-registry-picks" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
+              </div>
               <div style="display:flex;gap:8px">
-                <input type="text" id="key-tag" placeholder="Key # / description" style="flex:1">
+                <input type="text" id="key-tag" placeholder="Or type key # / description manually..." style="flex:1">
                 <input type="number" id="key-qty" placeholder="Qty" min="1" value="1" style="width:60px">
                 <button class="btn btn-s btn-sm" onclick="addCoKey()">+</button>
               </div>
@@ -725,6 +727,10 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
         <!-- KEY REGISTRY -->
         <div class="card" style="margin-bottom:12px">
           <div class="card-title" style="margin-bottom:10px">🗝 Key Registry / Inventario de Llaves</div>
+          <div class="search-wrap" style="margin-bottom:10px">
+            <span class="search-ico">🔍</span>
+            <input type="text" id="key-registry-search" placeholder="Search keys..." oninput="renderKeyRegistry()">
+          </div>
           <div id="key-registry-list"><div style="font-size:12px;color:var(--txt2)">No keys registered yet.</div></div>
         </div>
         <!-- KEY LOG -->
@@ -1516,8 +1522,38 @@ function addCoKey() {
   renderCoKeys();
 }
 function renderCoKeys() {
-  const el=document.getElementById('co-keys-list');
-  el.innerHTML=coKeys.map((k,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--sur3);border-radius:8px;margin-bottom:6px"><span style="flex:1;font-size:12px;font-weight:600">🔑 ${esc(k.tag)}</span><span class="kit-item-qty">${k.qty}</span><button class="kit-item-remove" onclick="coKeys.splice(${i},1);renderCoKeys()">✕</button></div>`).join('');
+  const el = document.getElementById('co-keys-list');
+  el.innerHTML = coKeys.map((k,i) =>
+    `<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--sur3);border-radius:8px;margin-bottom:6px">
+      <span style="flex:1;font-size:12px;font-weight:600">🔑 ${esc(k.tag)}</span>
+      <span class="kit-item-qty">${k.qty}</span>
+      <button class="kit-item-remove" onclick="coKeys.splice(${i},1);renderCoKeys()">✕</button>
+    </div>`
+  ).join('');
+  renderCoKeyRegistryPicks();
+}
+
+function renderCoKeyRegistryPicks() {
+  const el = document.getElementById('co-key-registry-picks');
+  if (!el) return;
+  const reg = getKeyRegistry();
+  if (!reg.length) { el.innerHTML = '<span style="font-size:11px;color:var(--txt3)">No keys in registry yet. Add keys in the Keys tab.</span>'; return; }
+  const alreadyAdded = coKeys.map(k => k.tag.toLowerCase());
+  el.innerHTML = reg
+    .filter(k => !alreadyAdded.includes(k.name.toLowerCase()))
+    .map(k => `
+      <span onmousedown="event.preventDefault();addKeyFromRegistry('${k.name.replace(/'/g,"\'")}',${k.qty})"
+        style="cursor:pointer;font-size:11px;font-weight:600;padding:4px 10px;background:var(--sur2);border:1px solid var(--bdr);border-radius:20px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px"
+        onmouseover="this.style.borderColor='var(--acc)'" onmouseout="this.style.borderColor='var(--bdr)'">
+        🔑 ${k.name} <span style="color:var(--txt3)">(${k.qty})</span>
+      </span>
+    `).join('');
+}
+
+function addKeyFromRegistry(name, qty) {
+  coKeys.push({id: uid(), tag: name, qty: qty || 1});
+  renderCoKeys();
+}
 }
 
 const STEP_LABELS = ['Job Details','Review Kit','Confirm & Sign Out','Print Label'];
@@ -1526,7 +1562,7 @@ function goStep(n) {
     if (!selectedTemplateIds.length && !document.getElementById('co-template').value) {
       alert('Select at least one project template.');return;
     }
-    calcKit(); coKeys=[]; renderCoKeys();
+    calcKit(); coKeys=[]; renderCoKeys(); renderCoKeyRegistryPicks();
   }
   if (n===3) {
     const tid=document.getElementById('co-template').value;
@@ -3049,9 +3085,13 @@ function openAddKeyRegistry() {
 function renderKeyRegistry() {
   const el = document.getElementById('key-registry-list');
   if (!el) return;
+  const q = (document.getElementById('key-registry-search')?.value || '').toLowerCase();
   const reg = getKeyRegistry();
+  const filtered = q ? reg.filter(k => `${k.name} ${k.client||''} ${k.notes||''}`.toLowerCase().includes(q)) : reg;
   if (!reg.length) { el.innerHTML = '<div style="font-size:12px;color:var(--txt2)">No keys registered. Add keys your company holds on behalf of clients.</div>'; return; }
-  el.innerHTML = reg.map((k, i) => {
+  if (!filtered.length) { el.innerHTML = '<div style="font-size:12px;color:var(--txt2)">No keys match your search.</div>'; return; }
+  el.innerHTML = filtered.map((k, i) => {
+    const origIdx = reg.indexOf(k);
     const checkedOut = clientKeys.filter(ck => ck.key_tag && ck.key_tag.toLowerCase().includes(k.name.toLowerCase()) && ck.status !== 'returned').length;
     return `<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--bdr)">
       <span style="font-size:20px;flex-shrink:0">🗝</span>
@@ -3061,10 +3101,11 @@ function renderKeyRegistry() {
         ${k.notes?`<div style="font-size:10px;color:var(--txt3)">${k.notes}</div>`:''}
         ${checkedOut?`<div style="font-size:10px;color:var(--acc);margin-top:2px">🔑 ${checkedOut} currently out</div>`:'<div style="font-size:10px;color:var(--grn)">✓ All in</div>'}
       </div>
-      <button class="btn btn-r btn-xs" onclick="deleteKeyRegistry(${i})">✕</button>
+      <button class="btn btn-r btn-xs" onclick="deleteKeyRegistry(${origIdx})">✕</button>
     </div>`;
   }).join('');
 }
+
 function deleteKeyRegistry(i) {
   if (!confirm('Remove this key from registry?')) return;
   const reg = getKeyRegistry();
@@ -3351,19 +3392,13 @@ async function loadTechRoster() {
     _techRoster = [...techSet].sort();
   } catch(e) {
     console.warn('Could not load tech roster:', e);
-    // Fall back to locally saved roster
     _techRoster = JSON.parse(localStorage.getItem('kt_tech_roster') || '[]');
   }
   localStorage.setItem('kt_tech_roster', JSON.stringify(_techRoster));
+  renderTechQuickPicks();
 }
 
-function showTechRoster() {
-  const input = document.getElementById('co-names');
-  const resultsEl = document.getElementById('tech-roster-results');
-  if (!resultsEl || !_techRoster.length) return;
-  const q = input.value.toLowerCase();
-  renderTechRosterResults(q);
-}
+function showTechRoster() { renderTechQuickPicks(); }
 
 function searchTechRoster(input) {
   const q = input.value.toLowerCase();
@@ -3399,6 +3434,22 @@ function renderTechRosterResults(q) {
       }
     });
   }, 100);
+}
+
+function renderTechQuickPicks() {
+  const el = document.getElementById('tech-quick-picks');
+  if (!el) return;
+  if (!_techRoster.length) { el.innerHTML = '<span style="font-size:11px;color:var(--txt3)">Loading roster from TechSched...</span>'; return; }
+  const currentNames = (document.getElementById('co-names')?.value || '').toLowerCase();
+  const available = _techRoster.filter(t => !currentNames.includes(t.toLowerCase()));
+  if (!available.length) { el.innerHTML = ''; return; }
+  el.innerHTML = '<span style="font-size:10px;color:var(--txt3);font-weight:700;text-transform:uppercase;display:block;width:100%;margin-bottom:4px">TechSched Roster:</span>' +
+    available.map(t =>
+    `<span onmousedown="event.preventDefault();addTechToNames('${t.replace(/'/g,"\'")}');renderTechQuickPicks()"
+      style="cursor:pointer;font-size:12px;font-weight:600;padding:5px 11px;background:var(--sur2);border:1px solid var(--bdr);border-radius:20px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px"
+      onmouseover="this.style.borderColor='var(--acc)';this.style.color='var(--acc)'" onmouseout="this.style.borderColor='var(--bdr)';this.style.color=''"
+    >👷 ${t}</span>`
+  ).join('');
 }
 
 function addTechToNames(name) {
@@ -3606,6 +3657,7 @@ function toggleRental() {
 }
 
 function selectLift(el) {
+  // Legacy single-select kept for compatibility
   document.querySelectorAll('.lift-opt').forEach(o => {
     o.style.borderColor = 'var(--bdr,#1e2d47)';
     o.style.background = 'var(--sur3,#1a2438)';
@@ -3613,6 +3665,72 @@ function selectLift(el) {
   el.style.borderColor = '#14b8a6';
   el.style.background = 'rgba(20,184,166,.12)';
   coRental = el.dataset.lift;
+}
+
+// Show custom input when "Other" is selected
+document.addEventListener('change', function(e) {
+  if (e.target.id === 'rental-type-sel') {
+    const custom = document.getElementById('rental-type-custom');
+    if (custom) custom.style.display = e.target.value === 'Other' ? '' : 'none';
+  }
+});
+
+// Multi-equipment rental list
+let coRentals = []; // Array of {type, qty, notes}
+
+function addRentalEquipment() {
+  const sel = document.getElementById('rental-type-sel');
+  const customInput = document.getElementById('rental-type-custom');
+  let type = sel.value;
+  if (!type) { alert('Select equipment type.'); return; }
+  if (type === 'Other') {
+    type = customInput.value.trim();
+    if (!type) { alert('Enter custom equipment type.'); return; }
+  }
+  const qty = parseInt(document.getElementById('rental-add-qty').value) || 1;
+  const notes = document.getElementById('rental-notes').value.trim();
+  // Check if already added — merge qty
+  const existing = coRentals.find(r => r.type === type);
+  if (existing) { existing.qty += qty; }
+  else { coRentals.push({type, qty, notes}); }
+  sel.value = '';
+  customInput.style.display = 'none';
+  document.getElementById('rental-add-qty').value = '1';
+  renderRentalAddedList();
+}
+
+function renderRentalAddedList() {
+  const el = document.getElementById('rental-added-list');
+  if (!el) return;
+  if (!coRentals.length) { el.innerHTML = ''; return; }
+  el.innerHTML = coRentals.map((r, i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--sur2);border:1px solid #14b8a6;border-radius:9px;margin-bottom:6px">
+      <span style="font-size:18px">🏗</span>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:700;color:var(--txt)">${r.type}</div>
+        ${r.notes?`<div style="font-size:11px;color:var(--txt2)">${r.notes}</div>`:''}
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <button onclick="adjRentalItem(${i},-1)" class="btn btn-s btn-xs" style="width:28px;padding:4px;justify-content:center">−</button>
+        <span style="font-family:var(--mono);font-size:14px;font-weight:700;color:var(--acc);min-width:24px;text-align:center">${r.qty}</span>
+        <button onclick="adjRentalItem(${i},1)" class="btn btn-s btn-xs" style="width:28px;padding:4px;justify-content:center">+</button>
+        <button onclick="removeRentalItem(${i})" class="btn btn-r btn-xs">✕</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function adjRentalItem(i, delta) {
+  coRentals[i].qty = Math.max(1, coRentals[i].qty + delta);
+  renderRentalAddedList();
+}
+
+function removeRentalItem(i) {
+  coRentals.splice(i, 1);
+  renderRentalAddedList();
+  if (!coRentals.length) {
+    // Auto-uncheck if no items left
+  }
 }
 
 function adjRentalQty(delta) {
@@ -3626,6 +3744,11 @@ function adjRentalQty(delta) {
 }
 
 function resetRentalUI() {
+  coRentals = [];
+  const ral = document.getElementById('rental-added-list');
+  if (ral) ral.innerHTML = '';
+  const rsel = document.getElementById('rental-type-sel');
+  if (rsel) rsel.value = '';
   document.getElementById('has-rental').checked = false;
   document.getElementById('rental-section').style.display = 'none';
   document.getElementById('rental-toggle-slider').style.background = 'var(--bdr2,#253554)';
