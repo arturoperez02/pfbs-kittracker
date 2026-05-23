@@ -1879,6 +1879,7 @@ function renderHistory() {
         }).join('') : '<div style="font-size:12px;color:var(--txt2)">No item detail available</div>'}
         <div style="display:flex;gap:8px;margin-top:10px">
           <button class="btn btn-s btn-xs" onclick="event.stopPropagation();openRerun('${h.id}')">↩ Re-run job</button>
+          <button class="btn btn-warn btn-xs" onclick="event.stopPropagation();undoReturn('${h.id}')">⚠ Undo Return</button>
         </div>
       </div>
     </div>`;
@@ -1888,6 +1889,52 @@ function renderHistory() {
 function toggleHistDetail(id) {
   const el=document.getElementById('hist-detail-'+id);
   if(el) el.style.display=el.style.display==='none'?'':'none';
+}
+
+async function undoReturn(jobId) {
+  if (!confirm('Undo this return? The job will move back to active status and inventory will be adjusted.')) return;
+  setSyncStatus('syncing');
+  try {
+    // Move job back to packed
+    await db.from('jobs').update({
+      status: 'packed',
+      returned_at: null
+    }).eq('id', jobId);
+
+    // Clear return conditions on job items
+    const job = history.find(h => h.id === jobId);
+    if (job && job.job_items) {
+      for (const item of job.job_items) {
+        await db.from('job_items').update({
+          return_condition: null,
+          return_notes: null,
+          returned_quantity: null
+        }).eq('id', item.id);
+
+        // Reverse inventory restock if it was restocked
+        if (item.inventory_item_id && item.return_condition === 'good') {
+          const inv = inventoryItems.find(i => i.id === item.inventory_item_id);
+          if (inv && inv.tracking_type === 'bulk') {
+            const retQty = item.returned_quantity ?? item.quantity ?? 0;
+            const newQty = Math.max(0, (inv.quantity_on_hand || 0) - retQty);
+            await db.from('inventory_items').update({
+              quantity_on_hand: newQty,
+              updated_at: new Date().toISOString()
+            }).eq('id', inv.id);
+          }
+        }
+      }
+    }
+
+    setSyncStatus('ok');
+    await loadAll();
+    nav('returns');
+    alert('Return undone. Job is back in active returns.');
+  } catch(e) {
+    console.error('Undo error:', e);
+    setSyncStatus('error');
+    alert('Error undoing return. Try again.');
+  }
 }
 
 // ─── REORDER QUEUE ──────────────────────────────────────────
