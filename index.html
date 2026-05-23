@@ -463,6 +463,7 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
           <div class="stat-card green"><div class="stat-v green" id="s-done">0</div><div class="stat-l">Completed</div></div>
           <div class="stat-card red"><div class="stat-v red" id="s-rep">0</div><div class="stat-l">In Repair</div></div>
           <div class="stat-card blue"><div class="stat-v blue" id="s-inv">0</div><div class="stat-l">Inventory Items</div></div>
+          <div class="stat-card orange"><div class="stat-v" id="s-keys-out">0</div><div class="stat-l">Keys Out</div></div>
         </div>
         <div class="card">
           <div class="card-title">Today's Active Jobs</div>
@@ -673,9 +674,19 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
       <!-- KEYS -->
       <div class="panel" id="panel-keys">
         <div class="sec-hdr">
-          <div><div class="sec-title">Keys</div><div class="sec-sub">Track client keys in & out</div></div>
-          <button class="btn btn-p btn-sm" onclick="openAddKey()">+ Key</button>
+          <div><div class="sec-title">Keys</div><div class="sec-sub">Client key registry & log</div></div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-s btn-sm" onclick="openAddKeyRegistry()">+ Register Key</button>
+            <button class="btn btn-p btn-sm" onclick="openAddKey()">+ Check Out</button>
+          </div>
         </div>
+        <!-- KEY REGISTRY -->
+        <div class="card" style="margin-bottom:12px">
+          <div class="card-title" style="margin-bottom:10px">🗝 Key Registry / Inventario de Llaves</div>
+          <div id="key-registry-list"><div style="font-size:12px;color:var(--txt2)">No keys registered yet.</div></div>
+        </div>
+        <!-- KEY LOG -->
+        <div class="card-title" style="margin-bottom:10px">📋 Checkout Log / Registro de Préstamos</div>
         <div class="search-wrap"><span class="search-ico">🔍</span><input type="text" id="key-search" placeholder="Key #, client, tech..." oninput="renderKeysPanel()"></div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
           <button class="btn btn-xs btn-s active-filter" id="key-filter-all" onclick="setKeyFilter('all',this)">All</button>
@@ -800,8 +811,18 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-t"><span id="asset-modal-t">Add Asset</span><button class="xbtn" onclick="closeModal('asset-modal')">✕</button></div>
-    <div class="fg"><label>Item Type</label><select id="asset-item-id"><option value="">— select item —</option></select></div>
-    <div class="fg"><label>Asset Tag (e.g. PW-001)</label><input type="text" id="asset-tag" placeholder="PW-001, BC-003..."></div>
+    <div class="fg"><label>Item Type</label>
+      <div style="position:relative">
+        <input type="text" id="asset-item-search" placeholder="🔍 Search or type item name..." autocomplete="off"
+          oninput="searchAssetItem(this)" onfocus="searchAssetItem(this)" style="margin-bottom:4px">
+        <div id="asset-item-results" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--sur);border:1px solid var(--acc);border-radius:0 0 8px 8px;z-index:200;max-height:160px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.5)"></div>
+      </div>
+      <input type="hidden" id="asset-item-id" value="">
+    </div>
+    <div class="fg"><label>Asset Tag</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px" id="asset-tag-suggestions"></div>
+      <input type="text" id="asset-tag" placeholder="Auto-suggested above or type manually...">
+    </div>
     <div class="fg"><label>Serial Number</label><input type="text" id="asset-serial" placeholder="SN-..."></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="fg"><label>Purchase Date</label><input type="date" id="asset-purchase-date"></div>
@@ -812,12 +833,20 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
       <div class="fg"><label>Last Inspection</label><input type="date" id="asset-last-insp"></div>
     </div>
     <div class="fg"><label>Inspection Interval</label>
-      <select id="asset-insp-interval">
+      <select id="asset-insp-interval" onchange="toggleCustomInterval()">
+        <option value="30">Every month</option>
         <option value="90">Every 3 months</option>
         <option value="180">Every 6 months</option>
         <option value="365" selected>Every year</option>
         <option value="730">Every 2 years</option>
+        <option value="custom">Custom...</option>
       </select>
+      <div id="custom-interval-wrap" style="display:none;margin-top:6px;display:none">
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="number" id="asset-insp-custom" min="1" placeholder="Days" style="width:100px">
+          <span style="font-size:12px;color:var(--txt2)">days</span>
+        </div>
+      </div>
     </div>
     <div class="fg"><label>Notes</label><textarea id="asset-notes" rows="2"></textarea></div>
     <hr>
@@ -881,6 +910,14 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-t"><span>⚙️ Settings</span><button class="xbtn" onclick="closeModal('settings-modal')">✕</button></div>
+
+    <!-- COMPANY -->
+    <div style="margin-bottom:18px">
+      <div style="font-size:12px;font-weight:700;color:var(--acc);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">🏢 Company Info</div>
+      <div class="fg"><label>Company Name (appears on all printed slips)</label><input type="text" id="s-company" placeholder=getCompanyName()></div>
+      <button class="btn btn-s btn-sm" onclick="settingsSaveCompany()">Save Company Name</button>
+    </div>
+    <hr>
 
     <!-- PIN -->
     <div style="margin-bottom:18px">
@@ -986,7 +1023,9 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
       <input type="number" id="ej-item-qty" value="1" min="1" style="width:60px">
       <button class="btn btn-s btn-sm" onclick="addItemToActiveJob()">+</button>
     </div>
-    <div id="ej-items-list" style="margin-bottom:12px"></div>
+    <div id="ej-items-list" style="margin-bottom:12px">
+      <div style="font-size:10px;color:var(--txt2);margin-bottom:6px">Tap qty to edit · ✕ to remove</div>
+    </div>
     <hr>
     <div style="display:flex;gap:8px">
       <button class="btn btn-s" style="flex:1" onclick="closeModal('edit-job-modal')">Cancel</button>
@@ -1000,8 +1039,14 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-t"><span id="insp-modal-t">Add Inspection Item</span><button class="xbtn" onclick="closeModal('insp-modal')">✕</button></div>
-    <div class="fg"><label>Item Name</label><input type="text" id="insp-name" placeholder="Full Body Harness, Dynamic Rope..."></div>
-    <div class="fg"><label>Serial / Tag # (optional)</label><input type="text" id="insp-serial" placeholder="SN-001, TAG-003..."></div>
+    <div class="fg"><label>Item (search inventory or type new)</label>
+      <div style="position:relative">
+        <input type="text" id="insp-name" placeholder="🔍 Search inventory or type name..." autocomplete="off"
+          oninput="searchInspItem(this)" onfocus="searchInspItem(this)">
+        <div id="insp-item-results" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--sur);border:1px solid var(--acc);border-radius:0 0 8px 8px;z-index:200;max-height:160px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.5)"></div>
+      </div>
+    </div>
+    <div class="fg"><label>Serial / Tag # / Asset Tag (optional)</label><input type="text" id="insp-serial" placeholder="SN-001, HRS-003, TAG-003..."></div>
     <div class="fg"><label>Last Inspection Date</label><input type="date" id="insp-last"></div>
     <div class="fg"><label>Inspection Interval</label>
       <select id="insp-interval">
@@ -1104,6 +1149,9 @@ function refresh() {
   document.getElementById('s-done').textContent = history.length;
   document.getElementById('s-rep').textContent = repairs.length;
   document.getElementById('s-inv').textContent = inventoryItems.length;
+  const keysOut = clientKeys.filter(k => k.status !== 'returned').length;
+  const keysEl = document.getElementById('s-keys-out');
+  if (keysEl) keysEl.textContent = keysOut;
   renderActiveJobs();
   renderDashRepairs();
   renderDashReorder();
@@ -1605,6 +1653,11 @@ function setCond(i,v) {
   });
 }
 
+function isSafetyItem(name) {
+  const n = (name||'').toLowerCase();
+  return n.includes('harness') || n.includes('rope') || n.includes('carabiner') || n.includes('lanyard') || n.includes('helmet') || n.includes('descent') || n.includes('bosun') || n.includes('anchor');
+}
+
 async function completeReturn(jobId) {
   const job=jobs.find(j=>j.id===jobId);
   if (!job) return;
@@ -1679,6 +1732,18 @@ async function completeReturn(jobId) {
       ${flagged.filter(f=>f.return_condition==='lost').length?`<span class="badge bg-r">${flagged.filter(f=>f.return_condition==='lost').length} Lost</span>`:''}
       ${flagged.length?'<br><br><strong>Flagged items:</strong><br>'+flagged.map(f=>`— ${esc(f.item_name)}: ${f.return_condition}${f.return_notes?' ('+esc(f.return_notes)+')':''}`).join('<br>'):''}
     `;
+    // Check for safety items — prompt inspection
+    const safetyReturned = items.filter(i => isSafetyItem(i.item_name));
+    if (safetyReturned.length) {
+      const names = safetyReturned.map(i => i.item_name).join(', ');
+      if (confirm(`Safety equipment returned: ${names}\n\nWas this equipment inspected on return?\n\nTap OK to log an inspection now, Cancel to skip.`)) {
+        setTimeout(() => {
+          nav('inspections');
+          openAddInsp();
+          document.getElementById('insp-name').value = safetyReturned[0].item_name;
+        }, 500);
+      }
+    }
     document.getElementById('ret-done-modal').classList.add('open');
     document.getElementById('ret-area').innerHTML='';
     document.getElementById('ret-sel').value='';
@@ -1929,32 +1994,109 @@ async function saveInventoryItem() {
   } catch(e) { setSyncStatus('error'); alert('Error saving item.'); }
 }
 
+// ─── ASSET ITEM SEARCH ──────────────────────────────────────
+function searchAssetItem(input) {
+  const q = input.value.toLowerCase();
+  const resultsEl = document.getElementById('asset-item-results');
+  if (!resultsEl) return;
+  const allItems = inventoryItems.slice().sort((a,b) => a.name.localeCompare(b.name));
+  const filtered = q ? allItems.filter(i => `${i.name} ${i.part_number||''}`.toLowerCase().includes(q)) : allItems;
+  if (!filtered.length && q) {
+    resultsEl.style.display = '';
+    resultsEl.innerHTML = `<div style="padding:10px 12px;font-size:12px;color:var(--txt2)">Not found — will save as new item type: "<strong>${q}</strong>"</div>`;
+    document.getElementById('asset-item-id').value = '';
+    suggestAssetTags('');
+    return;
+  }
+  resultsEl.style.display = '';
+  resultsEl.innerHTML = filtered.slice(0,10).map(i => `
+    <div onmousedown="selectAssetItem('${i.id}','${i.name.replace(/'/g,"\'")}','${i.part_number||''}')"
+      style="padding:9px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--bdr)"
+      onmouseover="this.style.background='var(--sur2)'" onmouseout="this.style.background=''">
+      ${i.part_number?`<span style="font-family:var(--mono);font-size:10px;color:var(--acc);margin-right:6px">${i.part_number}</span>`:''}
+      ${i.name}
+    </div>
+  `).join('');
+  setTimeout(() => {
+    document.addEventListener('click', function closeIt(e) {
+      if (e.target !== input) { resultsEl.style.display='none'; document.removeEventListener('click',closeIt); }
+    });
+  }, 100);
+}
+
+function selectAssetItem(id, name, partNum) {
+  document.getElementById('asset-item-search').value = name + (partNum ? ' ('+partNum+')' : '');
+  document.getElementById('asset-item-id').value = id;
+  document.getElementById('asset-item-results').style.display = 'none';
+  suggestAssetTags(partNum || name.substring(0,3).toUpperCase());
+}
+
+function suggestAssetTags(prefix) {
+  const el = document.getElementById('asset-tag-suggestions');
+  if (!el) return;
+  if (!prefix) { el.innerHTML = ''; return; }
+  // Find existing assets with this prefix to suggest next number
+  const code = prefix.split('-')[0];
+  const existing = assets.filter(a => a.asset_tag && a.asset_tag.startsWith(code+'-'));
+  const nextNum = existing.length + 1;
+  const suggestions = [
+    `${code}-${String(nextNum).padStart(3,'0')}`,
+    `${code}-${String(nextNum+1).padStart(3,'0')}`
+  ];
+  el.innerHTML = suggestions.map(s =>
+    `<span onclick="document.getElementById('asset-tag').value='${s}';document.querySelectorAll('#asset-tag-suggestions span').forEach(x=>x.style.background='var(--acc-dim)');this.style.background='var(--acc)';this.style.color='#000'"
+      style="cursor:pointer;font-family:var(--mono);font-size:12px;font-weight:700;color:var(--acc);background:var(--acc-dim);padding:4px 12px;border-radius:6px;border:1px solid rgba(245,166,35,.3)">${s}</span>`
+  ).join('');
+}
+
+function toggleCustomInterval() {
+  const sel = document.getElementById('asset-insp-interval');
+  const wrap = document.getElementById('custom-interval-wrap');
+  if (wrap) wrap.style.display = sel.value === 'custom' ? '' : 'none';
+}
+
 // ─── ASSETS ─────────────────────────────────────────────────
 function openAddAsset() {
-  const sel=document.getElementById('asset-item-id');
-  sel.innerHTML='<option value="">— select item —</option>'+inventoryItems.filter(i=>i.tracking_type==='asset').map(i=>`<option value="${i.id}">${esc(i.name)}</option>`).join('');
+  document.getElementById('asset-item-search').value = '';
+  document.getElementById('asset-item-id').value = '';
+  document.getElementById('asset-item-results').style.display = 'none';
+  document.getElementById('asset-tag-suggestions').innerHTML = '';
   ['asset-tag','asset-serial','asset-notes'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('asset-cost').value='';
   document.getElementById('asset-purchase-date').value='';
   document.getElementById('asset-warranty').value='';
   document.getElementById('asset-last-insp').value=today();
+  document.getElementById('asset-insp-interval').value='365';
+  const wrap = document.getElementById('custom-interval-wrap');
+  if (wrap) wrap.style.display = 'none';
   document.getElementById('asset-modal').classList.add('open');
 }
 
 async function saveAsset() {
-  const tag=document.getElementById('asset-tag').value.trim();
-  const itemId=document.getElementById('asset-item-id').value;
-  if (!tag||!itemId){alert('Select item type and enter asset tag.');return;}
-  const data={
-    inventory_item_id: itemId,
+  const tag = document.getElementById('asset-tag').value.trim();
+  const itemId = document.getElementById('asset-item-id').value;
+  const itemName = document.getElementById('asset-item-search').value.trim();
+  if (!tag) { alert('Enter an asset tag.'); return; }
+  if (!itemName) { alert('Enter or select an item type.'); return; }
+  // Get interval — check custom
+  const intervalSel = document.getElementById('asset-insp-interval');
+  let intervalDays = 365;
+  if (intervalSel.value === 'custom') {
+    intervalDays = parseInt(document.getElementById('asset-insp-custom').value) || 365;
+  } else {
+    intervalDays = parseInt(intervalSel.value) || 365;
+  }
+  // If no inventory ID, we just skip the link (manually typed item)
+  const data = {
+    inventory_item_id: itemId || null,
     asset_tag: tag,
     serial_number: document.getElementById('asset-serial').value.trim()||null,
     purchase_date: document.getElementById('asset-purchase-date').value||null,
     purchase_cost: parseFloat(document.getElementById('asset-cost').value)||null,
     warranty_expires: document.getElementById('asset-warranty').value||null,
     last_inspection: document.getElementById('asset-last-insp').value||null,
-    inspection_interval_days: parseInt(document.getElementById('asset-insp-interval').value)||365,
-    notes: document.getElementById('asset-notes').value.trim()||null,
+    inspection_interval_days: intervalDays,
+    notes: (document.getElementById('asset-notes').value.trim() || itemName) || null,
     status: 'available'
   };
   setSyncStatus('syncing');
@@ -1966,6 +2108,17 @@ async function saveAsset() {
   } catch(e){ setSyncStatus('error'); alert('Error saving asset. Tag may already exist.'); }
 }
 
+// ─── COMPANY & SETTINGS ────────────────────────────────────
+function getCompanyName() {
+  return localStorage.getItem('kt_company') || getCompanyName();
+}
+function settingsSaveCompany() {
+  const v = document.getElementById('s-company').value.trim();
+  if (!v) { alert('Enter company name.'); return; }
+  localStorage.setItem('kt_company', v);
+  alert('✓ Company name saved!');
+}
+
 // ─── SETTINGS ───────────────────────────────────────────────
 function openSettings() {
   document.getElementById('s-autolock').value = String(getAutoLock());
@@ -1974,6 +2127,7 @@ function openSettings() {
   document.getElementById('s-pin-err').textContent = '';
   document.getElementById('new-prefix-code').value = '';
   document.getElementById('new-prefix-label').value = '';
+  document.getElementById('s-company').value = getCompanyName();
   renderPrefixList();
   document.getElementById('settings-modal').classList.add('open');
 }
@@ -2320,10 +2474,41 @@ function renderHistory() {
         <div style="display:flex;gap:8px;margin-top:10px">
           <button class="btn btn-s btn-xs" onclick="event.stopPropagation();openRerun('${h.id}')">↩ Re-run job</button>
           <button class="btn btn-warn btn-xs" onclick="event.stopPropagation();undoReturn('${h.id}')">⚠ Undo Return</button>
+          <button class="btn btn-s btn-xs" onclick="event.stopPropagation();printHistorySlip('${h.id}')">🖨 Print Slip</button>
         </div>
       </div>
     </div>`;
   }).join('');
+}
+
+function printHistorySlip(jobId) {
+  const job = history.find(h => h.id === jobId);
+  if (!job) return;
+  const items = (job.job_items||[]).map(i => ({name:i.item_name, qty:i.quantity||i.returned_quantity}));
+  const rows = [
+    ['Project', job.job_type||'--'],
+    ['WO #', job.hcp_job_number||'--'],
+    ['Site', job.building_client||job.site_address||'--'],
+    ['Techs', (job.tech_names||'--')+' ('+job.num_techs+')'],
+    ['Date', fd(job.scheduled_date)],
+    ['Vehicle', job.vehicle||'--'],
+    ['Completed', fd(job.returned_at)]
+  ];
+  const company = getCompanyName();
+  const html = `<h2 style="margin-bottom:4px;font-size:18px">Kit Checkout Slip</h2>
+    <p style="color:#666;font-size:11px;margin-bottom:16px">${company} — ${new Date().toLocaleString()}</p>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11px">
+      ${rows.map(([k,v])=>`<tr><td style="font-weight:bold;padding:4px 8px;border:1px solid #ccc;width:35%">${k}</td><td style="padding:4px 8px;border:1px solid #ccc">${v}</td></tr>`).join('')}
+    </table>
+    <table style="width:100%;border-collapse:collapse;font-size:11px">
+      <tr style="background:#1a237e;color:#fff"><th style="padding:6px 8px;text-align:left">Item</th><th style="padding:6px 8px;text-align:center;width:60px">Qty</th><th style="padding:6px 8px;text-align:center;width:80px">Condition</th></tr>
+      ${(job.job_items||[]).map((it,i)=>`<tr style="background:${i%2===0?'#fff':'#f8f8f8'}">
+        <td style="padding:5px 8px;border:1px solid #ddd">${it.item_name}</td>
+        <td style="padding:5px 8px;border:1px solid #ddd;text-align:center">${it.quantity}</td>
+        <td style="padding:5px 8px;border:1px solid #ddd;text-align:center;font-weight:bold;color:${it.return_condition==='good'?'#16a34a':it.return_condition==='repair'?'#d97706':'#dc2626'}">${it.return_condition?it.return_condition.toUpperCase():'--'}</td>
+      </tr>`).join('')}
+    </table>`;
+  showPrint(html);
 }
 
 function toggleHistDetail(id) {
@@ -2439,6 +2624,35 @@ function renderInspList() {
   }).join('');
 }
 
+function searchInspItem(input) {
+  const q = input.value.toLowerCase();
+  const resultsEl = document.getElementById('insp-item-results');
+  if (!resultsEl) return;
+  const filtered = inventoryItems
+    .filter(i => `${i.name} ${i.part_number||''}`.toLowerCase().includes(q))
+    .sort((a,b) => a.name.localeCompare(b.name));
+  if (!filtered.length) { resultsEl.style.display='none'; return; }
+  resultsEl.style.display = '';
+  resultsEl.innerHTML = filtered.slice(0,10).map(i => `
+    <div onmousedown="selectInspItem('${i.name.replace(/'/g,"\'")}','${i.part_number||''}')"
+      style="padding:9px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--bdr)"
+      onmouseover="this.style.background='var(--sur2)'" onmouseout="this.style.background=''">
+      ${i.part_number?`<span style="font-family:var(--mono);font-size:10px;color:var(--acc);margin-right:6px">${i.part_number}</span>`:''}
+      ${i.name}
+    </div>
+  `).join('');
+  setTimeout(() => {
+    document.addEventListener('click', function closeIt(e) {
+      if (e.target !== input) { resultsEl.style.display='none'; document.removeEventListener('click',closeIt); }
+    });
+  }, 100);
+}
+function selectInspItem(name, partNum) {
+  document.getElementById('insp-name').value = name;
+  document.getElementById('insp-item-results').style.display = 'none';
+  if (partNum) document.getElementById('insp-serial').placeholder = `e.g. ${partNum}-001`;
+}
+
 function openAddInsp() {
   ['insp-name','insp-serial','insp-notes'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('insp-last').value = today();
@@ -2516,13 +2730,21 @@ function editActiveJob(jobId) {
 
 function renderEditJobItems() {
   const el = document.getElementById('ej-items-list');
-  if (!editingJobItems.length) { el.innerHTML = ''; return; }
-  el.innerHTML = editingJobItems.map((item, i) => `
-    <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--sur2);border-radius:8px;margin-bottom:5px;border:1px solid var(--bdr)">
-      <span style="flex:1;font-size:12px;font-weight:600">${esc(item.item_name)}</span>
-      <span class="kit-item-qty">${item.quantity}</span>
-    </div>
-  `).join('');
+  if (!el) return;
+  const header = '<div style="font-size:10px;color:var(--txt2);margin-bottom:6px">Tap qty to edit · ✕ to remove</div>';
+  if (!editingJobItems.length) { el.innerHTML = header; return; }
+  el.innerHTML = header + editingJobItems.map((item, i) => {
+    const inv = item.inventory_item_id ? inventoryItems.find(x => x.id === item.inventory_item_id) : null;
+    const pn = inv && inv.part_number ? `<span style="font-family:var(--mono);font-size:10px;color:var(--acc);background:var(--acc-dim);padding:1px 6px;border-radius:4px;margin-left:4px">${inv.part_number}</span>` : '';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--sur2);border-radius:8px;margin-bottom:5px;border:1px solid var(--bdr)">
+      <div style="flex:1;min-width:0">
+        <span style="font-size:12px;font-weight:600">${esc(item.item_name)}</span>${pn}
+      </div>
+      <input type="number" min="1" value="${item.quantity}" style="width:54px;text-align:center;font-size:13px;font-family:var(--mono);color:var(--acc);background:var(--acc-dim);border:1px solid rgba(245,166,35,.3);border-radius:6px;padding:4px;margin:0"
+        onchange="editingJobItems[${i}].quantity=parseInt(this.value)||1">
+      <button class="kit-item-remove" onclick="editingJobItems.splice(${i},1);renderEditJobItems()">✕</button>
+    </div>`;
+  }).join('');
 }
 
 function addItemToActiveJob() {
@@ -2573,6 +2795,51 @@ function printDymoLabelById(jobId) {
 }
 
 // ─── KEYS ───────────────────────────────────────────────────
+function getKeyRegistry() {
+  return JSON.parse(localStorage.getItem('kt_key_registry') || '[]');
+}
+function saveKeyRegistry(list) {
+  localStorage.setItem('kt_key_registry', JSON.stringify(list));
+}
+function openAddKeyRegistry() {
+  const name = prompt('Key name / description (e.g. "Suite 4B Fob", "Main Entrance #101"):');
+  if (!name) return;
+  const client = prompt('Property / Client name:') || '';
+  const qty = parseInt(prompt('Total quantity of this key:') || '1') || 1;
+  const notes = prompt('Notes (optional):') || '';
+  const reg = getKeyRegistry();
+  reg.push({ id: uid(), name, client, qty, notes, added: new Date().toISOString() });
+  saveKeyRegistry(reg);
+  renderKeyRegistry();
+}
+function renderKeyRegistry() {
+  const el = document.getElementById('key-registry-list');
+  if (!el) return;
+  const reg = getKeyRegistry();
+  if (!reg.length) { el.innerHTML = '<div style="font-size:12px;color:var(--txt2)">No keys registered. Add keys your company holds on behalf of clients.</div>'; return; }
+  el.innerHTML = reg.map((k, i) => {
+    const checkedOut = clientKeys.filter(ck => ck.key_tag && ck.key_tag.toLowerCase().includes(k.name.toLowerCase()) && ck.status !== 'returned').length;
+    return `<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--bdr)">
+      <span style="font-size:20px;flex-shrink:0">🗝</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:13px">${k.name}</div>
+        <div style="font-size:11px;color:var(--txt2);font-family:var(--mono)">${k.client||'--'} · Total: ${k.qty}</div>
+        ${k.notes?`<div style="font-size:10px;color:var(--txt3)">${k.notes}</div>`:''}
+        ${checkedOut?`<div style="font-size:10px;color:var(--acc);margin-top:2px">🔑 ${checkedOut} currently out</div>`:'<div style="font-size:10px;color:var(--grn)">✓ All in</div>'}
+      </div>
+      <button class="btn btn-r btn-xs" onclick="deleteKeyRegistry(${i})">✕</button>
+    </div>`;
+  }).join('');
+}
+function deleteKeyRegistry(i) {
+  if (!confirm('Remove this key from registry?')) return;
+  const reg = getKeyRegistry();
+  reg.splice(i, 1);
+  saveKeyRegistry(reg);
+  renderKeyRegistry();
+}
+
+// Original keys section continues below
 let keyFilter = 'all';
 
 function setKeyFilter(f, btn) {
@@ -2625,6 +2892,7 @@ async function returnKey(id) {
 }
 
 function renderKeysPanel() {
+  renderKeyRegistry();
   const q = (document.getElementById('key-search')?.value || '').toLowerCase();
   const el = document.getElementById('keys-list');
   if (!el) return;
