@@ -2082,9 +2082,12 @@ async function delTpl(id) {
 
 function addKitRow(name, q, mode, nameEs, inventoryItemId) {
   name = name||''; q = q||1; mode = mode||'per_tech'; nameEs = nameEs||''; inventoryItemId = inventoryItemId||'';
-  const invOptions = inventoryItems.map(i =>
-    `<option value="${i.id}" ${i.id===inventoryItemId?'selected':''}>${esc(i.part_number?i.part_number+' — ':'')}${esc(i.name)}</option>`
-  ).join('');
+  const invOptions = inventoryItems
+    .slice()
+    .sort((a,b) => a.name.localeCompare(b.name))
+    .map(i =>
+      `<option value="${i.id}" ${i.id===inventoryItemId?'selected':''}>${esc(i.name)}${i.part_number?' — '+esc(i.part_number):''}</option>`
+    ).join('');
   const d = document.createElement('div');
   d.className = 'kit-row';
   d.style.cssText = 'grid-template-columns:1fr 60px 100px 1fr auto;gap:6px;align-items:center;margin-bottom:7px;display:grid';
