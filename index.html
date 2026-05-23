@@ -745,7 +745,8 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
     <div class="modal-t"><span id="inv-modal-t">Add Inventory Item</span><button class="xbtn" onclick="closeModal('inv-modal')">✕</button></div>
     <div class="fg"><label>Item Name</label><input type="text" id="inv-name" placeholder="Squeegee, Harness..."></div>
     <div class="fg"><label>Spanish Name / Nombre en Español</label><input type="text" id="inv-name-es" placeholder="Limpiaparabrisas, Arnés..."></div>
-    <div class="fg"><label>Category</label><select id="inv-category"><option value="">— select —</option></select></div>
+    <div class="fg"><label>Category</label><select id="inv-category" onchange="onCategoryChange()"><option value="">— select —</option></select>
+    <div id="part-num-hint" style="font-size:10px;color:var(--teal,#14b8a6);margin-top:4px;font-family:var(--mono)"></div></div>
     <div class="fg">
       <div class="toggle-wrap">
         <div><div class="toggle-label">Track Individually (Asset Mode)</div><div class="toggle-sub">For items like pressure washers with serial numbers</div></div>
@@ -1549,7 +1550,10 @@ function renderInventory() {
     const cat=categories.find(c=>c.id===item.category_id);
     return`<div class="inv-card">
       <div class="inv-card-left">
-        <div class="inv-card-name">${esc(item.name)}</div>
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:3px">
+          <div class="inv-card-name">${esc(item.name)}</div>
+          ${item.part_number?`<span style="font-family:var(--mono);font-size:10px;color:var(--acc);background:var(--acc-dim);padding:2px 7px;border-radius:5px;flex-shrink:0">${esc(item.part_number)}</span>`:''}
+        </div>
         <div class="inv-card-meta">${cat?cat.name:''} ${item.tracking_type==='asset'?'· Individual tracking':''}</div>
         ${item.supplier_url?`<a href="${esc(item.supplier_url)}" target="_blank" style="font-size:10px;color:var(--acc);text-decoration:none;">🔗 ${esc(item.supplier_name||'Reorder')}</a>`:''}
         ${item.tracking_type==='asset'&&itemAssets.length?`<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">${itemAssets.map(a=>`<span class="badge ${a.status==='available'?'bg-g':a.status==='repair'?'bg-r':'bg-a'}">${esc(a.asset_tag)}</span>`).join('')}</div>`:''}
@@ -1559,8 +1563,9 @@ function renderInventory() {
           ? `<div class="qty-display ${isLow?'low':'ok'}">${item.quantity_on_hand}</div><div style="font-size:9px;color:var(--txt3)">min ${item.low_stock_threshold}</div>`
           : `<div class="qty-display">${itemAssets.filter(a=>a.status==='available').length}/${itemAssets.length}</div><div style="font-size:9px;color:var(--txt3)">available</div>`
         }
-        <div style="display:flex;gap:4px;margin-top:4px">
+        <div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap;justify-content:flex-end">
           <button class="btn btn-xs btn-s" onclick="editInvItem('${item.id}')">Edit</button>
+          <button class="btn btn-xs btn-t" onclick="printItemLabel('${item.id}')">🏷 Label</button>
           ${isLow?`<button class="btn btn-xs btn-warn" onclick="addToReorder('${item.id}')">Reorder</button>`:''}
         </div>
       </div>
@@ -1608,6 +1613,29 @@ function toggleAssetMode() {
 function fillCategorySelect(selected) {
   const sel=document.getElementById('inv-category');
   sel.innerHTML='<option value="">— select —</option>'+categories.map(c=>`<option value="${c.id}"${c.id===selected?' selected':''}>${esc(c.name)}</option>`).join('');
+}
+
+// Show what part number prefix will be assigned
+const CATEGORY_PREFIXES = {
+  'Cleaning Equipment': 'CLN',
+  'High-Rise Safety': 'HRS',
+  'Chemicals': 'CHM',
+  'Safety & Traffic Control': 'SFT',
+  'Hand Tools & Equipment': 'HND',
+  'MDR Supplies': 'MDR',
+  'Pressure Washing': 'PWS',
+  'Solar Panel Cleaning': 'SLR',
+  'Water Fed': 'WTR',
+  'PPE & Work Clothes': 'PPE',
+  'Janitorial': 'JTL',
+};
+
+function onCategoryChange() {
+  const sel = document.getElementById('inv-category');
+  const catName = sel.options[sel.selectedIndex]?.text;
+  const prefix = CATEGORY_PREFIXES[catName] || 'GEN';
+  const hint = document.getElementById('part-num-hint');
+  if (hint) hint.textContent = `Part number will be assigned automatically: ${prefix}-###`;
 }
 
 async function saveInventoryItem() {
@@ -2073,6 +2101,63 @@ function applyScheduleJob(idx) {
   hint.innerHTML = `📅 <strong>Imported from TechSched</strong> — ${esc(j.client || j.address.split(',')[0])} · ${fmtSchedDate(j.date)}${mapped ? ' · Template: ' + esc(mapped) : ''}`;
   hint.style.display = '';
   closeModal('import-modal');
+}
+
+// ─── DYMO ITEM LABEL (2" x 1") ──────────────────────────────
+function printItemLabel(itemId) {
+  const item = inventoryItems.find(i => i.id === itemId);
+  if (!item) return;
+  const qrData = `PFBS-INV:${item.id}:${item.part_number||''}`;
+  const nameShort = item.name.length > 28 ? item.name.substring(0,26)+'…' : item.name;
+  const html = `
+    <div style="width:2in;height:1in;overflow:hidden;font-family:Arial,sans-serif;display:flex;align-items:stretch;box-sizing:border-box;border:1px solid #ccc;padding:4px;gap:4px">
+      <div style="flex:1;display:flex;flex-direction:column;justify-content:space-between;min-width:0;overflow:hidden">
+        <div style="font-weight:900;font-size:11px;font-family:'Courier New',monospace;color:#000;letter-spacing:.5px">${esc(item.part_number||'--')}</div>
+        <div style="font-weight:700;font-size:9px;color:#000;line-height:1.2;word-break:break-word">${esc(nameShort)}</div>
+        <div style="font-size:7px;color:#555;text-transform:uppercase;letter-spacing:.3px">${esc(item.tracking_type==='asset'?'ASSET · INDIVIDUAL':'BULK ITEM')}</div>
+        <div style="font-size:7px;color:#000;font-family:'Courier New',monospace">PF Building Services</div>
+      </div>
+      <div style="flex-shrink:0;display:flex;align-items:center">
+        <canvas id="label-qr-${itemId}" width="68" height="68"></canvas>
+      </div>
+    </div>`;
+  showPrint(html);
+  setTimeout(() => {
+    const c = document.getElementById(`label-qr-${itemId}`);
+    if (c) try { QRCode.toCanvas(c, qrData, {width:68, margin:1, color:{dark:'#000000',light:'#ffffff'}}, ()=>{}); } catch(e){}
+  }, 300);
+}
+
+// ─── INVENTORY DEDUCTION ON CHECKOUT ────────────────────────
+async function deductInventory(kitItems) {
+  for (const item of kitItems) {
+    if (!item.inventory_item_id || item.oneoff) continue;
+    const inv = inventoryItems.find(i => i.id === item.inventory_item_id);
+    if (inv && inv.tracking_type === 'bulk') {
+      const newQty = Math.max(0, (inv.quantity_on_hand || 0) - item.qty);
+      try {
+        await db.from('inventory_items').update({quantity_on_hand: newQty, updated_at: new Date().toISOString()}).eq('id', inv.id);
+        inv.quantity_on_hand = newQty;
+      } catch(e) { console.warn('Deduct error:', e); }
+    }
+  }
+}
+
+// ─── RESTOCK ON GOOD RETURN ──────────────────────────────────
+async function restockInventory(returnedItems) {
+  for (const item of returnedItems) {
+    if (!item.inventory_item_id) continue;
+    if (item.return_condition !== 'good') continue;
+    const inv = inventoryItems.find(i => i.id === item.inventory_item_id);
+    if (inv && inv.tracking_type === 'bulk') {
+      const retQty = item.returned_quantity ?? item.qty ?? item.quantity ?? 0;
+      const newQty = (inv.quantity_on_hand || 0) + retQty;
+      try {
+        await db.from('inventory_items').update({quantity_on_hand: newQty, updated_at: new Date().toISOString()}).eq('id', inv.id);
+        inv.quantity_on_hand = newQty;
+      } catch(e) { console.warn('Restock error:', e); }
+    }
+  }
 }
 
 // ─── RENTAL ─────────────────────────────────────────────────
