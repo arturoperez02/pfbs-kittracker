@@ -1066,7 +1066,7 @@ function nav(id) {
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.bn').forEach(b=>b.classList.remove('active'));
   document.getElementById('panel-'+id).classList.add('active');
-  const ids=['dashboard','checkout','returns','inventory','repairs','templates','history'];
+  const ids=['dashboard','checkout','returns','rentals','inventory','repairs','templates','history'];
   const idx=ids.indexOf(id);
   if (idx>=0) document.querySelectorAll('.bn')[idx]?.classList.add('active');
   document.querySelector('.scroll').scrollTop=0;
