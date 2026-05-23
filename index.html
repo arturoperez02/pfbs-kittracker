@@ -472,6 +472,7 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
           <div class="card"><div class="card-title">Repair Queue</div><div id="dash-repairs"><div class="empty" style="padding:20px 8px"><div class="ei" style="font-size:24px">🔧</div><p style="font-size:11px">All clear</p></div></div></div>
           <div class="card"><div class="card-title">Reorder Needed</div><div id="dash-reorder"><div class="empty" style="padding:20px 8px"><div class="ei" style="font-size:24px">📦</div><p style="font-size:11px">Stock OK</p></div></div></div>
         </div>
+        <div class="card"><div class="card-title">🏗 Active Rentals / Rentas Activas</div><div id="dash-rentals"><div class="empty" style="padding:16px 0"><div class="ei" style="font-size:24px">🏗</div><p style="font-size:12px">No active rentals</p></div></div></div>
       </div>
 
       <!-- CHECKOUT / NEW JOB -->
@@ -514,6 +515,39 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
                 <button class="btn btn-s btn-sm" onclick="addOneOff()">+</button>
               </div>
             </div>
+            <!-- RENTAL LIFT SECTION -->
+            <div style="background:var(--sur2);border:2px solid var(--teal,#14b8a6);border-radius:var(--r);padding:13px;margin-bottom:10px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <div class="card-title" style="margin-bottom:0">🏗 Equipment Rental / Equipo Rentado</div>
+                <label style="position:relative;width:44px;height:24px;flex-shrink:0;display:inline-block">
+                  <input type="checkbox" id="has-rental" onchange="toggleRental()" style="opacity:0;width:0;height:0">
+                  <span id="rental-toggle-slider" style="position:absolute;inset:0;background:var(--bdr2,#253554);border-radius:12px;cursor:pointer;transition:.2s"></span>
+                  <span id="rental-toggle-knob" style="position:absolute;width:18px;height:18px;left:3px;bottom:3px;background:white;border-radius:50%;transition:.2s"></span>
+                </label>
+              </div>
+              <div id="rental-section" style="display:none">
+                <div style="font-size:11px;color:var(--txt2,#7a8aaa);margin-bottom:10px">Select lift type. Will appear on checkout slip. / Selecciona el elevador. Aparecerá en el recibo.</div>
+                <div id="lift-options">
+                  <div class="lift-opt" data-lift="Boom Lift" onclick="selectLift(this)" style="border:1px solid var(--bdr,#1e2d47);border-radius:8px;padding:10px 12px;margin-bottom:6px;cursor:pointer;background:var(--sur3,#1a2438);display:flex;align-items:center;gap:10px;transition:all .15s">
+                    <span style="font-size:20px">🏗</span><div><div style="font-size:13px;font-weight:600">Boom Lift</div><div style="font-size:11px;color:var(--txt2,#7a8aaa)">Articulating or telescopic</div></div>
+                  </div>
+                  <div class="lift-opt" data-lift="Scissor Lift" onclick="selectLift(this)" style="border:1px solid var(--bdr,#1e2d47);border-radius:8px;padding:10px 12px;margin-bottom:6px;cursor:pointer;background:var(--sur3,#1a2438);display:flex;align-items:center;gap:10px;transition:all .15s">
+                    <span style="font-size:20px">🔼</span><div><div style="font-size:13px;font-weight:600">Scissor Lift</div><div style="font-size:11px;color:var(--txt2,#7a8aaa)">Vertical platform lift</div></div>
+                  </div>
+                  <div class="lift-opt" data-lift="Articulating Lift" onclick="selectLift(this)" style="border:1px solid var(--bdr,#1e2d47);border-radius:8px;padding:10px 12px;margin-bottom:6px;cursor:pointer;background:var(--sur3,#1a2438);display:flex;align-items:center;gap:10px;transition:all .15s">
+                    <span style="font-size:20px">🦾</span><div><div style="font-size:13px;font-weight:600">Articulating Lift</div><div style="font-size:11px;color:var(--txt2,#7a8aaa)">Multi-joint boom</div></div>
+                  </div>
+                  <div class="lift-opt" data-lift="Straight Boom Lift" onclick="selectLift(this)" style="border:1px solid var(--bdr,#1e2d47);border-radius:8px;padding:10px 12px;margin-bottom:6px;cursor:pointer;background:var(--sur3,#1a2438);display:flex;align-items:center;gap:10px;transition:all .15s">
+                    <span style="font-size:20px">📏</span><div><div style="font-size:13px;font-weight:600">Straight Boom Lift</div><div style="font-size:11px;color:var(--txt2,#7a8aaa)">Telescopic boom</div></div>
+                  </div>
+                  <div class="lift-opt" data-lift="Spider Lift" onclick="selectLift(this)" style="border:1px solid var(--bdr,#1e2d47);border-radius:8px;padding:10px 12px;margin-bottom:6px;cursor:pointer;background:var(--sur3,#1a2438);display:flex;align-items:center;gap:10px;transition:all .15s">
+                    <span style="font-size:20px">🕷</span><div><div style="font-size:13px;font-weight:600">Spider Lift</div><div style="font-size:11px;color:var(--txt2,#7a8aaa)">Compact tracked lift</div></div>
+                  </div>
+                </div>
+                <div style="margin-top:10px"><label>Rental notes / Notas (optional)</label><input type="text" id="rental-notes" placeholder="Delivery time, lift height, access notes..."></div>
+              </div>
+            </div>
+
             <div style="background:var(--sur2);border:1px solid var(--bdr);border-radius:var(--r);padding:13px;margin-bottom:10px">
               <div class="card-title" style="margin-bottom:9px">Client Keys / Llaves del Cliente (optional)</div>
               <div id="co-keys-list"></div>
@@ -602,6 +636,29 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
         <div class="tpl-grid" id="tpl-grid"></div>
       </div>
 
+      <!-- RENTALS -->
+      <div class="panel" id="panel-rentals">
+        <div class="sec-hdr"><div><div class="sec-title">Equipment Rentals</div><div class="sec-sub">Lift rentals per job / Elevadores rentados por trabajo</div></div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+          <div style="background:var(--sur2);border:1px solid var(--bdr);border-radius:var(--r);padding:13px">
+            <div style="font-size:24px;font-weight:700;font-family:var(--mono);color:#14b8a6" id="r-stat-active">0</div>
+            <div style="font-size:10px;color:var(--txt2);margin-top:3px">Active rentals</div>
+          </div>
+          <div style="background:var(--sur2);border:1px solid var(--bdr);border-radius:var(--r);padding:13px">
+            <div style="font-size:24px;font-weight:700;font-family:var(--mono);color:var(--acc)" id="r-stat-month">0</div>
+            <div style="font-size:10px;color:var(--txt2);margin-top:3px">This month</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Active Rentals / Rentas Activas</div>
+          <div id="rentals-active-list"><div class="empty"><div class="ei">🏗</div><p>No active rentals</p></div></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Rental History / Historial de Rentas</div>
+          <div id="rentals-history-list"><div class="empty"><div class="ei">📋</div><p>No rental history yet</p></div></div>
+        </div>
+      </div>
+
       <!-- HISTORY -->
       <div class="panel" id="panel-history">
         <div class="sec-hdr"><div><div class="sec-title">Job History</div></div></div>
@@ -642,6 +699,7 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
     <button class="bn active" onclick="nav('dashboard')"><span class="bi">🏠</span>Home</button>
     <button class="bn" onclick="nav('checkout')"><span class="bi">📤</span>New Job</button>
     <button class="bn" onclick="nav('returns')"><span class="bi">📥</span>Returns</button>
+    <button class="bn" onclick="nav('rentals')"><span class="bi">🏗</span>Rentals</button>
     <button class="bn" onclick="nav('inventory')"><span class="bi">📦</span>Inventory</button>
     <button class="bn" onclick="nav('repairs')"><span class="bi">🔧</span>Repairs</button>
     <button class="bn" onclick="nav('templates')"><span class="bi">📋</span>Templates</button>
@@ -1016,6 +1074,7 @@ function nav(id) {
   if (id==='inventory') renderInventory();
   if (id==='repairs') renderRepairs();
   if (id==='history') renderHistory();
+  if (id==='rentals') renderRentals();
   if (id==='reorder') renderReorderQueue();
 }
 
@@ -2015,6 +2074,103 @@ function applyScheduleJob(idx) {
   hint.style.display = '';
   closeModal('import-modal');
 }
+
+// ─── RENTAL ─────────────────────────────────────────────────
+let coRental = null;
+
+function toggleRental() {
+  const checked = document.getElementById('has-rental').checked;
+  const section = document.getElementById('rental-section');
+  const slider = document.getElementById('rental-toggle-slider');
+  const knob = document.getElementById('rental-toggle-knob');
+  section.style.display = checked ? '' : 'none';
+  slider.style.background = checked ? 'var(--acc,#f5a623)' : 'var(--bdr2,#253554)';
+  knob.style.transform = checked ? 'translateX(20px)' : '';
+  if (!checked) {
+    coRental = null;
+    document.querySelectorAll('.lift-opt').forEach(o => {
+      o.style.borderColor = 'var(--bdr,#1e2d47)';
+      o.style.background = 'var(--sur3,#1a2438)';
+    });
+  }
+}
+
+function selectLift(el) {
+  document.querySelectorAll('.lift-opt').forEach(o => {
+    o.style.borderColor = 'var(--bdr,#1e2d47)';
+    o.style.background = 'var(--sur3,#1a2438)';
+  });
+  el.style.borderColor = '#14b8a6';
+  el.style.background = 'rgba(20,184,166,.12)';
+  coRental = el.dataset.lift;
+}
+
+function resetRentalUI() {
+  document.getElementById('has-rental').checked = false;
+  document.getElementById('rental-section').style.display = 'none';
+  document.getElementById('rental-toggle-slider').style.background = 'var(--bdr2,#253554)';
+  document.getElementById('rental-toggle-knob').style.transform = '';
+  document.getElementById('rental-notes').value = '';
+  document.querySelectorAll('.lift-opt').forEach(o => {
+    o.style.borderColor = 'var(--bdr,#1e2d47)';
+    o.style.background = 'var(--sur3,#1a2438)';
+  });
+  coRental = null;
+}
+
+function renderRentals() {
+  // Active rentals — jobs with has_rental=true and status packed/picked_up
+  const active = (jobs || []).filter(j => j.has_rental && ['packed','picked_up'].includes(j.status));
+  const hist = (history || []).filter(j => j.has_rental);
+
+  const rsa = document.getElementById('r-stat-active');
+  const rsm = document.getElementById('r-stat-month');
+  if (rsa) rsa.textContent = active.length;
+  if (rsm) {
+    const startOfMonth = new Date(); startOfMonth.setDate(1); startOfMonth.setHours(0,0,0,0);
+    const monthCount = [...active, ...hist].filter(j => new Date(j.created_at || j.packed_at || 0) >= startOfMonth).length;
+    rsm.textContent = monthCount;
+  }
+
+  const al = document.getElementById('rentals-active-list');
+  if (al) {
+    al.innerHTML = active.length ? active.map(j => `
+      <div style="background:var(--sur2);border:1px solid #14b8a6;border-left:3px solid #14b8a6;border-radius:var(--r);padding:13px;margin-bottom:8px">
+        <div style="font-weight:700;font-size:14px">🏗 ${esc(j.rental_type || j.has_rental)}</div>
+        <div style="font-size:12px;color:var(--txt2);margin-top:4px">WO: ${esc(j.hcp_job_number || '--')} · ${esc(j.building_client || j.site_address || '--')}</div>
+        <div style="font-size:11px;color:var(--txt2);font-family:var(--mono)">${esc(j.tech_names || '--')} · ${fd(j.scheduled_date)}</div>
+        ${j.rental_notes ? `<div style="font-size:11px;color:var(--txt3);margin-top:3px">${esc(j.rental_notes)}</div>` : ''}
+        <span style="display:inline-flex;align-items:center;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:600;font-family:var(--mono);background:rgba(20,184,166,.12);color:#14b8a6;border:1px solid rgba(20,184,166,.25);margin-top:8px">Active</span>
+      </div>`).join('') : '<div class="empty"><div class="ei">🏗</div><p>No active rentals</p></div>';
+  }
+
+  const hl = document.getElementById('rentals-history-list');
+  if (hl) {
+    hl.innerHTML = hist.length ? hist.slice(0, 15).map(j => `
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:11px 0;border-bottom:1px solid rgba(38,48,82,.5)">
+        <div style="width:34px;height:34px;border-radius:8px;background:rgba(20,184,166,.12);display:grid;place-items:center;flex-shrink:0;font-size:15px">🏗</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:13px">${esc(j.rental_type || 'Rental')} — ${esc(j.building_client || j.site_address || '--')}</div>
+          <div style="font-size:11px;color:var(--txt2);margin-top:2px;font-family:var(--mono)">WO: ${esc(j.hcp_job_number || '--')} · ${fd(j.scheduled_date)}</div>
+          <div style="font-size:11px;color:var(--txt2);font-family:var(--mono)">${esc(j.tech_names || '--')}</div>
+        </div>
+        <span style="display:inline-flex;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:600;background:var(--grn-dim);color:var(--grn);border:1px solid rgba(16,185,129,.25)">Done</span>
+      </div>`).join('') : '<div class="empty"><div class="ei">📋</div><p>No rental history yet</p></div>';
+  }
+}
+
+// Patch completeCheckout to save rental data
+const _origComplete = completeCheckout;
+completeCheckout = async function() {
+  // Inject rental fields into jobData before saving
+  window._pendingRental = {
+    has_rental: document.getElementById('has-rental').checked && !!coRental,
+    rental_type: coRental || null,
+    rental_notes: document.getElementById('rental-notes')?.value?.trim() || null
+  };
+  await _origComplete();
+  resetRentalUI();
+};
 
 // ─── INIT ───────────────────────────────────────────────────
 document.getElementById('co-date').value=today();
