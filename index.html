@@ -1121,15 +1121,17 @@ function calcKit() {
 function renderKitPreview() {
   document.getElementById('kit-preview').innerHTML = coItems.map((item,i)=>`
     <div class="kit-item-row ${item.removed?'removed':''}" id="ki-${i}">
-      <input type="checkbox" ${item.removed?'':'checked'} onclick="toggleKitItem(${i})">
+      <input type="checkbox" ${item.removed?'':'checked'} onchange="toggleKitItem(${i})">
       <span class="kit-item-label">${esc(item.name)}${item.oneoff?'<span style="font-size:9px;color:var(--acc);margin-left:6px">+ADDED</span>':''}</span>
-      <span class="kit-item-qty">${item.qty}</span>
+      <input type="number" min="1" value="${item.qty}" ${item.removed?'disabled':''} 
+        style="width:54px;text-align:center;padding:4px 6px;font-size:13px;font-family:var(--mono);color:var(--acc);background:var(--acc-dim);border:1px solid rgba(245,166,35,.3);border-radius:6px;margin:0"
+        onchange="updateItemQty(${i},this.value)" onclick="this.select()">
       <button class="kit-item-remove" onclick="toggleKitItem(${i})">${item.removed?'↩':'✕'}</button>
     </div>
   `).join('');
 }
 function toggleKitItem(i) { coItems[i].removed=!coItems[i].removed; renderKitPreview(); }
-function addOneOff() {
+function updateItemQty(i, val) { const n=parseInt(val); if(!isNaN(n)&&n>=1) coItems[i].qty=n; }
   const name=document.getElementById('addon-name').value.trim();
   const qty=parseInt(document.getElementById('addon-qty').value)||1;
   if (!name){alert('Enter item name.');return;}
@@ -1289,24 +1291,19 @@ function showJobQR(jobId, jobNum) {
 function printDymoLabel() {
   if (!lastJob) return;
   const j = lastJob;
-  const html=`
-    <div style="width:4in;font-family:Arial,sans-serif;font-size:10px">
-      <div style="font-weight:bold;font-size:14px;margin-bottom:4px">PF Building Services</div>
-      <div style="font-size:18px;font-weight:900;margin-bottom:6px">${j.hcp_job_number||'NO JOB #'}</div>
-      <div style="margin-bottom:4px"><strong>${esc(j.projName)}</strong></div>
-      <div style="margin-bottom:2px">${esc(j.tech_names||'--')}</div>
-      <div style="margin-bottom:2px">${esc(j.building_client||j.site_address||'--')}</div>
-      <div style="margin-bottom:2px">${esc(j.vehicle||'--')}</div>
-      <div style="margin-bottom:6px">${fd(j.scheduled_date)}</div>
-      <canvas id="dymo-qr" style="display:block"></canvas>
-      <div style="font-size:8px;margin-top:4px">Scan to confirm pickup/return</div>
-    </div>
-  `;
+  const kitSummary = (j.job_items||j.kit||[]).slice(0,4).map(i=>`${i.quantity||i.qty}x ${i.item_name||i.name}`).join(' · ');
+  const hasMore = (j.job_items||j.kit||[]).length > 4;
+  const html = `
+    <div style="width:2in;height:1in;box-sizing:border-box;border:2px solid #000;padding:5px 7px;background:#fff;font-family:Arial,sans-serif;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden">
+      <div style="font-weight:900;font-size:16px;font-family:'Courier New',monospace;color:#000;letter-spacing:.5px;line-height:1">${esc(j.hcp_job_number||'NO JOB #')}</div>
+      <div style="font-size:8px;font-weight:700;color:#000;line-height:1.2">${esc(j.projName||j.job_type||'--')} · ${esc(j.tech_names||'--')}</div>
+      <div style="font-size:7px;color:#333;line-height:1.2">${esc(j.building_client||j.site_address||'--')}</div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-end">
+        <div style="font-size:6.5px;color:#555">${esc(fd(j.scheduled_date))}${j.has_rental?' · 🏗 '+esc(j.rental_type):''}</div>
+        <div style="font-size:6.5px;color:#000;font-family:'Courier New',monospace">PF Building Services</div>
+      </div>
+    </div>`;
   showPrint(html);
-  setTimeout(()=>{
-    const c=document.getElementById('dymo-qr');
-    if(c && j.qr_code) QRCode.toCanvas(c, j.qr_code, {width:120,margin:1}, ()=>{});
-  },200);
 }
 
 // ─── TECH VIEW ──────────────────────────────────────────────
@@ -2107,41 +2104,18 @@ function applyScheduleJob(idx) {
 function printItemLabel(itemId) {
   const item = inventoryItems.find(i => i.id === itemId);
   if (!item) return;
-  const qrData = `PFBS-INV:${item.id}:${item.part_number||''}`;
-  const nameShort = item.name.length > 22 ? item.name.substring(0,20)+'…' : item.name;
-
-  // Use a hidden canvas to generate QR then convert to image
-  const canvas = document.createElement('canvas');
-  try {
-    QRCode.toCanvas(canvas, qrData, {width:80, margin:1, color:{dark:'#000000',light:'#ffffff'}}, (err) => {
-      const qrImg = err ? '' : `<img src="${canvas.toDataURL()}" width="72" height="72" style="display:block">`;
-      const html = `
-        <div style="width:2in;height:1in;overflow:hidden;font-family:Arial,sans-serif;display:flex;align-items:center;box-sizing:border-box;border:1px solid #000;padding:4px;gap:5px;background:#fff">
-          <div style="flex:1;display:flex;flex-direction:column;justify-content:space-between;height:100%;min-width:0;overflow:hidden;padding:2px 0">
-            <div style="font-weight:900;font-size:12px;font-family:'Courier New',monospace;color:#000;letter-spacing:.5px">${esc(item.part_number||'--')}</div>
-            <div style="font-weight:700;font-size:8.5px;color:#000;line-height:1.3;word-break:break-word">${esc(nameShort)}</div>
-            <div style="font-size:6.5px;color:#444;text-transform:uppercase;letter-spacing:.3px">${esc(item.tracking_type==='asset'?'ASSET':'BULK')}</div>
-            <div style="font-size:6.5px;color:#000;font-family:'Courier New',monospace">PF Building Services</div>
-          </div>
-          <div style="flex-shrink:0;display:flex;align-items:center;justify-content:center">
-            ${qrImg}
-          </div>
-        </div>`;
-      showPrint(html);
-    });
-  } catch(e) {
-    // Fallback without QR
-    const html = `
-      <div style="width:2in;height:1in;overflow:hidden;font-family:Arial,sans-serif;display:flex;align-items:center;box-sizing:border-box;border:1px solid #000;padding:6px;background:#fff">
-        <div style="flex:1">
-          <div style="font-weight:900;font-size:14px;font-family:'Courier New',monospace;color:#000">${esc(item.part_number||'--')}</div>
-          <div style="font-weight:700;font-size:9px;color:#000;margin-top:4px">${esc(nameShort)}</div>
-          <div style="font-size:7px;color:#444;margin-top:4px;text-transform:uppercase">${esc(item.tracking_type==='asset'?'ASSET':'BULK')}</div>
-          <div style="font-size:7px;color:#000;margin-top:2px;font-family:'Courier New',monospace">PF Building Services</div>
-        </div>
-      </div>`;
-    showPrint(html);
-  }
+  const nameShort = item.name.length > 30 ? item.name.substring(0,28)+'…' : item.name;
+  const cat = categories.find(c => c.id === item.category_id);
+  const html = `
+    <div style="width:2in;height:1in;box-sizing:border-box;border:1px solid #000;padding:5px 7px;background:#fff;font-family:Arial,sans-serif;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden">
+      <div style="font-weight:900;font-size:18px;font-family:'Courier New',monospace;color:#000;letter-spacing:1px;line-height:1">${esc(item.part_number||'--')}</div>
+      <div style="font-weight:700;font-size:9px;color:#000;line-height:1.3">${esc(nameShort)}</div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-end">
+        <div style="font-size:7px;color:#555;text-transform:uppercase;letter-spacing:.3px">${esc(cat?cat.name:item.tracking_type==='asset'?'ASSET':'BULK')}</div>
+        <div style="font-size:7px;color:#000;font-family:'Courier New',monospace">PF Building Services</div>
+      </div>
+    </div>`;
+  showPrint(html);
 }
 
 // ─── INVENTORY DEDUCTION ON CHECKOUT ────────────────────────
