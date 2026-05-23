@@ -546,6 +546,14 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
                   </div>
                 </div>
                 <div style="margin-top:10px"><label>Rental notes / Notas (optional)</label><input type="text" id="rental-notes" placeholder="Delivery time, lift height, access notes..."></div>
+              <div style="margin-top:8px"><label>Quantity / Cantidad</label>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <button onclick="adjRentalQty(-1)" class="btn btn-s btn-sm" style="width:36px;padding:6px;justify-content:center">−</button>
+                  <span id="rental-qty-display" style="font-family:var(--mono);font-size:16px;font-weight:700;color:var(--acc);min-width:30px;text-align:center">1</span>
+                  <button onclick="adjRentalQty(1)" class="btn btn-s btn-sm" style="width:36px;padding:6px;justify-content:center">+</button>
+                  <input type="hidden" id="rental-qty" value="1">
+                </div>
+              </div>
               </div>
             </div>
 
@@ -628,6 +636,7 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
       <!-- TEMPLATES -->
       <div class="panel" id="panel-templates">
         <div class="sec-hdr"><div><div class="sec-title">Templates</div><div class="sec-sub">Kit templates per job type</div></div><button class="btn btn-p btn-sm" onclick="openTpl()">+ New</button></div>
+        <div class="search-wrap"><span class="search-ico">🔍</span><input type="text" id="tpl-search" placeholder="Search templates..." oninput="renderTplGrid()"></div>
         <div class="tpl-grid" id="tpl-grid"></div>
       </div>
 
@@ -914,7 +923,7 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
     <!-- COMPANY -->
     <div style="margin-bottom:18px">
       <div style="font-size:12px;font-weight:700;color:var(--acc);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">🏢 Company Info</div>
-      <div class="fg"><label>Company Name (appears on all printed slips)</label><input type="text" id="s-company" placeholder=getCompanyName()></div>
+      <div class="fg"><label>Company Name (appears on all printed slips)</label><input type="text" id="s-company" placeholder="PF Building Services"></div>
       <button class="btn btn-s btn-sm" onclick="settingsSaveCompany()">Save Company Name</button>
     </div>
     <hr>
@@ -1018,10 +1027,14 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
     <div class="fg"><label>Notes</label><textarea id="ej-notes" rows="2" placeholder="Special instructions..."></textarea></div>
     <hr>
     <div class="card-title" style="margin-bottom:8px">Add Item to Kit</div>
+    <div style="position:relative;margin-bottom:6px">
+      <input type="text" id="ej-item-name" placeholder="🔍 Search inventory or type item..." style="width:100%"
+        oninput="searchEjItem(this)" onfocus="searchEjItem(this)" autocomplete="off">
+      <div id="ej-item-results" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--sur);border:1px solid var(--acc);border-radius:0 0 8px 8px;z-index:300;max-height:160px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.5)"></div>
+    </div>
     <div style="display:flex;gap:8px;margin-bottom:12px">
-      <input type="text" id="ej-item-name" placeholder="Item name" style="flex:1">
-      <input type="number" id="ej-item-qty" value="1" min="1" style="width:60px">
-      <button class="btn btn-s btn-sm" onclick="addItemToActiveJob()">+</button>
+      <input type="number" id="ej-item-qty" value="1" min="1" style="width:80px" placeholder="Qty">
+      <button class="btn btn-p btn-sm" style="flex:1" onclick="addItemToActiveJob()">+ Add to Kit</button>
     </div>
     <div id="ej-items-list" style="margin-bottom:12px">
       <div style="font-size:10px;color:var(--txt2);margin-bottom:6px">Tap qty to edit · ✕ to remove</div>
@@ -2009,19 +2022,14 @@ function searchAssetItem(input) {
     return;
   }
   resultsEl.style.display = '';
-  resultsEl.innerHTML = filtered.slice(0,10).map(i => `
-    <div onmousedown="selectAssetItem('${i.id}','${i.name.replace(/'/g,"\'")}','${i.part_number||''}')"
-      style="padding:9px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--bdr)"
+  resultsEl.innerHTML = (q ? filtered.slice(0,10) : filtered.slice(0,8)).map(i => `
+    <div onmousedown="event.preventDefault();selectAssetItem('${i.id}','${i.name.replace(/'/g,"\'")}','${i.part_number||''}')"
+      style="padding:10px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--bdr);transition:background .1s"
       onmouseover="this.style.background='var(--sur2)'" onmouseout="this.style.background=''">
-      ${i.part_number?`<span style="font-family:var(--mono);font-size:10px;color:var(--acc);margin-right:6px">${i.part_number}</span>`:''}
-      ${i.name}
+      ${i.part_number?`<span style="font-family:var(--mono);font-size:10px;color:var(--acc);background:var(--acc-dim);padding:2px 6px;border-radius:4px;margin-right:6px">${i.part_number}</span>`:''}
+      <span style="font-weight:600">${i.name}</span>
     </div>
-  `).join('');
-  setTimeout(() => {
-    document.addEventListener('click', function closeIt(e) {
-      if (e.target !== input) { resultsEl.style.display='none'; document.removeEventListener('click',closeIt); }
-    });
-  }, 100);
+  `).join('') + (!q ? '' : filtered.length === 0 ? `<div style="padding:10px 12px;font-size:12px;color:var(--txt2)">Not in inventory — will save as new type</div>` : '');
 }
 
 function selectAssetItem(id, name, partNum) {
@@ -2251,8 +2259,10 @@ async function resolveRepair(id) {
 // ─── TEMPLATES ──────────────────────────────────────────────
 function renderTplGrid() {
   const el=document.getElementById('tpl-grid');
-  if (!templates.length){el.innerHTML='<div class="empty"><div class="ei">📋</div><p>No templates yet</p></div>';return;}
-  el.innerHTML=templates.map((t,i)=>`
+  const q=(document.getElementById('tpl-search')?.value||'').toLowerCase();
+  const filtered=templates.filter(t=>`${t.name} ${t.description||''}`.toLowerCase().includes(q));
+  if (!filtered.length){el.innerHTML='<div class="empty"><div class="ei">📋</div><p>No templates found</p></div>';return;}
+  el.innerHTML=filtered.map((t,i)=>`
     <div class="tpl-card">
       <span class="badge bg-b tcount" style="font-size:9px">${(t.template_items||[]).length}</span>
       <h3>${esc(t.name)}</h3>
@@ -2634,18 +2644,13 @@ function searchInspItem(input) {
   if (!filtered.length) { resultsEl.style.display='none'; return; }
   resultsEl.style.display = '';
   resultsEl.innerHTML = filtered.slice(0,10).map(i => `
-    <div onmousedown="selectInspItem('${i.name.replace(/'/g,"\'")}','${i.part_number||''}')"
-      style="padding:9px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--bdr)"
+    <div onmousedown="event.preventDefault();selectInspItem('${i.name.replace(/'/g,"\'")}','${i.part_number||''}')"
+      style="padding:10px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--bdr);transition:background .1s"
       onmouseover="this.style.background='var(--sur2)'" onmouseout="this.style.background=''">
-      ${i.part_number?`<span style="font-family:var(--mono);font-size:10px;color:var(--acc);margin-right:6px">${i.part_number}</span>`:''}
-      ${i.name}
+      ${i.part_number?`<span style="font-family:var(--mono);font-size:10px;color:var(--acc);background:var(--acc-dim);padding:2px 6px;border-radius:4px;margin-right:6px">${i.part_number}</span>`:''}
+      <span style="font-weight:600">${i.name}</span>
     </div>
   `).join('');
-  setTimeout(() => {
-    document.addEventListener('click', function closeIt(e) {
-      if (e.target !== input) { resultsEl.style.display='none'; document.removeEventListener('click',closeIt); }
-    });
-  }, 100);
 }
 function selectInspItem(name, partNum) {
   document.getElementById('insp-name').value = name;
@@ -2747,13 +2752,45 @@ function renderEditJobItems() {
   }).join('');
 }
 
+function searchEjItem(input) {
+  const q = input.value.toLowerCase();
+  const resultsEl = document.getElementById('ej-item-results');
+  if (!resultsEl) return;
+  const filtered = inventoryItems
+    .filter(i => `${i.name} ${i.part_number||''}`.toLowerCase().includes(q))
+    .sort((a,b) => a.name.localeCompare(b.name))
+    .slice(0, 10);
+  if (!q || !filtered.length) { resultsEl.style.display='none'; return; }
+  resultsEl.style.display = '';
+  resultsEl.innerHTML = filtered.map(i => `
+    <div onmousedown="event.preventDefault();selectEjItem('${i.id}','${i.name.replace(/'/g,"\'")}','${i.part_number||''}')"
+      style="padding:10px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--bdr)"
+      onmouseover="this.style.background='var(--sur2)'" onmouseout="this.style.background=''">
+      ${i.part_number?`<span style="font-family:var(--mono);font-size:10px;color:var(--acc);background:var(--acc-dim);padding:2px 6px;border-radius:4px;margin-right:6px">${i.part_number}</span>`:''}
+      <span style="font-weight:600">${i.name}</span>
+      <span style="font-size:10px;color:var(--txt2);margin-left:6px">${i.tracking_type==='bulk'?'Stock: '+i.quantity_on_hand:''}</span>
+    </div>
+  `).join('');
+}
+function selectEjItem(invId, name, partNum) {
+  document.getElementById('ej-item-name').value = name;
+  document.getElementById('ej-item-results').style.display = 'none';
+  // Store the inv id for linking
+  document.getElementById('ej-item-name').dataset.invId = invId;
+  document.getElementById('ej-item-name').dataset.partNum = partNum;
+}
+
 function addItemToActiveJob() {
   const name = document.getElementById('ej-item-name').value.trim();
   const qty = parseInt(document.getElementById('ej-item-qty').value) || 1;
   if (!name) { alert('Enter item name.'); return; }
-  editingJobItems.push({ item_name: name, item_name_es: name, quantity: qty, is_oneoff: true, job_id: editingJob.id });
+  const invId = document.getElementById('ej-item-name').dataset.invId || null;
+  editingJobItems.push({ item_name: name, item_name_es: name, quantity: qty, is_oneoff: !invId, job_id: editingJob.id, inventory_item_id: invId||null });
   document.getElementById('ej-item-name').value = '';
+  document.getElementById('ej-item-name').dataset.invId = '';
+  document.getElementById('ej-item-name').dataset.partNum = '';
   document.getElementById('ej-item-qty').value = '1';
+  document.getElementById('ej-item-results').style.display = 'none';
   renderEditJobItems();
 }
 
@@ -3298,12 +3335,26 @@ function selectLift(el) {
   coRental = el.dataset.lift;
 }
 
+function adjRentalQty(delta) {
+  const inp = document.getElementById('rental-qty');
+  const display = document.getElementById('rental-qty-display');
+  if (!inp || !display) return;
+  const cur = parseInt(inp.value) || 1;
+  const next = Math.max(1, cur + delta);
+  inp.value = next;
+  display.textContent = next;
+}
+
 function resetRentalUI() {
   document.getElementById('has-rental').checked = false;
   document.getElementById('rental-section').style.display = 'none';
   document.getElementById('rental-toggle-slider').style.background = 'var(--bdr2,#253554)';
   document.getElementById('rental-toggle-knob').style.transform = '';
   document.getElementById('rental-notes').value = '';
+  const rqty = document.getElementById('rental-qty');
+  const rdisp = document.getElementById('rental-qty-display');
+  if (rqty) rqty.value = '1';
+  if (rdisp) rdisp.textContent = '1';
   document.querySelectorAll('.lift-opt').forEach(o => {
     o.style.borderColor = 'var(--bdr,#1e2d47)';
     o.style.background = 'var(--sur3,#1a2438)';
