@@ -2299,7 +2299,7 @@ async function saveAsset() {
 
 // ─── COMPANY & SETTINGS ────────────────────────────────────
 function getCompanyName() {
-  return localStorage.getItem('kt_company') || getCompanyName();
+  return localStorage.getItem('kt_company') || 'PF Building Services';
 }
 function settingsSaveCompany() {
   const v = document.getElementById('s-company').value.trim();
