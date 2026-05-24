@@ -2357,12 +2357,16 @@ function deleteVehicle(i) {
   fillVehicleSelect();
 }
 function openAddVehicle() {
-  openSettings();
-  // Scroll to vehicles section after a tick
-  setTimeout(() => {
-    const el = document.getElementById('vehicles-list');
-    if (el) el.scrollIntoView({behavior:'smooth'});
-  }, 300);
+  const name = prompt('Enter vehicle name (e.g. Truck #1, White Ford F-150):');
+  if (!name || !name.trim()) return;
+  const vehicles = getVehicles();
+  if (vehicles.includes(name.trim())) { alert('Already in list.'); return; }
+  vehicles.push(name.trim());
+  saveVehicles(vehicles);
+  fillVehicleSelect();
+  document.getElementById('co-vehicle-sel').value = name.trim();
+  document.getElementById('co-vehicle').value = name.trim();
+  alert('✓ Vehicle added! You can manage all vehicles in Settings.');
 }
 
 // ─── SETTINGS ───────────────────────────────────────────────
@@ -3474,6 +3478,46 @@ function addTechToNames(name) {
   document.getElementById('co-numtechs').value = count;
   calcKit();
 }
+
+// Global click handler to close all search dropdowns
+document.addEventListener('click', function(e) {
+  // Close asset item results
+  const assetResults = document.getElementById('asset-item-results');
+  const assetSearch = document.getElementById('asset-item-search');
+  if (assetResults && e.target !== assetSearch && !assetResults.contains(e.target)) {
+    assetResults.style.display = 'none';
+  }
+  // Close tech roster dropdown
+  const techDd = document.getElementById('tech-roster-dropdown');
+  const techSearch = document.getElementById('tech-roster-search');
+  if (techDd && e.target !== techSearch && !techDd.contains(e.target)) {
+    techDd.style.display = 'none';
+  }
+  // Close inspection item results
+  const inspResults = document.getElementById('insp-item-results');
+  const inspName = document.getElementById('insp-name');
+  if (inspResults && e.target !== inspName && !inspResults.contains(e.target)) {
+    inspResults.style.display = 'none';
+  }
+  // Close inv search results in template editor
+  document.querySelectorAll('.inv-search-results').forEach(el => {
+    if (!el.contains(e.target) && !e.target.classList.contains('inv-search-input')) {
+      el.style.display = 'none';
+    }
+  });
+  // Close ej item results
+  const ejResults = document.getElementById('ej-item-results');
+  const ejName = document.getElementById('ej-item-name');
+  if (ejResults && e.target !== ejName && !ejResults.contains(e.target)) {
+    ejResults.style.display = 'none';
+  }
+  // Close template picker if clicking outside
+  const tplDd = document.getElementById('co-template-dropdown');
+  const tplPicker = document.getElementById('co-template-picker');
+  if (tplDd && tplPicker && !tplPicker.contains(e.target) && !tplDd.contains(e.target)) {
+    tplDd.style.display = 'none';
+  }
+});
 
 // ─── TECHSCHED IMPORT ───────────────────────────────────────
 const FB_PROJECT = 'techsched-c8c09';
