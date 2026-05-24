@@ -2390,8 +2390,10 @@ function openSettings() {
     renderVehiclesList();
     document.getElementById('settings-modal').classList.add('open');
   } catch(e) {
-    console.error('Settings error:', e);
-    alert('Settings error: ' + e.message);
+    console.error('Settings error:', e.stack || e.message);
+    // Show first 3 lines of stack to identify loop
+    const stackLines = (e.stack||'').split('\n').slice(0,6).join('\n');
+    alert('Settings error: ' + e.message + '\n\n' + stackLines);
   }
 }
 
