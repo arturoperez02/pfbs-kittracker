@@ -521,7 +521,14 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
                 oninput="searchTechRoster(this)" autocomplete="off">
               <div id="tech-roster-results" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--sur);border:1px solid var(--acc);border-radius:0 0 9px 9px;z-index:200;max-height:200px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.5)"></div>
             </div>
-            <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap" id="tech-quick-picks"></div>
+            <div style="margin-top:6px">
+              <div style="position:relative">
+                <input type="text" id="tech-roster-search" placeholder="🔍 Search TechSched roster..."
+                  oninput="filterTechRosterDropdown(this.value)" onfocus="showTechRosterDropdown()"
+                  style="font-size:12px" autocomplete="off">
+                <div id="tech-roster-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--sur);border:1px solid var(--bdr2);border-radius:0 0 9px 9px;z-index:200;max-height:200px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.5)"></div>
+              </div>
+            </div>
           </div>
             <div class="fg"><label>Site Address / Dirección</label><input type="text" id="co-addr" placeholder="123 Main St"></div>
             <div class="fg"><label>Building / Client / Edificio</label><input type="text" id="co-bldg" placeholder="Acme Tower..."></div>
@@ -2360,16 +2367,28 @@ function openAddVehicle() {
 
 // ─── SETTINGS ───────────────────────────────────────────────
 function openSettings() {
-  document.getElementById('s-autolock').value = String(getAutoLock());
-  document.getElementById('s-pin-new').value = '';
-  document.getElementById('s-pin-confirm').value = '';
-  document.getElementById('s-pin-err').textContent = '';
-  document.getElementById('new-prefix-code').value = '';
-  document.getElementById('new-prefix-label').value = '';
-  document.getElementById('s-company').value = getCompanyName();
-  renderPrefixList();
-  renderVehiclesList();
-  document.getElementById('settings-modal').classList.add('open');
+  try {
+    const autolock = document.getElementById('s-autolock');
+    if (autolock) autolock.value = String(getAutoLock());
+    const pinNew = document.getElementById('s-pin-new');
+    if (pinNew) pinNew.value = '';
+    const pinConfirm = document.getElementById('s-pin-confirm');
+    if (pinConfirm) pinConfirm.value = '';
+    const pinErr = document.getElementById('s-pin-err');
+    if (pinErr) pinErr.textContent = '';
+    const prefixCode = document.getElementById('new-prefix-code');
+    if (prefixCode) prefixCode.value = '';
+    const prefixLabel = document.getElementById('new-prefix-label');
+    if (prefixLabel) prefixLabel.value = '';
+    const company = document.getElementById('s-company');
+    if (company) company.value = getCompanyName();
+    renderPrefixList();
+    renderVehiclesList();
+    document.getElementById('settings-modal').classList.add('open');
+  } catch(e) {
+    console.error('Settings error:', e);
+    alert('Settings error: ' + e.message);
+  }
 }
 
 function renderPrefixList() {
@@ -3397,73 +3416,63 @@ async function loadTechRoster() {
   renderTechQuickPicks();
 }
 
-function showTechRoster() { renderTechQuickPicks(); }
+function showTechRoster() { showTechRosterDropdown(); }
 
 function searchTechRoster(input) {
-  const q = input.value.toLowerCase();
-  renderTechRosterResults(q);
+  // typing in co-names — hide roster dropdown
+  const dd = document.getElementById('tech-roster-dropdown');
+  if (dd) dd.style.display = 'none';
 }
 
-function renderTechRosterResults(q) {
-  const resultsEl = document.getElementById('tech-roster-results');
-  if (!resultsEl) return;
-  const currentNames = document.getElementById('co-names').value.toLowerCase();
+function showTechRosterDropdown() {
+  filterTechRosterDropdown(document.getElementById('tech-roster-search')?.value || '');
+}
+
+function filterTechRosterDropdown(q) {
+  const dd = document.getElementById('tech-roster-dropdown');
+  if (!dd) return;
+  const currentNames = (document.getElementById('co-names')?.value || '').toLowerCase();
   const filtered = _techRoster.filter(t =>
-    t.toLowerCase().includes(q) && !currentNames.includes(t.toLowerCase())
+    t.toLowerCase().includes(q.toLowerCase()) && !currentNames.includes(t.toLowerCase())
   );
-  if (!filtered.length) { resultsEl.style.display='none'; return; }
-  resultsEl.style.display = '';
-  resultsEl.innerHTML = `
-    <div style="padding:6px 12px;font-size:10px;color:var(--txt3);font-weight:700;text-transform:uppercase;letter-spacing:.06em">TechSched Roster — tap to add</div>
-    ${filtered.slice(0,10).map(t => `
-      <div onmousedown="event.preventDefault();addTechToNames('${t.replace(/'/g,"\'")}')"
-        style="padding:9px 12px;cursor:pointer;font-size:13px;font-weight:600;border-bottom:1px solid var(--bdr)"
-        onmouseover="this.style.background='var(--sur2)'" onmouseout="this.style.background=''">
-        👷 ${t}
-      </div>
-    `).join('')}
-  `;
-  // Close on outside click
+  if (!_techRoster.length) {
+    dd.innerHTML = '<div style="padding:10px 12px;font-size:12px;color:var(--txt2)">Loading roster from TechSched...</div>';
+    dd.style.display = '';
+    return;
+  }
+  if (!filtered.length) {
+    dd.innerHTML = '<div style="padding:10px 12px;font-size:12px;color:var(--txt2)">No match — type their name in the field above</div>';
+    dd.style.display = '';
+    return;
+  }
+  dd.style.display = '';
+  dd.innerHTML = filtered.map(t => `
+    <div onmousedown="event.preventDefault();addTechToNames('${t.replace(/'/g,"\\'")}');filterTechRosterDropdown(document.getElementById('tech-roster-search')?.value||'')"
+      style="padding:10px 14px;cursor:pointer;font-size:13px;font-weight:600;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:8px"
+      onmouseover="this.style.background='var(--sur2)'" onmouseout="this.style.background=''">
+      <span>👷</span> ${t}
+    </div>
+  `).join('');
   setTimeout(() => {
     document.addEventListener('click', function closeIt(e) {
-      const input = document.getElementById('co-names');
-      if (!resultsEl.contains(e.target) && e.target !== input) {
-        resultsEl.style.display='none';
+      const search = document.getElementById('tech-roster-search');
+      if (!dd.contains(e.target) && e.target !== search) {
+        dd.style.display = 'none';
         document.removeEventListener('click', closeIt);
       }
     });
   }, 100);
 }
 
-function renderTechQuickPicks() {
-  const el = document.getElementById('tech-quick-picks');
-  if (!el) return;
-  if (!_techRoster.length) { el.innerHTML = '<span style="font-size:11px;color:var(--txt3)">Loading roster from TechSched...</span>'; return; }
-  const currentNames = (document.getElementById('co-names')?.value || '').toLowerCase();
-  const available = _techRoster.filter(t => !currentNames.includes(t.toLowerCase()));
-  if (!available.length) { el.innerHTML = ''; return; }
-  el.innerHTML = '<span style="font-size:10px;color:var(--txt3);font-weight:700;text-transform:uppercase;display:block;width:100%;margin-bottom:4px">TechSched Roster:</span>' +
-    available.map(t =>
-    `<span onmousedown="event.preventDefault();addTechToNames('${t.replace(/'/g,"\'")}');renderTechQuickPicks()"
-      style="cursor:pointer;font-size:12px;font-weight:600;padding:5px 11px;background:var(--sur2);border:1px solid var(--bdr);border-radius:20px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px"
-      onmouseover="this.style.borderColor='var(--acc)';this.style.color='var(--acc)'" onmouseout="this.style.borderColor='var(--bdr)';this.style.color=''"
-    >👷 ${t}</span>`
-  ).join('');
-}
+function renderTechQuickPicks() { /* replaced by dropdown */ }
 
 function addTechToNames(name) {
   const input = document.getElementById('co-names');
   const current = input.value.trim();
   input.value = current ? current + ', ' + name : name;
-  // Update tech count
-  const count = input.value.split(',').filter(s=>s.trim()).length;
+  const count = input.value.split(',').filter(s => s.trim()).length;
   document.getElementById('co-numtechs').value = count;
   calcKit();
-  const resultsEl = document.getElementById('tech-roster-results');
-  if (resultsEl) {
-    renderTechRosterResults('');
-    if (!resultsEl.querySelector('div:nth-child(2)')) resultsEl.style.display='none';
-  }
 }
 
 // ─── TECHSCHED IMPORT ───────────────────────────────────────
