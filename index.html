@@ -13,32 +13,32 @@
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 <style>
 :root {
-  --bg: #080c14;
-  --sur: #0f1520;
-  --sur2: #151d2e;
-  --sur3: #1a2438;
-  --bdr: #1e2d47;
-  --bdr2: #253554;
+  --bg: #111827;
+  --sur: #1f2937;
+  --sur2: #263244;
+  --sur3: #2d3a52;
+  --bdr: #374151;
+  --bdr2: #4b5563;
   --acc: #f5a623;
   --acc2: #e8941a;
-  --acc-dim: rgba(245,166,35,.1);
-  --blue: #3b82f6;
-  --blue-dim: rgba(59,130,246,.1);
-  --grn: #10b981;
-  --grn-dim: rgba(16,185,129,.1);
-  --red: #ef4444;
-  --red-dim: rgba(239,68,68,.1);
-  --amb: #f59e0b;
-  --amb-dim: rgba(245,158,11,.1);
-  --pur: #8b5cf6;
-  --pur-dim: rgba(139,92,246,.1);
-  --cyn: #06b6d4;
-  --cyn-dim: rgba(6,182,212,.1);
-  --teal: #14b8a6;
-  --teal-dim: rgba(20,184,166,.1);
-  --txt: #e2e8f5;
-  --txt2: #7a8aaa;
-  --txt3: #3d4f6e;
+  --acc-dim: rgba(245,166,35,.12);
+  --blue: #60a5fa;
+  --blue-dim: rgba(96,165,250,.12);
+  --grn: #34d399;
+  --grn-dim: rgba(52,211,153,.12);
+  --red: #f87171;
+  --red-dim: rgba(248,113,113,.1);
+  --amb: #fbbf24;
+  --amb-dim: rgba(251,191,36,.12);
+  --pur: #a78bfa;
+  --pur-dim: rgba(167,139,250,.12);
+  --cyn: #22d3ee;
+  --cyn-dim: rgba(34,211,238,.12);
+  --teal: #2dd4bf;
+  --teal-dim: rgba(45,212,191,.12);
+  --txt: #e5e7eb;
+  --txt2: #9ca3af;
+  --txt3: #6b7280;
   --mono: 'DM Mono', monospace;
   --sans: 'Sora', sans-serif;
   --r: 10px;
@@ -54,7 +54,7 @@ body { background: var(--bg); color: var(--txt); font-family: var(--sans); font-
 /* App shell */
 .app { display: flex; flex-direction: column; height: 100dvh; }
 .topbar {
-  background: linear-gradient(135deg, #080c14 0%, #0d1628 100%);
+  background: linear-gradient(135deg, #111827 0%, #1a2540 100%);
   border-bottom: 1px solid var(--bdr);
   padding: 12px 16px;
   padding-top: calc(12px + var(--safe-top));
@@ -1553,7 +1553,6 @@ function renderCoKeyRegistryPicks() {
 function addKeyFromRegistry(name, qty) {
   coKeys.push({id: uid(), tag: name, qty: qty || 1});
   renderCoKeys();
-}
 }
 
 const STEP_LABELS = ['Job Details','Review Kit','Confirm & Sign Out','Print Label'];
