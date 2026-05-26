@@ -309,6 +309,9 @@ select option { background: var(--sur2); }
 /* Overlays / modals */
 .ov { position: fixed; inset: 0; background: rgba(0,0,0,.88); display: none; place-items: flex-end center; z-index: 400; padding-top: 60px; }
 .ov.open { display: grid; }
+/* Inventory modal sits above template modal */
+#inv-modal { z-index: 500; }
+#inv-modal.open ~ .modal { z-index: 500; }
 .modal {
   background: var(--sur); border: 1px solid var(--bdr);
   border-radius: 20px 20px 0 0;
@@ -2816,18 +2819,51 @@ function selectInvItem(rowId, id, name, partNum) {
 }
 
 function quickAddFromTemplate(rowId, itemName) {
-  // Pre-fill the add item modal and open it, then on save link back
-  document.getElementById('isr-' + rowId).style.display = 'none';
+  // Close the inv search dropdown
+  const resultsEl = document.getElementById('isr-' + rowId);
+  if (resultsEl) resultsEl.style.display = 'none';
+
+  // Store context so we can come back
   window._pendingLinkRowId = rowId;
-  openAddItem();
-  document.getElementById('inv-name').value = itemName.trim();
-  // Override save to auto-link back
+  window._pendingItemName = itemName.trim();
+
+  // Close template modal first to avoid z-index conflict
+  document.getElementById('tpl-modal').classList.remove('open');
+
+  // Open add item modal with name pre-filled
+  setTimeout(() => {
+    openAddItem();
+    document.getElementById('inv-name').value = window._pendingItemName;
+    // Show a reminder banner
+    const hint = document.getElementById('part-num-hint');
+    if (hint) {
+      hint.style.color = 'var(--amb)';
+      hint.textContent = '⚠ After saving, the template will reopen and auto-link this item.';
+    }
+  }, 200);
+
+  // Override save callback to reopen template modal and link the item
   window._afterInvSave = async function() {
     await loadAll();
-    const newItem = inventoryItems.find(i => i.name.toLowerCase() === itemName.trim().toLowerCase());
-    if (newItem) selectInvItem(rowId, newItem.id, newItem.name, newItem.part_number||'');
+    const newItem = inventoryItems.find(i =>
+      i.name.toLowerCase() === (window._pendingItemName || '').toLowerCase()
+    );
+    // Reopen template modal
+    document.getElementById('tpl-modal').classList.add('open');
+    // Auto-link if found
+    if (newItem && window._pendingLinkRowId) {
+      setTimeout(() => {
+        selectInvItem(
+          window._pendingLinkRowId,
+          newItem.id,
+          newItem.name,
+          newItem.part_number || ''
+        );
+      }, 100);
+    }
     window._afterInvSave = null;
     window._pendingLinkRowId = null;
+    window._pendingItemName = null;
   };
 }
 
