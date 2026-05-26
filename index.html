@@ -10,6 +10,7 @@
 <title>KitTracker — PF Building Services</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500;600&family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 <style>
 :root {
@@ -372,6 +373,12 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
 /* Print */
 #print-area { display: none; position: fixed; inset: 0; background: #fff; z-index: 999; padding: 28px; font-family: Arial, sans-serif; font-size: 12px; color: #000; overflow-y: auto; }
 
+/* Print styles */
+@media print {
+  body > * { display: none !important; }
+  #print-area { display: block !important; position: static !important; padding: 0 !important; background: #fff !important; }
+  #print-area > div:last-child { display: none !important; }
+}
 /* Empty states */
 .empty { text-align: center; padding: 40px 16px; color: var(--txt2); }
 .empty .ei { font-size: 40px; margin-bottom: 12px; }
@@ -393,6 +400,7 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
 .partial-qty button { width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--bdr); background: var(--sur3); color: var(--txt); font-size: 14px; cursor: pointer; display: grid; place-items: center; }
 .partial-qty span { font-family: var(--mono); font-size: 13px; font-weight: 700; min-width: 24px; text-align: center; }
 .btn-t { background: var(--teal-dim); color: var(--teal); border: 1px solid rgba(20,184,166,.3); }
+.active-cond { outline: 3px solid var(--acc) !important; outline-offset: 2px; }
 .btn-t:hover { filter: brightness(1.1); }
 .info-t { background: var(--teal-dim); border: 1px solid rgba(20,184,166,.2); color: var(--teal); }
 .sched-job-card { background: var(--sur2); border: 1px solid var(--bdr); border-radius: 12px; padding: 13px; margin-bottom: 8px; cursor: pointer; transition: border-color .15s, background .15s; display: flex; align-items: flex-start; gap: 12px; }
@@ -653,6 +661,55 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
         <div class="card">
           <div class="fg"><label>Select Job / Seleccionar Trabajo</label><select id="ret-sel" onchange="loadReturn()"><option value="">— choose active job —</option></select></div>
           <div id="ret-area"></div>
+        </div>
+
+        <!-- SCAN MODE PANEL -->
+        <div id="scan-mode-panel" style="display:none">
+          <div style="background:var(--sur);border:2px solid var(--teal);border-radius:var(--r2);padding:16px;margin-bottom:12px">
+            <!-- Header -->
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <div>
+                <div style="font-size:16px;font-weight:700;color:var(--teal)">📡 Scan Mode Active</div>
+                <div style="font-size:11px;color:var(--txt2);margin-top:2px" id="scan-job-label">Job — items</div>
+              </div>
+              <button class="btn btn-s btn-sm" onclick="exitScanMode()">✕ Exit Scan</button>
+            </div>
+
+            <!-- Scan input -->
+            <div style="position:relative;margin-bottom:14px">
+              <input type="text" id="scan-input"
+                placeholder="🔍 Scan barcode or type part number..."
+                style="font-size:16px;font-family:var(--mono);font-weight:700;letter-spacing:1px;border:2px solid var(--teal);background:var(--sur2);padding:14px 16px"
+                onkeydown="if(event.key==='Enter')processScan()"
+                oninput="autoProcessScan(this)"
+                autocomplete="off" autofocus>
+              <div style="position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--txt3)">Press Enter or scan</div>
+            </div>
+
+            <!-- Scan feedback -->
+            <div id="scan-feedback" style="min-height:44px;margin-bottom:14px"></div>
+
+            <!-- Progress -->
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+              <div style="flex:1;background:var(--sur2);border-radius:20px;height:6px;overflow:hidden">
+                <div id="scan-progress-bar" style="height:100%;background:var(--teal);border-radius:20px;transition:width .3s;width:0%"></div>
+              </div>
+              <div style="font-size:11px;color:var(--txt2);font-family:var(--mono);white-space:nowrap" id="scan-progress-text">0 / 0</div>
+            </div>
+
+            <!-- Scanned items list -->
+            <div style="font-size:10px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Scanned Items — tap to flag exception</div>
+            <div id="scan-items-list" style="margin-bottom:14px"></div>
+
+            <!-- Unscanned items -->
+            <div id="scan-unscanned" style="margin-bottom:14px"></div>
+
+            <!-- Attendant + Complete -->
+            <div class="fg"><label>Warehouse Attendant / Encargado</label><input type="text" id="scan-attendant" placeholder="Your name"></div>
+            <div class="fg"><label>Returned by / Devuelto por</label><input type="text" id="scan-retby" placeholder="Tech name"></div>
+            <div class="info-a" id="scan-warning" style="display:none">⚠ Some items not yet scanned. Complete anyway?</div>
+            <button class="btn btn-p btn-full" onclick="completeScanReturn()" style="font-size:15px;padding:14px">✓ Complete Return</button>
+          </div>
         </div>
       </div>
 
@@ -1138,12 +1195,78 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
   </div>
 </div>
 
+<!-- FLAG ITEM MODAL (scan mode exception) -->
+<div class="ov" id="flag-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-t"><span>⚠ Flag Item</span><button class="xbtn" onclick="closeModal('flag-modal')">✕</button></div>
+    <div style="font-size:15px;font-weight:700;margin-bottom:14px" id="flag-item-name"></div>
+    <div class="fg">
+      <label>Condition</label>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px">
+        <button id="flag-cond-good" class="btn btn-g active-cond" onclick="setFlagCond('good')" style="justify-content:center;padding:12px">✅ Good</button>
+        <button id="flag-cond-repair" class="btn btn-warn" onclick="setFlagCond('repair')" style="justify-content:center;padding:12px">🔧 Repair</button>
+        <button id="flag-cond-lost" class="btn btn-r" onclick="setFlagCond('lost')" style="justify-content:center;padding:12px">❌ Lost</button>
+      </div>
+    </div>
+    <div class="fg">
+      <label>Returning Quantity</label>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:4px">
+        <button class="btn btn-s btn-sm" onclick="adjFlagQty(-1)" style="width:40px;justify-content:center">−</button>
+        <span id="flag-qty-display" style="font-family:var(--mono);font-size:20px;font-weight:700;color:var(--acc);min-width:40px;text-align:center">0</span>
+        <button class="btn btn-s btn-sm" onclick="adjFlagQty(1)" style="width:40px;justify-content:center">+</button>
+        <span style="font-size:12px;color:var(--txt2)">of <span id="flag-qty-max">0</span></span>
+      </div>
+    </div>
+    <div class="fg"><label>Damage Notes (optional)</label><input type="text" id="flag-notes" placeholder="Describe damage or reason..."></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="flex:1" onclick="closeModal('flag-modal')">Cancel</button>
+      <button class="btn btn-p" style="flex:1" onclick="saveFlagModal()">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- PRINT AREA -->
+<!-- LABEL PREVIEW MODAL -->
+<div class="ov" id="label-preview-modal">
+  <div class="modal" style="border-radius:20px 20px 0 0;max-height:95vh">
+    <div class="modal-handle"></div>
+    <div class="modal-t">
+      <span id="label-modal-title">🏷 Label Preview</span>
+      <button class="xbtn" onclick="closeModal('label-preview-modal')">✕</button>
+    </div>
+    <!-- Label preview box -->
+    <div style="background:#f3f4f6;border:2px dashed #9ca3af;border-radius:12px;padding:20px;margin-bottom:16px;text-align:center">
+      <div style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Preview — Actual Size</div>
+      <div style="display:inline-block;box-shadow:0 4px 16px rgba(0,0,0,.2);border-radius:4px">
+        <div id="label-preview-content"></div>
+      </div>
+      <div style="margin-top:10px;font-size:11px;color:#9ca3af">What prints on your Dymo 2"×1" label</div>
+    </div>
+    <!-- Instructions -->
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;color:#1d4ed8;margin-bottom:8px">📋 How to print on Dymo 550 Turbo</div>
+      <div style="font-size:11px;color:#1e40af;line-height:2">
+        1. Connect Dymo 550 + load <strong>30252</strong> label stock<br>
+        2. Tap <strong>Print Label</strong> below<br>
+        3. Select <strong>DYMO LabelWriter 550 Turbo</strong> as printer<br>
+        4. Set paper size: <strong>30252 Address</strong> · Margins: <strong>None</strong> · Scale: <strong>100%</strong><br>
+        5. Print ✓
+      </div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="flex:1" onclick="closeModal('label-preview-modal')">Close</button>
+      <button class="btn btn-p" style="flex:1" onclick="window.print()">🖨 Print Label</button>
+    </div>
+  </div>
+</div>
+
+<!-- PRINT AREA (for documents - checkout slips, return records) -->
 <div id="print-area">
   <div id="print-content"></div>
   <div style="margin-top:20px;display:flex;gap:12px">
     <button onclick="window.print()" style="padding:10px 20px;background:#1a237e;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">🖨 Print / Save PDF</button>
-    <button onclick="document.getElementById('print-area').style.display='none'" style="padding:10px 20px;background:#eee;border:none;border-radius:8px;font-size:13px;cursor:pointer">✕ Close</button>
+    <button onclick="closePrintArea()" style="padding:10px 16px;background:#eee;border:none;border-radius:8px;font-size:13px;cursor:pointer">✕ Close</button>
   </div>
 </div>
 
@@ -1718,7 +1841,7 @@ function printDymoLabel() {
         <div style="font-size:6.5px;color:#000;font-family:'Courier New',monospace">PF Building Services</div>
       </div>
     </div>`;
-  showPrint(html);
+  showLabelPrint(html);
 }
 
 // ─── TECH VIEW ──────────────────────────────────────────────
@@ -1825,6 +1948,7 @@ function loadReturn() {
     <div class="info-a">Only warehouse attendant completes returns. / Solo el encargado completa devoluciones.</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-s btn-sm" onclick="printReturnPreview('${id}')">🖨 Preview</button>
+      <button class="btn btn-t btn-sm" onclick="enterScanMode('${id}')">📡 Scan Mode</button>
       <button class="btn btn-p btn-full" onclick="completeReturn('${id}')">✓ Complete Return</button>
     </div>
   `;
@@ -2180,7 +2304,23 @@ async function saveInventoryItem() {
   setSyncStatus('syncing');
   try {
     if (currentInvItem) { await db.from('inventory_items').update(data).eq('id', currentInvItem.id); }
-    else { await db.from('inventory_items').insert(data); }
+    else {
+      const {data: newItem} = await db.from('inventory_items').insert(data).select();
+      // After adding new item, offer to print label immediately
+      if (newItem && newItem[0]) {
+        await loadAll();
+        closeModal('inv-modal');
+        setSyncStatus('ok');
+        if (window._afterInvSave) await window._afterInvSave();
+        const item = inventoryItems.find(i => i.id === newItem[0].id);
+        if (item && item.part_number) {
+          if (confirm(`✓ ${item.name} added with part number ${item.part_number}\n\nPrint barcode label now?`)) {
+            printItemLabel(item.id);
+          }
+        }
+        return;
+      }
+    }
     closeModal('inv-modal');
     setSyncStatus('ok');
     await loadAll();
@@ -3311,6 +3451,330 @@ async function markOrdered(itemId) {
   alert('Marked as ordered! Come back to mark as received when it arrives.');
 }
 
+// ─── SCAN MODE ──────────────────────────────────────────────
+let scanJob = null;
+let scanItems = []; // {item, scanned, condition, returnedQty, notes}
+let scanAudio = null;
+
+function beep(type) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    if (type === 'success') { osc.frequency.value = 880; gain.gain.value = 0.3; }
+    else if (type === 'error') { osc.frequency.value = 220; gain.gain.value = 0.4; }
+    else if (type === 'already') { osc.frequency.value = 660; gain.gain.value = 0.2; }
+    osc.start();
+    osc.stop(ctx.currentTime + (type === 'error' ? 0.4 : 0.15));
+  } catch(e) {}
+}
+
+function enterScanMode(jobId) {
+  const job = jobs.find(j => j.id === jobId);
+  if (!job) return;
+  scanJob = job;
+  scanItems = (job.job_items || []).map(item => ({
+    item,
+    scanned: false,
+    condition: 'good',
+    returnedQty: item.quantity,
+    notes: ''
+  }));
+  // Hide normal return area, show scan panel
+  document.getElementById('ret-area').style.display = 'none';
+  document.querySelector('.card').style.display = 'none';
+  const panel = document.getElementById('scan-mode-panel');
+  panel.style.display = '';
+  document.getElementById('scan-job-label').textContent =
+    `Job ${job.hcp_job_number||'--'} — ${scanItems.length} items to return`;
+  document.getElementById('scan-attendant').value = '';
+  document.getElementById('scan-retby').value = '';
+  document.getElementById('scan-feedback').innerHTML = '';
+  document.getElementById('scan-warning').style.display = 'none';
+  renderScanList();
+  updateScanProgress();
+  // Focus scan input
+  setTimeout(() => document.getElementById('scan-input')?.focus(), 100);
+}
+
+function exitScanMode() {
+  document.getElementById('scan-mode-panel').style.display = 'none';
+  document.getElementById('ret-area').style.display = '';
+  document.querySelector('.card').style.display = '';
+  scanJob = null;
+  scanItems = [];
+}
+
+function autoProcessScan(input) {
+  // USB scanner sends barcode then Enter automatically
+  // This fires on input — if value ends with enter char process it
+  const val = input.value.trim();
+  if (val.length >= 3) {
+    // Debounce — scanner types fast, wait 80ms then process
+    clearTimeout(input._scanTimer);
+    input._scanTimer = setTimeout(() => {
+      if (input.value.trim()) processScan();
+    }, 80);
+  }
+}
+
+function processScan() {
+  const input = document.getElementById('scan-input');
+  const raw = input.value.trim().toUpperCase().replace(/\n|\r/g, '');
+  input.value = '';
+  input.focus();
+  if (!raw) return;
+
+  // Find item by part number
+  const invItem = inventoryItems.find(i =>
+    i.part_number && i.part_number.toUpperCase() === raw
+  );
+
+  if (!invItem) {
+    // Unknown barcode
+    showScanFeedback('error', `⚠ Unknown: ${raw} — not in inventory`);
+    beep('error');
+    return;
+  }
+
+  // Find matching scan item
+  const scanEntry = scanItems.find(s =>
+    s.item.inventory_item_id === invItem.id ||
+    s.item.item_name.toLowerCase() === invItem.name.toLowerCase()
+  );
+
+  if (!scanEntry) {
+    // Item not in this kit
+    showScanFeedback('error', `⚠ ${invItem.name} (${raw}) — not in this kit`);
+    beep('error');
+    return;
+  }
+
+  if (scanEntry.scanned) {
+    // Already scanned
+    showScanFeedback('already', `↩ ${invItem.name} already scanned`);
+    beep('already');
+    return;
+  }
+
+  // Mark as scanned — default Good
+  scanEntry.scanned = true;
+  scanEntry.condition = 'good';
+  scanEntry.partNum = raw;
+
+  showScanFeedback('success', `✓ ${invItem.name} (${raw}) — Good`);
+  beep('success');
+  renderScanList();
+  updateScanProgress();
+}
+
+function showScanFeedback(type, msg) {
+  const el = document.getElementById('scan-feedback');
+  const colors = {
+    success: { bg: 'var(--grn-dim)', border: 'rgba(52,211,153,.3)', color: 'var(--grn)' },
+    error: { bg: 'var(--red-dim)', border: 'rgba(248,113,113,.3)', color: 'var(--red)' },
+    already: { bg: 'var(--amb-dim)', border: 'rgba(251,191,36,.3)', color: 'var(--amb)' }
+  };
+  const c = colors[type] || colors.success;
+  el.innerHTML = `<div style="padding:10px 14px;background:${c.bg};border:1px solid ${c.border};border-radius:9px;font-size:13px;font-weight:700;color:${c.color}">${msg}</div>`;
+  // Auto-clear after 2 seconds
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => { el.innerHTML = ''; }, 2000);
+}
+
+function updateScanProgress() {
+  const total = scanItems.length;
+  const scanned = scanItems.filter(s => s.scanned).length;
+  const pct = total ? Math.round((scanned / total) * 100) : 0;
+  document.getElementById('scan-progress-bar').style.width = pct + '%';
+  document.getElementById('scan-progress-text').textContent = `${scanned} / ${total}`;
+  // Show warning if trying to complete with unscanned items
+  const warning = document.getElementById('scan-warning');
+  if (warning) warning.style.display = scanned < total ? '' : 'none';
+}
+
+function renderScanList() {
+  const el = document.getElementById('scan-items-list');
+  const unscannedEl = document.getElementById('scan-unscanned');
+
+  const scanned = scanItems.filter(s => s.scanned);
+  const unscanned = scanItems.filter(s => !s.scanned);
+
+  // Scanned items
+  el.innerHTML = scanned.map((s, i) => {
+    const condColor = s.condition === 'good' ? 'var(--grn)' : s.condition === 'repair' ? 'var(--amb)' : 'var(--red)';
+    const condIcon = s.condition === 'good' ? '✅' : s.condition === 'repair' ? '🔧' : '❌';
+    const inv = s.item.inventory_item_id ? inventoryItems.find(x => x.id === s.item.inventory_item_id) : null;
+    const pn = inv?.part_number || s.partNum || '';
+    return `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--sur2);border:1px solid var(--bdr);border-left:3px solid ${condColor};border-radius:9px;margin-bottom:6px;cursor:pointer"
+        onclick="openFlagModal(${scanItems.indexOf(s)})">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:700">${esc(s.item.item_name)}
+            ${pn ? `<span style="font-family:var(--mono);font-size:10px;color:var(--acc);background:var(--acc-dim);padding:1px 6px;border-radius:4px;margin-left:6px">${pn}</span>` : ''}
+          </div>
+          <div style="font-size:11px;color:var(--txt2);font-family:var(--mono)">Qty: ${s.returnedQty} of ${s.item.quantity}${s.notes ? ' · ' + esc(s.notes) : ''}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+          <span style="font-size:18px">${condIcon}</span>
+          <span style="font-size:11px;font-weight:700;color:${condColor}">${s.condition.toUpperCase()}</span>
+          <span style="font-size:10px;color:var(--txt3)">tap to flag</span>
+        </div>
+      </div>`;
+  }).join('');
+
+  // Unscanned items
+  if (unscanned.length) {
+    unscannedEl.innerHTML = `
+      <div style="font-size:10px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">
+        Not yet scanned (${unscanned.length})
+      </div>
+      ${unscanned.map(s => `
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--sur2);border:1px solid var(--bdr);border-radius:9px;margin-bottom:6px;opacity:.6">
+          <div style="flex:1;font-size:12px;font-weight:600">${esc(s.item.item_name)}</div>
+          <div style="font-size:11px;color:var(--txt2);font-family:var(--mono)">${s.item.quantity}x</div>
+          <button class="btn btn-s btn-xs" onclick="manualMarkScanned(${scanItems.indexOf(s)})">Mark</button>
+        </div>
+      `).join('')}`;
+  } else {
+    unscannedEl.innerHTML = `<div class="info info-g">✓ All items scanned!</div>`;
+  }
+}
+
+function manualMarkScanned(idx) {
+  scanItems[idx].scanned = true;
+  scanItems[idx].condition = 'good';
+  renderScanList();
+  updateScanProgress();
+  beep('success');
+}
+
+// Flag modal — tap scanned item to change condition
+let flagIdx = null;
+function openFlagModal(idx) {
+  flagIdx = idx;
+  const s = scanItems[idx];
+  document.getElementById('flag-item-name').textContent = s.item.item_name;
+  document.getElementById('flag-qty-display').textContent = s.returnedQty;
+  document.getElementById('flag-qty-max').textContent = s.item.quantity;
+  document.getElementById('flag-notes').value = s.notes || '';
+  // Set condition buttons
+  ['good','repair','lost'].forEach(c => {
+    const btn = document.getElementById('flag-cond-' + c);
+    if (btn) btn.classList.toggle('active-cond', s.condition === c);
+  });
+  document.getElementById('flag-modal').classList.add('open');
+}
+
+function setFlagCond(cond) {
+  if (flagIdx === null) return;
+  scanItems[flagIdx].condition = cond;
+  ['good','repair','lost'].forEach(c => {
+    const btn = document.getElementById('flag-cond-' + c);
+    if (btn) btn.classList.toggle('active-cond', c === cond);
+  });
+}
+
+function adjFlagQty(delta) {
+  if (flagIdx === null) return;
+  const max = scanItems[flagIdx].item.quantity;
+  scanItems[flagIdx].returnedQty = Math.max(0, Math.min(max, scanItems[flagIdx].returnedQty + delta));
+  document.getElementById('flag-qty-display').textContent = scanItems[flagIdx].returnedQty;
+}
+
+function saveFlagModal() {
+  if (flagIdx === null) return;
+  scanItems[flagIdx].notes = document.getElementById('flag-notes').value.trim();
+  closeModal('flag-modal');
+  renderScanList();
+  flagIdx = null;
+}
+
+async function completeScanReturn() {
+  if (!scanJob) return;
+  const att = document.getElementById('scan-attendant').value.trim();
+  const retBy = document.getElementById('scan-retby').value.trim() || '--';
+  if (!att) { alert('Enter attendant name.'); return; }
+
+  // Auto-mark unscanned items as good
+  scanItems.forEach(s => { if (!s.scanned) { s.scanned = true; s.condition = 'good'; } });
+
+  setSyncStatus('syncing');
+  try {
+    // Update job status
+    await db.from('jobs').update({
+      status: 'completed',
+      returned_at: new Date().toISOString()
+    }).eq('id', scanJob.id);
+
+    // Process each item
+    for (const s of scanItems) {
+      // Update job item
+      await db.from('job_items').update({
+        return_condition: s.condition,
+        return_notes: s.notes,
+        returned_quantity: s.returnedQty
+      }).eq('id', s.item.id);
+
+      // Restock or create repair ticket
+      if (s.item.inventory_item_id) {
+        const inv = inventoryItems.find(i => i.id === s.item.inventory_item_id);
+        if (inv && inv.tracking_type === 'bulk') {
+          if (s.condition === 'good') {
+            const newQty = (inv.quantity_on_hand || 0) + s.returnedQty;
+            await db.from('inventory_items').update({
+              quantity_on_hand: newQty,
+              updated_at: new Date().toISOString()
+            }).eq('id', inv.id);
+          } else {
+            await db.from('repair_tickets').insert({
+              inventory_item_id: s.item.inventory_item_id,
+              item_name: s.item.item_name,
+              damage_description: s.notes || s.condition,
+              reported_by: retBy,
+              status: 'reported'
+            });
+          }
+        }
+      }
+    }
+
+    // Check for safety items — inspection prompt
+    const safetyReturned = scanItems.filter(s => isSafetyItem(s.item.item_name));
+    if (safetyReturned.length) {
+      if (confirm(`Safety equipment returned: ${safetyReturned.map(s=>s.item.item_name).join(', ')}\n\nWas this equipment inspected on return?\n\nOK to log inspection now.`)) {
+        setTimeout(() => { nav('inspections'); openAddInsp(); }, 500);
+      }
+    }
+
+    // Show completion summary
+    const good = scanItems.filter(s => s.condition === 'good').length;
+    const repair = scanItems.filter(s => s.condition === 'repair').length;
+    const lost = scanItems.filter(s => s.condition === 'lost').length;
+
+    document.getElementById('ret-done-summary').innerHTML = `
+      <strong>Job:</strong> ${esc(scanJob.hcp_job_number || '--')}<br>
+      <strong>Site:</strong> ${esc(scanJob.building_client || scanJob.site_address || '--')}<br>
+      <strong>Returned by:</strong> ${esc(retBy)}<br>
+      <strong>Attendant:</strong> ${esc(att)}<br><br>
+      <span class="badge bg-g" style="margin-right:5px">${good} Good</span>
+      ${repair ? `<span class="badge bg-a" style="margin-right:5px">${repair} Repair</span>` : ''}
+      ${lost ? `<span class="badge bg-r">${lost} Lost</span>` : ''}
+      ${repair || lost ? `<br><br><strong>Flagged:</strong><br>${scanItems.filter(s=>s.condition!=='good').map(s=>`— ${esc(s.item.item_name)}: ${s.condition}${s.notes?' ('+esc(s.notes)+')':''}`).join('<br>')}` : ''}
+    `;
+    document.getElementById('ret-done-modal').classList.add('open');
+    exitScanMode();
+    setSyncStatus('ok');
+    await loadAll();
+  } catch(e) {
+    console.error('Scan return error:', e);
+    setSyncStatus('error');
+    alert('Error completing return. Check connection.');
+  }
+}
+
 // ─── PRINTING ───────────────────────────────────────────────
 function printSlip(lang) {
   const tid=document.getElementById('co-template').value;
@@ -3394,9 +3858,23 @@ function printReturnPreview(jobId) {
   showPrint(buildReturnSlip(job,job.job_items||[],'-','-'));
 }
 
+function closePrintArea() {
+  document.getElementById('print-area').style.display = 'none';
+}
+
+// For regular documents (checkout slips, return records)
 function showPrint(html) {
-  document.getElementById('print-content').innerHTML=html;
-  document.getElementById('print-area').style.display='block';
+  document.getElementById('print-content').innerHTML = html;
+  document.getElementById('print-area').style.display = 'block';
+}
+
+// For Dymo labels — shows in dedicated preview modal
+function showLabelPrint(html, title) {
+  document.getElementById('label-preview-content').innerHTML = html;
+  document.getElementById('label-modal-title').textContent = title || '🏷 Label Preview';
+  // Also set print-content so window.print() works
+  document.getElementById('print-content').innerHTML = html;
+  document.getElementById('label-preview-modal').classList.add('open');
 }
 
 // ─── TECH ROSTER ────────────────────────────────────────────
@@ -3641,21 +4119,108 @@ function applyScheduleJob(idx) {
 }
 
 // ─── DYMO ITEM LABEL (2" x 1") ──────────────────────────────
+// Pure JS Code128 barcode generator — no library needed
+function generateBarcodeSVG(text, height=40) {
+  const CODE128_B = {
+    ' ':0,  '!':1,  '"':2,  '#':3,  '$':4,  '%':5,  '&':6,  "'":7,
+    '(':8,  ')':9,  '*':10, '+':11, ',':12, '-':13, '.':14, '/':15,
+    '0':16, '1':17, '2':18, '3':19, '4':20, '5':21, '6':22, '7':23,
+    '8':24, '9':25, ':':26, ';':27, '<':28, '=':29, '>':30, '?':31,
+    '@':32, 'A':33, 'B':34, 'C':35, 'D':36, 'E':37, 'F':38, 'G':39,
+    'H':40, 'I':41, 'J':42, 'K':43, 'L':44, 'M':45, 'N':46, 'O':47,
+    'P':48, 'Q':49, 'R':50, 'S':51, 'T':52, 'U':53, 'V':54, 'W':55,
+    'X':56, 'Y':57, 'Z':58, '[':59, '\\':60, ']':61, '^':62, '_':63,
+    '`':64, 'a':65, 'b':66, 'c':67, 'd':68, 'e':69, 'f':70, 'g':71,
+    'h':72, 'i':73, 'j':74, 'k':75, 'l':76, 'm':77, 'n':78, 'o':79,
+    'p':80, 'q':81, 'r':82, 's':83, 't':84, 'u':85, 'v':86, 'w':87,
+    'x':88, 'y':89, 'z':90, '{':91, '|':92, '}':93, '~':94
+  };
+  const PATTERNS = [
+    '11011001100','11001101100','11001100110','10010011000','10010001100',
+    '10001001100','10011001000','10011000100','10001100100','11001001000',
+    '11001000100','11000100100','10110011100','10011011100','10011001110',
+    '10111001100','10011101100','10011100110','11001110010','11001011100',
+    '11001001110','11011100100','11001110100','11101101110','11101001100',
+    '11100101100','11100100110','11101100100','11100110100','11100110010',
+    '11011011000','11011000110','11000110110','10100011000','10001011000',
+    '10001000110','10110001000','10001101000','10001100010','11010001000',
+    '11000101000','11000100010','10110111000','10110001110','10001101110',
+    '10111011000','10111000110','10001110110','11101110110','11010001110',
+    '11000101110','11011101000','11011100010','11011101110','11101011000',
+    '11101000110','11100010110','11101101000','11101100010','11100011010',
+    '11101111010','11001000010','11110001010','10100110000','10100001100',
+    '10010110000','10010000110','10000101100','10000100110','10110010000',
+    '10110000100','10011010000','10011000010','10000110100','10000110010',
+    '11000010010','11001010000','11110111010','11000010100','10001111010',
+    '10100111100','10010111100','10010011110','10111100100','10011110100',
+    '10011110010','11110100100','11110010100','11110010010','11011011110',
+    '11011110110','11110110110','10101111000','10100011110','10001011110',
+    '10111101000','10111100010','11110101000','11110100010','10111011110',
+    '10111101110','11101011110','11110101110','11010000100','11010010000',
+    '11010011100','1100011101011'
+  ];
+  const START_B = 104;
+  const STOP = 106;
+
+  let codes = [START_B];
+  let checksum = START_B;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    const val = CODE128_B[c] !== undefined ? CODE128_B[c] : 0;
+    codes.push(val);
+    checksum += val * (i + 1);
+  }
+  codes.push(checksum % 103);
+  codes.push(STOP);
+
+  let bars = '';
+  let x = 0;
+  const W = 2; // bar width multiplier
+
+  for (const code of codes) {
+    const pattern = PATTERNS[code] || '11011001100';
+    for (let i = 0; i < pattern.length; i++) {
+      const w = parseInt(pattern[i]) * W;
+      if (i % 2 === 0) { // bar (black)
+        bars += `<rect x="${x}" y="0" width="${w}" height="${height}" fill="#000"/>`;
+      }
+      x += w;
+    }
+  }
+
+  const totalWidth = x;
+  const label = text;
+  const fontSize = 9;
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${totalWidth}" height="${height + fontSize + 4}" viewBox="0 0 ${totalWidth} ${height + fontSize + 4}" style="display:block">
+    <rect width="${totalWidth}" height="${height + fontSize + 4}" fill="white"/>
+    ${bars}
+    <text x="${totalWidth/2}" y="${height + fontSize + 1}" text-anchor="middle" font-family="Courier New, monospace" font-size="${fontSize}" fill="#000">${label}</text>
+  </svg>`;
+}
+
 function printItemLabel(itemId) {
   const item = inventoryItems.find(i => i.id === itemId);
-  if (!item) return;
-  const nameShort = item.name.length > 30 ? item.name.substring(0,28)+'…' : item.name;
+  if (!item || !item.part_number) { alert('Item needs a part number first.'); return; }
   const cat = categories.find(c => c.id === item.category_id);
+  const nameShort = item.name.length > 22 ? item.name.substring(0,20)+'…' : item.name;
+  const barcodeSVG = generateBarcodeSVG(item.part_number, 36);
+
   const html = `
-    <div style="width:2in;height:1in;box-sizing:border-box;border:1px solid #000;padding:5px 7px;background:#fff;font-family:Arial,sans-serif;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden">
-      <div style="font-weight:900;font-size:18px;font-family:'Courier New',monospace;color:#000;letter-spacing:1px;line-height:1">${esc(item.part_number||'--')}</div>
-      <div style="font-weight:700;font-size:9px;color:#000;line-height:1.3">${esc(nameShort)}</div>
-      <div style="display:flex;justify-content:space-between;align-items:flex-end">
-        <div style="font-size:7px;color:#555;text-transform:uppercase;letter-spacing:.3px">${esc(cat?cat.name:item.tracking_type==='asset'?'ASSET':'BULK')}</div>
-        <div style="font-size:7px;color:#000;font-family:'Courier New',monospace">PF Building Services</div>
+    <div style="width:2in;height:1in;box-sizing:border-box;border:1.5px solid #000;padding:4px 6px;background:#fff;font-family:Arial,sans-serif;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden">
+      <div>
+        <div style="font-weight:900;font-size:14px;font-family:'Courier New',monospace;color:#000;letter-spacing:.5px;line-height:1">${esc(item.part_number)}</div>
+        <div style="font-weight:700;font-size:8.5px;color:#000;line-height:1.3;margin-top:2px">${esc(nameShort)}</div>
+      </div>
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:4px">
+        <div style="flex:1;overflow:hidden">${barcodeSVG}</div>
+        <div style="text-align:right;flex-shrink:0;padding-bottom:2px">
+          <div style="font-size:6px;color:#444;text-transform:uppercase;letter-spacing:.2px">${esc(cat?cat.name:'')}</div>
+          <div style="font-size:6px;color:#000;font-family:'Courier New',monospace">${esc(getCompanyName())}</div>
+        </div>
       </div>
     </div>`;
-  showPrint(html);
+  showLabelPrint(html);
 }
 
 // ─── INVENTORY DEDUCTION ON CHECKOUT ────────────────────────
