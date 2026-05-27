@@ -772,6 +772,32 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
         <div id="hist-list"></div>
       </div>
 
+      <!-- DI TANKS -->
+      <div class="panel" id="panel-ditanks">
+        <div class="sec-hdr">
+          <div><div class="sec-title">DI Tanks</div><div class="sec-sub">Pair registry, assignments & PPM log</div></div>
+          <button class="btn btn-p btn-sm" onclick="openAddDIPair()">+ Add Pair</button>
+        </div>
+
+        <!-- Alerts -->
+        <div id="di-alerts-banner" style="margin-bottom:12px"></div>
+
+        <!-- Stats row -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">
+          <div class="stat-card blue" style="padding:12px"><div class="stat-v blue" id="di-stat-active" style="font-size:20px">0</div><div class="stat-l">Deployed</div></div>
+          <div class="stat-card green" style="padding:12px"><div class="stat-v green" id="di-stat-stock" style="font-size:20px">0</div><div class="stat-l">In Stock</div></div>
+          <div class="stat-card red" style="padding:12px"><div class="stat-v red" id="di-stat-alert" style="font-size:20px">0</div><div class="stat-l">High PPM ⚠</div></div>
+        </div>
+
+        <!-- Pair list -->
+        <div class="card-title" style="margin-bottom:10px">Pair Registry / Registro de Pares</div>
+        <div id="di-pair-list"></div>
+
+        <!-- Recent readings -->
+        <div class="card-title" style="margin-top:18px;margin-bottom:10px">Recent PPM Readings / Lecturas Recientes</div>
+        <div id="di-readings-list"></div>
+      </div>
+
       <!-- INSPECTIONS -->
       <div class="panel" id="panel-inspections">
         <div class="sec-hdr">
@@ -836,6 +862,23 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
       <div id="tech-kit-area">
         <div class="empty"><div class="ei">👷</div><p>Enter your name above<br>to see your active kit<br><span style="color:var(--txt3)">Ingresa tu nombre arriba para ver tu equipo</span></p></div>
       </div>
+
+      <!-- DI TANK BUTTON -->
+      <div class="card" style="margin-top:12px;border:1px solid rgba(34,211,238,.3);background:var(--cyn-dim)">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <span style="font-size:28px">💧</span>
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:14px;color:var(--cyn)">DI Tank Reading / Lectura de Tanque DI</div>
+            <div style="font-size:11px;color:var(--txt2);margin-top:2px">Submit your PPM reading when using DI tanks<br><span style="color:var(--txt3)">Envía tu lectura PPM cuando uses los tanques DI</span></div>
+          </div>
+          <button class="btn btn-sm" style="background:var(--cyn);color:#000;font-weight:700;flex-shrink:0" onclick="openDIForm()">Submit Reading</button>
+        </div>
+        <!-- Tech's recent readings -->
+        <div id="tech-di-history" style="display:none">
+          <div style="font-size:10px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Your Recent Readings / Tus Lecturas Recientes</div>
+          <div id="tech-di-readings-list"></div>
+        </div>
+      </div>
     </div>
   </div></div>
 
@@ -851,6 +894,7 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
     <button class="bn" onclick="nav('templates')"><span class="bi">📋</span>Templates</button>
     <button class="bn" onclick="nav('keys')"><span class="bi">🔑</span>Keys</button>
     <button class="bn" onclick="nav('history')"><span class="bi">📜</span>History</button>
+    <button class="bn" onclick="nav('ditanks')"><span class="bi">💧</span>DI Tanks</button>
   </nav>
 </div>
 
@@ -1247,6 +1291,112 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
   </div>
 </div>
 
+<!-- DI TANK READING MODAL (Tech View) -->
+<div class="ov" id="di-form-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-t"><span>💧 DI Tank Reading / Lectura PPM</span><button class="xbtn" onclick="closeModal('di-form-modal')">✕</button></div>
+    <div class="info-b" style="margin-bottom:14px">Only submit when DI tanks were used today.<br><span style="color:var(--txt3)">Solo enviar si se usaron los tanques DI hoy.</span></div>
+    <div class="fg"><label>Your Name / Tu Nombre</label><input type="text" id="di-tech-name" placeholder="Enter your name..."></div>
+    <div class="fg"><label>Vehicle / Vehículo</label>
+      <select id="di-vehicle-sel" onchange="onDIVehicleChange(this.value)">
+        <option value="">— select your vehicle —</option>
+      </select>
+    </div>
+    <input type="hidden" id="di-vehicle">
+    <div class="fg"><label>Pair ID / ID del Par</label>
+      <div id="di-vehicle-hint" style="font-size:11px;margin-bottom:6px;padding:6px 10px;background:var(--sur2);border-radius:7px"></div>
+      <select id="di-pair-sel" onchange="showDIPairDetail(this.value)">
+        <option value="">— select pair —</option>
+      </select>
+      <div id="di-pair-detail" style="display:none;margin-top:6px;padding:8px 10px;background:var(--sur2);border-radius:8px;font-size:11px"></div>
+    </div>
+    <div class="fg"><label>PPM Reading / Lectura PPM</label>
+      <div style="display:flex;align-items:center;gap:10px">
+        <input type="number" id="di-ppm" min="0" placeholder="e.g. 8" style="flex:1">
+        <div id="di-ppm-indicator" style="font-size:12px;font-weight:700;padding:6px 12px;border-radius:8px;background:var(--sur2)">--</div>
+      </div>
+      <div style="font-size:10px;color:var(--txt3);margin-top:4px">Alert threshold: 25 PPM · Umbral de alerta: 25 PPM</div>
+    </div>
+    <div class="fg"><label>Notes / Notas (optional)</label><input type="text" id="di-notes" placeholder="Resin change, pair swap, water issues..."></div>
+    <hr>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="flex:1" onclick="closeModal('di-form-modal')">Cancel</button>
+      <button class="btn btn-p" style="flex:1" onclick="submitDIReading()">Submit / Enviar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD DI PAIR MODAL (Warehouse) -->
+<div class="ov" id="di-add-pair-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-t"><span>+ Add DI Pair</span><button class="xbtn" onclick="closeModal('di-add-pair-modal')">✕</button></div>
+    <div class="fg"><label>Pair ID</label><input type="text" id="dip-id" placeholder="DI-001, DI-002..."></div>
+    <div class="fg"><label>Resin Type / Tipo de Resina</label><input type="text" id="dip-resin" placeholder="Standard, Premium..."></div>
+    <div class="fg"><label>Date Received / Fecha de Recepción</label><input type="date" id="dip-date"></div>
+    <div class="fg"><label>Initial Status</label>
+      <select id="dip-status">
+        <option value="stock">In Stock (warehouse)</option>
+        <option value="deployed">Deployed (on truck)</option>
+      </select>
+    </div>
+    <div class="fg"><label>Assigned Vehicle (if deployed)</label><input type="text" id="dip-vehicle" placeholder="Truck #, Van #..."></div>
+    <div class="fg"><label>Notes</label><input type="text" id="dip-notes" placeholder="Vendor, batch, notes..."></div>
+    <hr>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="flex:1" onclick="closeModal('di-add-pair-modal')">Cancel</button>
+      <button class="btn btn-p" style="flex:1" onclick="saveDIPair()">Add Pair</button>
+    </div>
+  </div>
+</div>
+
+<!-- MOVE DI PAIR MODAL -->
+<div class="ov" id="di-move-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-t"><span>🚛 Move DI Pair</span><button class="xbtn" onclick="closeModal('di-move-modal')">✕</button></div>
+    <div class="info-b" style="margin-bottom:14px">Move a deployed pair from one vehicle to another without retiring it.</div>
+    <input type="hidden" id="di-move-pair-id">
+    <div class="fg"><label>Pair Being Moved</label><div id="di-move-pair-label" style="font-weight:900;font-size:16px;font-family:var(--mono);color:var(--acc);padding:10px;background:var(--sur2);border-radius:8px"></div></div>
+    <div class="fg"><label>Currently On</label><div id="di-move-from-label" style="font-size:13px;color:var(--txt2);padding:8px 10px;background:var(--sur2);border-radius:8px"></div></div>
+    <div class="fg"><label>Move To / Mover a</label>
+      <select id="di-move-to-sel">
+        <option value="">— select vehicle —</option>
+      </select>
+      <input type="text" id="di-move-to-custom" placeholder="Or type vehicle name..." style="margin-top:6px">
+    </div>
+    <div class="fg"><label>Reason (optional)</label><input type="text" id="di-move-reason" placeholder="e.g. Van breakdown, job reassignment..."></div>
+    <hr>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="flex:1" onclick="closeModal('di-move-modal')">Cancel</button>
+      <button class="btn btn-p" style="flex:1" onclick="confirmDIMove()">Confirm Move</button>
+    </div>
+  </div>
+</div>
+
+<!-- SWAP DI PAIR MODAL -->
+<div class="ov" id="di-swap-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-t"><span>🔄 Swap DI Pair</span><button class="xbtn" onclick="closeModal('di-swap-modal')">✕</button></div>
+    <div class="info-b" style="margin-bottom:14px">Retire the old pair and deploy a fresh one from stock.</div>
+    <input type="hidden" id="di-swap-old-id">
+    <div class="fg"><label>Retiring Pair</label><div id="di-swap-old-label" style="font-weight:700;color:var(--red);font-family:var(--mono);padding:10px;background:var(--sur2);border-radius:8px"></div></div>
+    <div class="fg"><label>New Pair from Stock</label>
+      <select id="di-swap-new-sel">
+        <option value="">— select replacement —</option>
+      </select>
+    </div>
+    <div class="fg"><label>Vehicle</label><input type="text" id="di-swap-vehicle" placeholder="Truck #..."></div>
+    <hr>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="flex:1" onclick="closeModal('di-swap-modal')">Cancel</button>
+      <button class="btn btn-p" style="flex:1" onclick="confirmDISwap()">Confirm Swap</button>
+    </div>
+  </div>
+</div>
+
 <!-- LABEL PREVIEW MODAL -->
 <div class="ov" id="label-preview-modal">
   <div class="modal" style="border-radius:20px 20px 0 0;max-height:95vh">
@@ -1503,7 +1653,7 @@ function nav(id) {
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.bn').forEach(b=>b.classList.remove('active'));
   document.getElementById('panel-'+id).classList.add('active');
-  const ids=['dashboard','checkout','returns','rentals','inventory','repairs','inspections','templates','keys','history'];
+  const ids=['dashboard','checkout','returns','rentals','inventory','repairs','inspections','templates','keys','history','ditanks'];
   const idx=ids.indexOf(id);
   if (idx>=0) document.querySelectorAll('.bn')[idx]?.classList.add('active');
   document.querySelector('.scroll').scrollTop=0;
@@ -1527,6 +1677,7 @@ function nav(id) {
   if (id==='reorder') renderReorderQueue();
   if (id==='keys') renderKeysPanel();
   if (id==='inspections') renderInspList();
+  if (id==='ditanks') renderDIPanel();
   if (id==='dashboard') refresh();
 }
 
@@ -1882,6 +2033,8 @@ async function loadTechView() {
   if (!name){alert('Enter your name / Ingresa tu nombre');return;}
   const area=document.getElementById('tech-kit-area');
   setSyncStatus('syncing');
+  // Show tech's DI reading history
+  renderTechDIReadings(name);
   try {
     const {data,error}=await db.from('jobs').select('*, job_items(*)').in('status',['packed','picked_up']).ilike('tech_names','%'+name+'%');
     if (error) throw error;
@@ -3078,6 +3231,388 @@ async function undoReturn(jobId) {
   }
 }
 
+function openDIMove(pairId) {
+  const pairs = getDIPairs();
+  const pair = pairs.find(p => p.id === pairId);
+  if (!pair) return;
+  document.getElementById('di-move-pair-id').value = pairId;
+  document.getElementById('di-move-pair-label').textContent = pair.id;
+  document.getElementById('di-move-from-label').textContent = pair.vehicle || 'Unknown vehicle';
+  document.getElementById('di-move-to-custom').value = '';
+  document.getElementById('di-move-reason').value = '';
+  // Fill vehicle dropdown from saved vehicles + any vehicles already in use
+  const savedVehicles = getVehicles();
+  const deployedVehicles = [...new Set(pairs.filter(p => p.vehicle && p.id !== pairId).map(p => p.vehicle))];
+  const allVehicles = [...new Set([...savedVehicles, ...deployedVehicles])];
+  const sel = document.getElementById('di-move-to-sel');
+  sel.innerHTML = '<option value="">— select vehicle —</option>' +
+    allVehicles.filter(v => v !== pair.vehicle).map(v => `<option value="${v}">${v}</option>`).join('');
+  document.getElementById('di-move-modal').classList.add('open');
+}
+
+function confirmDIMove() {
+  const pairId = document.getElementById('di-move-pair-id').value;
+  const selVehicle = document.getElementById('di-move-to-sel').value;
+  const customVehicle = document.getElementById('di-move-to-custom').value.trim();
+  const toVehicle = customVehicle || selVehicle;
+  if (!toVehicle) { alert('Select or type a destination vehicle.'); return; }
+  const pairs = getDIPairs();
+  const pair = pairs.find(p => p.id === pairId);
+  if (!pair) return;
+  const fromVehicle = pair.vehicle;
+  pair.vehicle = toVehicle;
+  pair.moved_at = new Date().toISOString();
+  pair.move_history = pair.move_history || [];
+  pair.move_history.push({ from: fromVehicle, to: toVehicle, date: new Date().toISOString(), reason: document.getElementById('di-move-reason').value.trim() });
+  saveDIPairs(pairs);
+  closeModal('di-move-modal');
+  renderDIPanel();
+  alert(`✓ ${pairId} moved from ${fromVehicle} to ${toVehicle}`);
+}
+
+function onDIVehicleChange(vehicle) {
+  // Update hidden vehicle field
+  document.getElementById('di-vehicle').value = vehicle;
+  // Filter pair dropdown to only show pairs on this vehicle
+  const pairs = getDIPairs().filter(p => p.status === 'deployed');
+  const vehiclePairs = vehicle ? pairs.filter(p => (p.vehicle||'').toLowerCase() === vehicle.toLowerCase()) : pairs;
+  const sel = document.getElementById('di-pair-sel');
+  sel.innerHTML = '<option value="">— select pair —</option>' +
+    vehiclePairs.map(p => `<option value="${p.id}">${p.id} — ${p.vehicle||'--'}</option>`).join('');
+  // Update hint
+  const hint = document.getElementById('di-vehicle-hint');
+  if (hint) {
+    if (vehicle && vehiclePairs.length) {
+      hint.textContent = `✓ ${vehiclePairs.length} pair${vehiclePairs.length>1?'s':''} found on ${vehicle}`;
+      hint.style.color = 'var(--grn)';
+    } else if (vehicle && !vehiclePairs.length) {
+      hint.textContent = `⚠ No pairs assigned to ${vehicle}`;
+      hint.style.color = 'var(--amb)';
+    } else {
+      hint.textContent = '';
+    }
+  }
+  // Hide pair detail
+  const detail = document.getElementById('di-pair-detail');
+  if (detail) detail.style.display = 'none';
+}
+
+function showDIPairDetail(pairId) {
+  const el = document.getElementById('di-pair-detail');
+  if (!el) return;
+  if (!pairId) { el.style.display = 'none'; return; }
+  const pair = getDIPairs().find(p => p.id === pairId);
+  if (!pair) { el.style.display = 'none'; return; }
+  const lastPPM = pair.last_ppm != null ? pair.last_ppm + ' PPM' : 'No previous reading';
+  const ppmColor = pair.last_ppm >= DI_PPM_ALERT ? 'var(--red)' : pair.last_ppm >= 15 ? 'var(--amb)' : 'var(--grn)';
+  el.style.display = '';
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:24px">💧</span>
+      <div>
+        <div style="font-weight:900;font-size:16px;font-family:var(--mono);color:var(--acc)">${pair.id}</div>
+        <div style="color:var(--txt2)">${pair.vehicle ? '🚗 ' + pair.vehicle : ''}</div>
+        <div style="color:${ppmColor};font-weight:700">Last reading: ${lastPPM}</div>
+        ${pair.resin ? `<div style="color:var(--txt3);font-size:10px">${pair.resin}</div>` : ''}
+      </div>
+    </div>
+    <div style="margin-top:8px;font-size:11px;color:var(--txt3)">
+      ✓ Confirm this ID matches the label on your physical tank before submitting.<br>
+      <span style="color:var(--txt3)">Confirma que este ID coincide con la etiqueta en tu tanque físico.</span>
+    </div>`;
+}
+
+function renderTechDIReadings(techName) {
+  const histEl = document.getElementById('tech-di-history');
+  const listEl = document.getElementById('tech-di-readings-list');
+  if (!histEl || !listEl) return;
+  const name = (techName || document.getElementById('tech-name')?.value || '').trim().toLowerCase();
+  if (!name) return;
+  const readings = getDIReadings().filter(r => r.tech_name.toLowerCase().includes(name));
+  if (!readings.length) { histEl.style.display = 'none'; return; }
+  histEl.style.display = '';
+  listEl.innerHTML = readings.slice(0, 8).map(r => {
+    const ppmColor = r.ppm >= DI_PPM_ALERT ? 'var(--red)' : r.ppm >= 15 ? 'var(--amb)' : 'var(--grn)';
+    const ppmLabel = r.ppm >= DI_PPM_ALERT ? `${r.ppm} PPM 🚨` : r.ppm >= 15 ? `${r.ppm} PPM ⚠` : `${r.ppm} PPM ✅`;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--sur);border:1px solid var(--bdr);border-radius:8px;margin-bottom:6px">
+      <span style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--acc);flex-shrink:0">${r.pair_id}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11px;color:var(--txt2)">${new Date(r.timestamp).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+        ${r.vehicle?`<div style="font-size:10px;color:var(--txt3)">${esc(r.vehicle)}</div>`:''}
+        ${r.notes?`<div style="font-size:10px;color:var(--txt3)">${esc(r.notes)}</div>`:''}
+      </div>
+      <div style="font-size:14px;font-weight:900;color:${ppmColor};font-family:var(--mono);flex-shrink:0">${ppmLabel}</div>
+    </div>`;
+  }).join('');
+}
+
+// ─── DI TANKS ────────────────────────────────────────────────
+const DI_PPM_ALERT = 25;
+
+function getDIPairs() { return JSON.parse(localStorage.getItem('kt_di_pairs') || '[]'); }
+function saveDIPairs(p) { localStorage.setItem('kt_di_pairs', JSON.stringify(p)); }
+function getDIReadings() { return JSON.parse(localStorage.getItem('kt_di_readings') || '[]'); }
+function saveDIReadings(r) { localStorage.setItem('kt_di_readings', JSON.stringify(r)); }
+
+function openDIForm() {
+  // Get tech's name and find their active job to determine vehicle
+  const techName = (document.getElementById('tech-name')?.value || '').trim().toLowerCase();
+  const activeJob = jobs.find(j =>
+    ['packed','picked_up'].includes(j.status) &&
+    (j.tech_names||'').toLowerCase().includes(techName)
+  );
+  const vehicle = activeJob?.vehicle || '';
+
+  // Filter pairs by vehicle if we know it, else show all deployed
+  const pairs = getDIPairs().filter(p => p.status === 'deployed');
+  const vehiclePairs = vehicle ? pairs.filter(p => (p.vehicle||'').toLowerCase() === vehicle.toLowerCase()) : pairs;
+  const showPairs = vehiclePairs.length ? vehiclePairs : pairs; // fallback to all if no match
+
+  const sel = document.getElementById('di-pair-sel');
+  sel.innerHTML = '<option value="">— select pair —</option>' +
+    showPairs.map(p => `<option value="${p.id}">${p.id}${p.vehicle?' — '+p.vehicle:''}</option>`).join('');
+
+  // Populate vehicle dropdown from saved vehicles + deployed pair vehicles
+  const savedVehicles = getVehicles();
+  const deployedVehicles = [...new Set(getDIPairs().filter(p => p.status==='deployed' && p.vehicle).map(p => p.vehicle))];
+  const allVehicles = [...new Set([...savedVehicles, ...deployedVehicles])];
+  const vSel = document.getElementById('di-vehicle-sel');
+  vSel.innerHTML = '<option value="">— select your vehicle —</option>' +
+    allVehicles.map(v => `<option value="${v}"${v===vehicle?' selected':''}>${v}</option>`).join('');
+
+  // Pre-fill tech name and vehicle from job
+  document.getElementById('di-tech-name').value = document.getElementById('tech-name')?.value || '';
+  document.getElementById('di-vehicle').value = vehicle || '';
+
+  // Trigger vehicle change to filter pairs
+  if (vehicle) onDIVehicleChange(vehicle);
+
+  document.getElementById('di-ppm').value = '';
+  document.getElementById('di-notes').value = '';
+  document.getElementById('di-ppm-indicator').textContent = '--';
+  document.getElementById('di-ppm-indicator').style.background = 'var(--sur2)';
+  document.getElementById('di-ppm-indicator').style.color = 'var(--txt)';
+  document.getElementById('di-form-modal').classList.add('open');
+
+  // Live PPM indicator
+  document.getElementById('di-ppm').oninput = function() {
+    const val = parseInt(this.value);
+    const ind = document.getElementById('di-ppm-indicator');
+    if (isNaN(val)) { ind.textContent = '--'; ind.style.background = 'var(--sur2)'; ind.style.color = 'var(--txt)'; return; }
+    if (val <= 10) { ind.textContent = '✅ Good'; ind.style.background = 'var(--grn-dim)'; ind.style.color = 'var(--grn)'; }
+    else if (val <= 24) { ind.textContent = '⚠ Monitor'; ind.style.background = 'var(--amb-dim)'; ind.style.color = 'var(--amb)'; }
+    else { ind.textContent = '🚨 REPLACE'; ind.style.background = 'var(--red-dim)'; ind.style.color = 'var(--red)'; }
+  };
+}
+
+function submitDIReading() {
+  const techName = document.getElementById('di-tech-name').value.trim();
+  const vehicle = document.getElementById('di-vehicle').value.trim();
+  const pairId = document.getElementById('di-pair-sel').value;
+  const ppm = parseInt(document.getElementById('di-ppm').value);
+  const notes = document.getElementById('di-notes').value.trim();
+  if (!techName) { alert('Enter your name.'); return; }
+  if (!pairId) { alert('Select a pair.'); return; }
+  if (isNaN(ppm) || ppm < 0) { alert('Enter a valid PPM reading.'); return; }
+
+  const readings = getDIReadings();
+  const reading = {
+    id: uid(),
+    pair_id: pairId,
+    tech_name: techName,
+    vehicle,
+    ppm,
+    notes,
+    timestamp: new Date().toISOString(),
+    alert: ppm >= DI_PPM_ALERT
+  };
+  readings.unshift(reading);
+  saveDIReadings(readings);
+
+  // Update pair's last PPM
+  const pairs = getDIPairs();
+  const pair = pairs.find(p => p.id === pairId);
+  if (pair) { pair.last_ppm = ppm; pair.last_read = new Date().toISOString(); saveDIPairs(pairs); }
+
+  closeModal('di-form-modal');
+  renderTechDIReadings(document.getElementById('di-tech-name')?.value || '');
+
+  if (ppm >= DI_PPM_ALERT) {
+    alert(`⚠ PPM reading of ${ppm} exceeds the ${DI_PPM_ALERT} PPM threshold!\n\nThe warehouse team has been alerted.\n\n¡La lectura de ${ppm} PPM supera el umbral de ${DI_PPM_ALERT} PPM!\nEl equipo de bodega ha sido notificado.`);
+  } else {
+    alert(`✓ Reading submitted!\nPair: ${pairId} — ${ppm} PPM\n\n¡Lectura enviada!\nPar: ${pairId} — ${ppm} PPM`);
+  }
+}
+
+function openAddDIPair() {
+  // Auto-generate next pair ID
+  const pairs = getDIPairs();
+  const nums = pairs.map(p => parseInt((p.id||'').replace(/\D/g,''))).filter(n => !isNaN(n));
+  const next = nums.length ? Math.max(...nums) + 1 : 1;
+  const autoId = 'DI-' + String(next).padStart(3, '0');
+  ['dip-resin','dip-vehicle','dip-notes'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
+  document.getElementById('dip-id').value = autoId;
+  const dateEl = document.getElementById('dip-date');
+  if (dateEl) dateEl.value = today();
+  document.getElementById('dip-status').value = 'stock';
+  document.getElementById('di-add-pair-modal').classList.add('open');
+}
+
+function saveDIPair() {
+  const id = document.getElementById('dip-id').value.trim();
+  if (!id) { alert('Enter a Pair ID.'); return; }
+  const pairs = getDIPairs();
+  if (pairs.find(p => p.id === id)) { alert('Pair ID already exists.'); return; }
+  pairs.push({
+    id,
+    resin: document.getElementById('dip-resin').value.trim(),
+    date_received: document.getElementById('dip-date').value,
+    status: document.getElementById('dip-status').value,
+    vehicle: document.getElementById('dip-vehicle').value.trim(),
+    notes: document.getElementById('dip-notes').value.trim(),
+    last_ppm: null,
+    last_read: null
+  });
+  saveDIPairs(pairs);
+  closeModal('di-add-pair-modal');
+  renderDIPanel();
+}
+
+function openDISwap(pairId) {
+  const pairs = getDIPairs();
+  const old = pairs.find(p => p.id === pairId);
+  if (!old) return;
+  document.getElementById('di-swap-old-id').value = pairId;
+  document.getElementById('di-swap-old-label').textContent = `${old.id}${old.vehicle?' — '+old.vehicle:''} (Last PPM: ${old.last_ppm ?? '--'})`;
+  document.getElementById('di-swap-vehicle').value = old.vehicle || '';
+  const stock = pairs.filter(p => p.status === 'stock');
+  const sel = document.getElementById('di-swap-new-sel');
+  sel.innerHTML = '<option value="">— select replacement —</option>' +
+    stock.map(p => `<option value="${p.id}">${p.id}${p.resin?' — '+p.resin:''}</option>`).join('');
+  document.getElementById('di-swap-modal').classList.add('open');
+}
+
+function confirmDISwap() {
+  const oldId = document.getElementById('di-swap-old-id').value;
+  const newId = document.getElementById('di-swap-new-sel').value;
+  const vehicle = document.getElementById('di-swap-vehicle').value.trim();
+  if (!newId) { alert('Select a replacement pair from stock.'); return; }
+  const pairs = getDIPairs();
+  const old = pairs.find(p => p.id === oldId);
+  const fresh = pairs.find(p => p.id === newId);
+  if (old) { old.status = 'retired'; old.retired_at = new Date().toISOString(); }
+  if (fresh) { fresh.status = 'deployed'; fresh.vehicle = vehicle; fresh.deployed_at = new Date().toISOString(); }
+  saveDIPairs(pairs);
+  closeModal('di-swap-modal');
+  renderDIPanel();
+  alert(`✓ Swap complete!\n${oldId} → Retired\n${newId} → Deployed on ${vehicle||'--'}`);
+}
+
+function retireDIPair(pairId) {
+  if (!confirm(`Retire pair ${pairId}? This marks it as used up.`)) return;
+  const pairs = getDIPairs();
+  const pair = pairs.find(p => p.id === pairId);
+  if (pair) { pair.status = 'retired'; pair.retired_at = new Date().toISOString(); }
+  saveDIPairs(pairs);
+  renderDIPanel();
+}
+
+function renderDIPanel() {
+  const pairs = getDIPairs();
+  const readings = getDIReadings();
+
+  // Stats
+  const deployed = pairs.filter(p => p.status === 'deployed').length;
+  const stock = pairs.filter(p => p.status === 'stock').length;
+  const alerts = pairs.filter(p => p.status === 'deployed' && p.last_ppm >= DI_PPM_ALERT).length;
+  document.getElementById('di-stat-active').textContent = deployed;
+  document.getElementById('di-stat-stock').textContent = stock;
+  document.getElementById('di-stat-alert').textContent = alerts;
+
+  // Alert banner
+  const alertBanner = document.getElementById('di-alerts-banner');
+  const alertPairs = pairs.filter(p => p.status === 'deployed' && p.last_ppm >= DI_PPM_ALERT);
+  alertBanner.innerHTML = alertPairs.length
+    ? `<div class="alert-banner" style="background:var(--red-dim);border-color:rgba(248,113,113,.3)">
+        <span class="ai">🚨</span>
+        <p style="color:var(--red)"><strong>${alertPairs.length} pair${alertPairs.length>1?'s':''} need replacement:</strong> ${alertPairs.map(p=>`${p.id} (${p.last_ppm} PPM${p.vehicle?' — '+p.vehicle:''})`).join(', ')}
+        </p>
+      </div>` : '';
+
+  // Pair list
+  const pairEl = document.getElementById('di-pair-list');
+  const active = pairs.filter(p => p.status !== 'retired');
+  if (!active.length) {
+    pairEl.innerHTML = '<div class="empty" style="padding:16px"><div class="ei">💧</div><p>No pairs registered yet. Add your first pair.</p></div>';
+  } else {
+    pairEl.innerHTML = active.map(p => {
+      const statusColor = p.status === 'deployed' ? 'var(--blue)' : 'var(--grn)';
+      const statusLabel = p.status === 'deployed' ? '🚛 Deployed' : '📦 In Stock';
+      const ppmColor = p.last_ppm == null ? 'var(--txt3)' : p.last_ppm >= DI_PPM_ALERT ? 'var(--red)' : p.last_ppm >= 15 ? 'var(--amb)' : 'var(--grn)';
+      const ppmLabel = p.last_ppm == null ? 'No readings yet' : `${p.last_ppm} PPM`;
+      return `<div style="display:flex;align-items:center;gap:10px;padding:12px;background:var(--sur2);border:1px solid var(--bdr);border-left:3px solid ${statusColor};border-radius:9px;margin-bottom:8px">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span style="font-weight:900;font-size:14px;font-family:var(--mono);color:var(--acc)">${p.id}</span>
+            <span style="font-size:10px;font-weight:700;color:${statusColor};background:${statusColor}22;padding:2px 8px;border-radius:10px">${statusLabel}</span>
+          </div>
+          ${p.vehicle?`<div style="font-size:11px;color:var(--txt2);margin-top:3px">🚗 ${esc(p.vehicle)}</div>`:''}
+          <div style="font-size:11px;color:${ppmColor};margin-top:3px;font-weight:700">Last: ${ppmLabel}${p.last_read?' · '+fd(p.last_read):''}</div>
+          ${p.resin?`<div style="font-size:10px;color:var(--txt3)">${esc(p.resin)}</div>`:''}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0">
+          ${p.status==='deployed'?`
+            <button class="btn btn-p btn-xs" onclick="openDISwap('${p.id}')">🔄 Swap</button>
+            <button class="btn btn-s btn-xs" onclick="openDIMove('${p.id}')">🚛 Move</button>`:''}
+          ${p.status==='stock'?`<button class="btn btn-g btn-xs" onclick="deployDIPair('${p.id}')">Deploy</button>`:''}
+          <button class="btn btn-r btn-xs" onclick="retireDIPair('${p.id}')">Retire</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // Recent readings
+  const readEl = document.getElementById('di-readings-list');
+  if (!readings.length) {
+    readEl.innerHTML = '<div style="font-size:12px;color:var(--txt2);padding:8px">No readings yet.</div>';
+  } else {
+    readEl.innerHTML = readings.slice(0,10).map(r => {
+      const ppmColor = r.ppm >= DI_PPM_ALERT ? 'var(--red)' : r.ppm >= 15 ? 'var(--amb)' : 'var(--grn)';
+      return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--sur2);border:1px solid var(--bdr);border-radius:8px;margin-bottom:6px">
+        <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--acc);flex-shrink:0">${r.pair_id}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:600">${esc(r.tech_name)}${r.vehicle?' — '+esc(r.vehicle):''}</div>
+          <div style="font-size:10px;color:var(--txt3)">${new Date(r.timestamp).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+          ${r.notes?`<div style="font-size:10px;color:var(--txt2)">${esc(r.notes)}</div>`:''}
+        </div>
+        <div style="font-size:16px;font-weight:900;color:${ppmColor};font-family:var(--mono)">${r.ppm} PPM</div>
+        ${r.alert?'<span style="font-size:16px">🚨</span>':''}
+      </div>`;
+    }).join('');
+  }
+}
+
+function deployDIPair(pairId) {
+  const vehicle = prompt(`Deploy ${pairId} to which vehicle?`);
+  if (!vehicle) return;
+  const pairs = getDIPairs();
+  const pair = pairs.find(p => p.id === pairId);
+  if (pair) { pair.status = 'deployed'; pair.vehicle = vehicle; pair.deployed_at = new Date().toISOString(); }
+  saveDIPairs(pairs);
+  renderDIPanel();
+}
+
+// Show DI alert on dashboard
+function renderDIAlerts() {
+  const alertPairs = getDIPairs().filter(p => p.status === 'deployed' && p.last_ppm >= DI_PPM_ALERT);
+  if (!alertPairs.length) return '';
+  return `<div class="alert-banner" style="background:var(--red-dim);border-color:rgba(248,113,113,.3)">
+    <span class="ai">🚨</span>
+    <p style="color:var(--red)"><strong>${alertPairs.length} DI pair${alertPairs.length>1?'s':''} need replacement!</strong> ${alertPairs.map(p=>p.id).join(', ')}
+    <button class="btn btn-xs btn-warn" style="margin-left:8px" onclick="nav('ditanks')">View</button></p>
+  </div>`;
+}
+
 // ─── INSPECTIONS ────────────────────────────────────────────
 let inspItems = [];
 
@@ -3212,12 +3747,13 @@ function renderInspAlerts() {
   const soon = inspItems.filter(i => inspStatus(i).status === 'soon');
   const el = document.getElementById('repair-alerts');
   if (!el) return;
+  const diAlert = renderDIAlerts();
   const inspAlert = overdue.length
     ? `<div class="alert-banner"><span class="ai">🔍</span><p><strong>${overdue.length} inspection${overdue.length>1?'s':''} overdue:</strong> ${overdue.map(i=>i.name).join(', ')} <button class="btn btn-xs btn-warn" style="margin-left:8px" onclick="nav('inspections')">View</button></p></div>`
     : soon.length
     ? `<div class="alert-banner" style="background:var(--amb-dim);border-color:rgba(245,158,11,.25)"><span class="ai">⏰</span><p style="color:var(--amb)"><strong>${soon.length} inspection${soon.length>1?'s':''} due soon</strong> <button class="btn btn-xs btn-s" style="margin-left:8px" onclick="nav('inspections')">View</button></p></div>`
     : '';
-  el.innerHTML = inspAlert + (repairs.length ? `<div class="alert-banner"><span class="ai">🔧</span><p><strong>${repairs.length} item${repairs.length>1?'s':''} in repair queue</strong> <button class="btn btn-xs btn-warn" style="margin-left:8px" onclick="nav('repairs')">View</button></p></div>` : '');
+  el.innerHTML = diAlert + inspAlert + (repairs.length ? `<div class="alert-banner"><span class="ai">🔧</span><p><strong>${repairs.length} item${repairs.length>1?'s':''} in repair queue</strong> <button class="btn btn-xs btn-warn" style="margin-left:8px" onclick="nav('repairs')">View</button></p></div>` : '');
 }
 
 // ─── EDIT ACTIVE JOB ────────────────────────────────────────
