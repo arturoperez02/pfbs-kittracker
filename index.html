@@ -2755,54 +2755,68 @@ function addKitRow(name, q, mode, nameEs, inventoryItemId) {
     <div style="position:relative">
       <input type="text" class="inv-search-input" placeholder="🔍 Search inventory..." value="${esc(linkedLabel)}"
         data-inv-id="${inventoryItemId}"
-        oninput="searchInvDropdown(this,'${rowId}')"
-        onfocus="searchInvDropdown(this,'${rowId}')"
+        oninput="this.dataset.invId='';searchInvDropdown(this,'${rowId}')"
+        onfocus="this.select();searchInvDropdown(this,'${rowId}')"
+        onclick="this.select();searchInvDropdown(this,'${rowId}')"
         style="font-size:11px;padding:8px 10px"
         autocomplete="off">
-      <div class="inv-search-results" id="isr-${rowId}" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--sur);border:1px solid var(--acc);border-radius:0 0 8px 8px;z-index:200;max-height:180px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.5)"></div>
+      <div class="inv-search-results" id="isr-${rowId}" style="display:none"></div>
     </div>
     <button class="btn btn-r btn-xs" onclick="this.closest('.kit-row').remove()">✕</button>`;
   document.getElementById('kit-editor').appendChild(d);
 }
 
+// Floating dropdown for template inventory search — appends to body to avoid modal clipping
+let _floatDD = null;
+
+function closeFloatDD() {
+  if (_floatDD) { _floatDD.remove(); _floatDD = null; }
+}
+
 function searchInvDropdown(input, rowId) {
-  // Close all other open dropdowns first
-  document.querySelectorAll('.inv-search-results').forEach(el => {
-    if (el.id !== 'isr-' + rowId) el.style.display = 'none';
-  });
-  // If already linked (has data-inv-id) and input matches — don't re-search
-  if (input.dataset.invId && !input.value.trim()) { return; }
+  closeFloatDD();
   const q = input.value.toLowerCase();
-  const resultsEl = document.getElementById('isr-' + rowId);
-  if (!resultsEl) return;
+  if (!q) return;
+
   const filtered = inventoryItems
     .slice()
     .sort((a,b) => a.name.localeCompare(b.name))
     .filter(i => `${i.name} ${i.part_number||''}`.toLowerCase().includes(q));
+
+  const rect = input.getBoundingClientRect();
+  const dd = document.createElement('div');
+  _floatDD = dd;
+  dd.style.cssText = `position:fixed;top:${rect.bottom}px;left:${rect.left}px;width:${Math.max(rect.width, 260)}px;background:var(--sur);border:2px solid var(--acc);border-radius:0 0 10px 10px;z-index:99999;max-height:220px;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.7)`;
+
   if (!filtered.length) {
-    resultsEl.style.display = '';
-    const typedValue = input.value;
-    resultsEl.innerHTML = `
-      <div style="padding:10px 12px;font-size:12px;color:var(--txt2)">No match found for "<strong>${esc(typedValue)}</strong>"</div>
+    const tv = input.value;
+    dd.innerHTML = `
+      <div style="padding:10px 14px;font-size:12px;color:var(--txt2)">No match for "<strong>${esc(tv)}</strong>"</div>
       <div style="padding:8px 12px;border-top:1px solid var(--bdr)">
-        <button class="btn btn-p btn-xs btn-full" onmousedown="event.preventDefault();quickAddFromTemplate('${rowId}','${esc(typedValue).replace(/'/g,"\\'")}')">+ Add "${esc(typedValue)}" to Inventory</button>
+        <button class="btn btn-p btn-xs btn-full"
+          onmousedown="event.preventDefault();closeFloatDD();quickAddFromTemplate('${rowId}','${esc(tv).replace(/'/g,"\\'")}')">
+          + Add "${esc(tv)}" to Inventory
+        </button>
       </div>`;
-    return;
+  } else {
+    dd.innerHTML = filtered.slice(0,12).map(i => `
+      <div
+        onmousedown="event.preventDefault();closeFloatDD();selectInvItem('${rowId}','${i.id}','${esc(i.name).replace(/'/g,"\\'")}','${esc(i.part_number||'')}')"
+        style="padding:13px 14px;cursor:pointer;font-size:13px;font-weight:600;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:8px"
+        onmouseover="this.style.background='var(--sur2)'" onmouseout="this.style.background=''">
+        ${i.part_number?`<span style="font-family:var(--mono);font-size:10px;color:var(--acc);background:var(--acc-dim);padding:2px 7px;border-radius:5px;flex-shrink:0">${esc(i.part_number)}</span>`:''}
+        <span>${esc(i.name)}</span>
+      </div>`).join('');
   }
-  resultsEl.style.display = '';
-  resultsEl.innerHTML = filtered.slice(0,12).map(i => `
-    <div onmousedown="event.preventDefault();selectInvItem('${rowId}','${i.id}','${esc(i.name).replace(/'/g,"\\'")}','${esc(i.part_number||'')}')"
-      onclick="selectInvItem('${rowId}','${i.id}','${esc(i.name).replace(/'/g,"\\'")}','${esc(i.part_number||'')}')"
-      style="padding:12px 14px;cursor:pointer;font-size:13px;font-weight:600;border-bottom:1px solid var(--bdr);transition:background .15s;display:flex;align-items:center;gap:8px"
-      onmouseover="this.style.background='var(--sur2)'" onmouseout="this.style.background=''">
-      ${i.part_number?`<span style="font-family:var(--mono);font-size:10px;color:var(--acc);background:var(--acc-dim);padding:2px 7px;border-radius:5px;flex-shrink:0">${esc(i.part_number)}</span>`:''}
-      <span>${esc(i.name)}</span>
-    </div>
-  `).join('');
+
+  document.body.appendChild(dd);
 }
 
-// Close all dropdowns when clicking outside
+// Close float dropdown on outside click or escape
 document.addEventListener('click', function(e) {
+  if (_floatDD && !_floatDD.contains(e.target) && !e.target.classList.contains('inv-search-input')) {
+    closeFloatDD();
+  }
   if (!e.target.classList.contains('inv-search-input')) {
     document.querySelectorAll('.inv-search-results').forEach(el => el.style.display = 'none');
   }
@@ -2814,12 +2828,16 @@ document.addEventListener('keydown', function(e) {
 });
 
 function selectInvItem(rowId, id, name, partNum) {
+  closeFloatDD();
   const row = document.getElementById(rowId);
-  if (!row) return;
+  if (!row) { console.warn('Row not found:', rowId); return; }
   const inp = row.querySelector('.inv-search-input');
+  if (!inp) { console.warn('Input not found in row:', rowId); return; }
   inp.value = name + (partNum ? ' (' + partNum + ')' : '');
   inp.dataset.invId = id;
-  document.getElementById('isr-' + rowId).style.display = 'none';
+  // Hide static dropdown if it exists
+  const staticDD = document.getElementById('isr-' + rowId);
+  if (staticDD) staticDD.style.display = 'none';
 }
 
 function quickAddFromTemplate(rowId, itemName) {
