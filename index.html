@@ -2770,6 +2770,8 @@ function searchInvDropdown(input, rowId) {
   document.querySelectorAll('.inv-search-results').forEach(el => {
     if (el.id !== 'isr-' + rowId) el.style.display = 'none';
   });
+  // If already linked (has data-inv-id) and input matches — don't re-search
+  if (input.dataset.invId && !input.value.trim()) { return; }
   const q = input.value.toLowerCase();
   const resultsEl = document.getElementById('isr-' + rowId);
   if (!resultsEl) return;
@@ -2790,10 +2792,11 @@ function searchInvDropdown(input, rowId) {
   resultsEl.style.display = '';
   resultsEl.innerHTML = filtered.slice(0,12).map(i => `
     <div onmousedown="event.preventDefault();selectInvItem('${rowId}','${i.id}','${esc(i.name).replace(/'/g,"\\'")}','${esc(i.part_number||'')}')"
-      style="padding:9px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--bdr);transition:background .1s"
+      onclick="selectInvItem('${rowId}','${i.id}','${esc(i.name).replace(/'/g,"\\'")}','${esc(i.part_number||'')}')"
+      style="padding:12px 14px;cursor:pointer;font-size:13px;font-weight:600;border-bottom:1px solid var(--bdr);transition:background .15s;display:flex;align-items:center;gap:8px"
       onmouseover="this.style.background='var(--sur2)'" onmouseout="this.style.background=''">
-      ${i.part_number?`<span style="font-family:var(--mono);font-size:10px;color:var(--acc);margin-right:6px">${esc(i.part_number)}</span>`:''}
-      ${esc(i.name)}
+      ${i.part_number?`<span style="font-family:var(--mono);font-size:10px;color:var(--acc);background:var(--acc-dim);padding:2px 7px;border-radius:5px;flex-shrink:0">${esc(i.part_number)}</span>`:''}
+      <span>${esc(i.name)}</span>
     </div>
   `).join('');
 }
@@ -2846,7 +2849,13 @@ function quickAddFromTemplate(rowId, itemName) {
     document.getElementById('tpl-modal').classList.add('open');
     const newItem = inventoryItems.find(i => i.name.toLowerCase() === savedName.toLowerCase());
     if (newItem && savedRowId) {
-      setTimeout(() => selectInvItem(savedRowId, newItem.id, newItem.name, newItem.part_number || ''), 200);
+      // Auto-link and clear the search input
+      setTimeout(() => {
+        selectInvItem(savedRowId, newItem.id, newItem.name, newItem.part_number || '');
+        // Hide any open dropdown for this row
+        const dd = document.getElementById('isr-' + savedRowId);
+        if (dd) dd.style.display = 'none';
+      }, 200);
     }
   };
 }
