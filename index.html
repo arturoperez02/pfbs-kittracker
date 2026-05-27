@@ -2768,15 +2768,18 @@ function addKitRow(name, q, mode, nameEs, inventoryItemId) {
 
 // Floating dropdown for template inventory search — appends to body to avoid modal clipping
 let _floatDD = null;
+let _floatInput = null; // Direct reference to the input that triggered the dropdown
 
 function closeFloatDD() {
   if (_floatDD) { _floatDD.remove(); _floatDD = null; }
+  _floatInput = null;
 }
 
 function searchInvDropdown(input, rowId) {
   closeFloatDD();
   const q = input.value.toLowerCase();
   if (!q) return;
+  _floatInput = input; // Store direct reference
 
   const filtered = inventoryItems
     .slice()
@@ -2801,7 +2804,7 @@ function searchInvDropdown(input, rowId) {
   } else {
     dd.innerHTML = filtered.slice(0,12).map(i => `
       <div
-        onmousedown="event.preventDefault();closeFloatDD();selectInvItem('${rowId}','${i.id}','${esc(i.name).replace(/'/g,"\\'")}','${esc(i.part_number||'')}')"
+        onmousedown="event.preventDefault();selectInvItemDirect('${i.id}','${esc(i.name).replace(/'/g,"\\'")}','${esc(i.part_number||'')}')"
         style="padding:13px 14px;cursor:pointer;font-size:13px;font-weight:600;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:8px"
         onmouseover="this.style.background='var(--sur2)'" onmouseout="this.style.background=''">
         ${i.part_number?`<span style="font-family:var(--mono);font-size:10px;color:var(--acc);background:var(--acc-dim);padding:2px 7px;border-radius:5px;flex-shrink:0">${esc(i.part_number)}</span>`:''}
@@ -2810,6 +2813,15 @@ function searchInvDropdown(input, rowId) {
   }
 
   document.body.appendChild(dd);
+}
+
+// Direct version — uses stored _floatInput reference instead of rowId lookup
+function selectInvItemDirect(id, name, partNum) {
+  const inp = _floatInput;
+  closeFloatDD();
+  if (!inp) return;
+  inp.value = name + (partNum ? ' (' + partNum + ')' : '');
+  inp.dataset.invId = id;
 }
 
 // Close float dropdown on outside click or escape
@@ -2829,13 +2841,19 @@ document.addEventListener('keydown', function(e) {
 
 function selectInvItem(rowId, id, name, partNum) {
   closeFloatDD();
-  const row = document.getElementById(rowId);
+  // Try direct ID first
+  let row = document.getElementById(rowId);
+  // Fallback — find the row that has an active inv-search-input with focus
+  if (!row) {
+    const activeInput = document.querySelector('.inv-search-input:focus') ||
+                        document.querySelector('.inv-search-input[data-row-id="' + rowId + '"]');
+    if (activeInput) row = activeInput.closest('.kit-row');
+  }
   if (!row) { console.warn('Row not found:', rowId); return; }
   const inp = row.querySelector('.inv-search-input');
-  if (!inp) { console.warn('Input not found in row:', rowId); return; }
+  if (!inp) return;
   inp.value = name + (partNum ? ' (' + partNum + ')' : '');
   inp.dataset.invId = id;
-  // Hide static dropdown if it exists
   const staticDD = document.getElementById('isr-' + rowId);
   if (staticDD) staticDD.style.display = 'none';
 }
