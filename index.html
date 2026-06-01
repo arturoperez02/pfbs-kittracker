@@ -1763,6 +1763,15 @@ function pinKey(k) {
   if (pinEntry.length === getPin().length) setTimeout(checkPin, 200);
 }
 function pinDel() { if (pinEntry.length>0) { pinEntry=pinEntry.slice(0,-1); updatePinDots(); } }
+
+// Keyboard support — type PIN directly on keyboard
+document.addEventListener('keydown', function(e) {
+  const pinModal = document.getElementById('pin-modal');
+  if (!pinModal || !pinModal.classList.contains('open')) return;
+  if (e.key >= '0' && e.key <= '9') { pinKey(e.key); e.preventDefault(); }
+  else if (e.key === 'Backspace' || e.key === 'Delete') { pinDel(); e.preventDefault(); }
+  else if (e.key === 'Escape') { closePinModal(); e.preventDefault(); }
+});
 function checkPin() {
   if (pinEntry === getPin()) { pinAttempts=0; closePinModal(); setMode('warehouse'); }
   else {
