@@ -1565,7 +1565,7 @@ function setSyncStatus(s) {
 async function loadAll() {
   setSyncStatus('syncing');
   try {
-    const [tRes, iRes, aRes, jRes, hRes, rRes, rqRes, cRes, kRes, krRes] = await Promise.all([
+    const [tRes, iRes, aRes, jRes, hRes, rRes, rqRes, cRes, kRes] = await Promise.all([
       db.from('templates').select('*, template_items(*)').order('name'),
       db.from('inventory_items').select('*').order('name'),
       db.from('assets').select('*').order('asset_tag'),
@@ -1574,9 +1574,17 @@ async function loadAll() {
       db.from('repair_tickets').select('*').neq('status','back_in_service').order('created_at', {ascending:false}),
       db.from('reorder_queue').select('*, inventory_items(name)').neq('status','received').order('created_at', {ascending:false}),
       db.from('categories').select('*').order('name'),
-      db.from('client_keys').select('*').order('checkout_date', {ascending:false}),
-      db.from('key_registry').select('*').order('created_at', {ascending:true}).catch(() => ({data:[]}))
+      db.from('client_keys').select('*').order('checkout_date', {ascending:false})
     ]);
+    // Load key registry separately so it never crashes main load
+    let krData = [];
+    try {
+      const krRes = await db.from('key_registry').select('*').order('created_at', {ascending:true});
+      if (krRes.data && krRes.data.length) {
+        krData = krRes.data;
+        localStorage.setItem('kt_key_registry', JSON.stringify(krData));
+      }
+    } catch(e) { /* table may not exist yet — use localStorage cache */ }
     templates = tRes.data || [];
     inventoryItems = iRes.data || [];
     assets = aRes.data || [];
@@ -1586,9 +1594,7 @@ async function loadAll() {
     reorderQueue = rqRes.data || [];
     categories = cRes.data || [];
     clientKeys = kRes.data || [];
-    if (krRes.data && krRes.data.length) {
-      localStorage.setItem('kt_key_registry', JSON.stringify(krRes.data));
-    }
+    // key_registry loaded separately above — already saved to localStorage
     // Also load active picked_up jobs
     const pickRes = await db.from('jobs').select('*, job_items(*)').eq('status','picked_up');
     jobs = [...jobs, ...(pickRes.data||[])];
