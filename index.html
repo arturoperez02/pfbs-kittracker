@@ -1746,6 +1746,8 @@ async function loadAll() {
     loadInspectionsFromSupabase().catch(() => {});
     loadGrabRequestsFromSupabase().catch(() => {});
     loadTplRequestsFromSupabase().catch(() => {});
+    // Refresh vehicle dropdowns after settings load
+    setTimeout(() => fillAllVehicleDropdowns(), 1500);
     // key_registry loaded separately above — already saved to localStorage
     // Also load active picked_up jobs
     const pickRes = await db.from('jobs').select('*, job_items(*)').eq('status','picked_up');
@@ -1969,7 +1971,7 @@ function nav(id) {
   if (id==='reorder') renderReorderQueue();
   if (id==='keys') renderKeysPanel();
   if (id==='inspections') { loadInspectionsFromSupabase().then(() => renderInspList()); }
-  if (id==='ditanks') { loadDIPairs().then(() => renderDIPanel()); }
+  if (id==='ditanks') { loadDIPairs().then(() => { fillAllVehicleDropdowns(); renderDIPanel(); }); }
   if (id==='dashboard') refresh();
 }
 
@@ -3177,14 +3179,73 @@ function saveVehicles(list) {
   localStorage.setItem('kt_vehicles', JSON.stringify(list));
   syncSettingToSupabase('kt_vehicles', list);
 }
-function fillVehicleSelect() {
+function buildVehicleOptions(currentValue) {
+  // Always pull fresh from localStorage (synced from Supabase)
   const vehicles = getVehicles();
-  const sel = document.getElementById('co-vehicle-sel');
-  if (!sel) return;
-  const cur = sel.value;
-  sel.innerHTML = '<option value="">— select vehicle —</option>' +
-    vehicles.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
-  if (cur) sel.value = cur;
+  const deployedVehicles = [...new Set(getDIPairs().filter(p => p.vehicle).map(p => p.vehicle))];
+  const all = [...new Set([...vehicles, ...deployedVehicles])].filter(Boolean);
+  return '<option value="">— select vehicle —</option>' +
+    all.map(v => `<option value="${esc(v)}"${v===currentValue?' selected':''}>${esc(v)}</option>`).join('') +
+    '<option value="__add_new__">+ Add New Vehicle...</option>';
+}
+
+function handleVehicleSelChange(sel, textInputId) {
+  if (sel.value === '__add_new__') {
+    const name = prompt('Enter new vehicle name:\nIngresa el nombre del vehículo:');
+    if (name && name.trim()) {
+      const vehicles = getVehicles();
+      if (!vehicles.includes(name.trim())) {
+        vehicles.push(name.trim());
+        saveVehicles(vehicles);
+      }
+      // Rebuild all dropdowns with new vehicle
+      fillAllVehicleDropdowns();
+      sel.value = name.trim();
+      if (textInputId) {
+        const inp = document.getElementById(textInputId);
+        if (inp) inp.value = name.trim();
+      }
+    } else {
+      sel.value = '';
+    }
+  } else if (textInputId) {
+    const inp = document.getElementById(textInputId);
+    if (inp) inp.value = sel.value;
+  }
+}
+
+function fillAllVehicleDropdowns() {
+  // All vehicle selects across the app
+  const selMap = {
+    'co-vehicle-sel': 'co-vehicle',
+    'dip-vehicle-sel': 'dip-vehicle',
+    'di-edit-vehicle-sel': 'di-edit-vehicle',
+    'di-swap-vehicle-sel': 'di-swap-vehicle',
+    'di-move-to-sel': 'di-move-to-custom'
+  };
+  Object.entries(selMap).forEach(([selId, inputId]) => {
+    const sel = document.getElementById(selId);
+    if (!sel) return;
+    const cur = sel.value === '__add_new__' ? '' : sel.value;
+    sel.innerHTML = buildVehicleOptions(cur);
+    // Wire onchange if not already set
+    sel.onchange = function() { handleVehicleSelChange(this, inputId); };
+  });
+  // Also update move-to-sel which has different structure
+  const moveSel = document.getElementById('di-move-to-sel');
+  if (moveSel) {
+    const cur = moveSel.value === '__add_new__' ? '' : moveSel.value;
+    moveSel.innerHTML = buildVehicleOptions(cur);
+    moveSel.onchange = function() { handleVehicleSelChange(this, 'di-move-to-custom'); };
+  }
+}
+
+function fillVehicleSelect() {
+  fillAllVehicleDropdowns();
+}
+
+function fillDIVehicleDropdowns() {
+  fillAllVehicleDropdowns();
 }
 function renderVehiclesList() {
   const vehicles = getVehicles();
@@ -3800,17 +3861,7 @@ function searchDITechRoster(input) {
   }, 100);
 }
 
-function fillDIVehicleDropdowns() {
-  const vehicles = getVehicles();
-  const deployedVehicles = [...new Set(getDIPairs().filter(p => p.vehicle).map(p => p.vehicle))];
-  const all = [...new Set([...vehicles, ...deployedVehicles])];
-  const opts = '<option value="">— select vehicle —</option>' + all.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
-  ['dip-vehicle-sel','di-edit-vehicle-sel','di-swap-vehicle-sel'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el && el.tagName === 'SELECT') el.innerHTML = opts;
-  });
-}
-
+// fillDIVehicleDropdowns is now an alias for fillAllVehicleDropdowns above
 function openDIEdit(pairId) {
   const pairs = getDIPairs();
   const pair = pairs.find(p => p.id === pairId);
