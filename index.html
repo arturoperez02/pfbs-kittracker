@@ -474,6 +474,7 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
           </div>
         </div>
         <div id="repair-alerts"></div>
+        <div id="tpl-change-requests-banner"></div>
         <div class="sec-hdr">
           <div>
             <div class="sec-title">Dashboard</div>
@@ -564,10 +565,17 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
             <div id="kit-preview"></div>
             <div style="background:var(--sur2);border:1px dashed var(--bdr);border-radius:var(--r);padding:13px;margin-bottom:10px">
               <div class="card-title" style="margin-bottom:9px">Add Item / Agregar Artículo</div>
+              <div style="position:relative;margin-bottom:8px">
+                <input type="text" id="addon-name"
+                  placeholder="🔍 Search inventory or type item name..."
+                  style="width:100%;font-family:var(--mono)"
+                  oninput="searchAddonItem(this)"
+                  autocomplete="off">
+                <div id="addon-item-dd" style="display:none;position:fixed;background:var(--sur);border:2px solid var(--acc);border-radius:0 0 10px 10px;z-index:99999;max-height:200px;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.7)"></div>
+              </div>
               <div style="display:flex;gap:8px">
-                <input type="text" id="addon-name" placeholder="Item name" style="flex:1">
                 <input type="number" id="addon-qty" placeholder="Qty" min="1" value="1" style="width:70px">
-                <button class="btn btn-s btn-sm" onclick="addOneOff()">+</button>
+                <button class="btn btn-s btn-sm" style="flex:1" onclick="addOneOff()">+ Add to Kit</button>
               </div>
             </div>
             <!-- RENTAL LIFT SECTION -->
@@ -1259,10 +1267,18 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
       <div style="font-size:10px;color:var(--txt2);margin-bottom:6px">Tap qty to edit · ✕ to remove</div>
     </div>
     <hr>
-    <div style="display:flex;gap:8px">
+    <div id="ej-template-request" style="display:none;background:var(--amb-dim);border:1px solid rgba(251,191,36,.3);border-radius:9px;padding:10px 14px;margin-bottom:12px">
+      <div style="font-size:12px;font-weight:700;color:var(--amb);margin-bottom:4px">📋 Request Template Update</div>
+      <div style="font-size:11px;color:var(--txt2);margin-bottom:8px">New items will be submitted as a change request for the warehouse rep to approve.</div>
+      <textarea id="ej-request-note" rows="2" placeholder="Why should these items be added to the template? (optional)" style="font-size:12px"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-s" style="flex:1" onclick="closeModal('edit-job-modal')">Cancel</button>
-      <button class="btn btn-s" style="flex:1" onclick="saveActiveJobEdits(false)">Save Job Only</button>
-      <button class="btn btn-p" style="flex:1" onclick="saveActiveJobEdits(true)">Save + Update Template</button>
+      <button class="btn btn-s" style="flex:1" onclick="saveActiveJobEdits(false)">Save Job</button>
+      <button class="btn btn-p" style="flex:1" onclick="toggleTemplateRequest()">📋 Request Template Change</button>
+    </div>
+    <div id="ej-confirm-request" style="display:none;margin-top:8px">
+      <button class="btn btn-p btn-full" onclick="saveActiveJobEdits(true)">✓ Submit Request to Warehouse</button>
     </div>
   </div>
 </div>
@@ -1632,6 +1648,7 @@ function refresh() {
   renderDashRepairs();
   renderDashReorder();
   renderLowStockAlerts();
+  renderTplChangeRequestsBanner();
   fillTemplateSelect();
   fillReturnSelect();
   renderInventory();
@@ -1969,11 +1986,16 @@ function renderKitPreview() {
 function toggleKitItem(i) { coItems[i].removed=!coItems[i].removed; renderKitPreview(); }
 function updateItemQty(i, val) { const n=parseInt(val); if(!isNaN(n)&&n>=1) coItems[i].qty=n; }
 function addOneOff() {
-  const name=document.getElementById('addon-name').value.trim();
-  const qty=parseInt(document.getElementById('addon-qty').value)||1;
-  if (!name){alert('Enter item name.');return;}
-  coItems.push({id:uid(),name,name_es:name,qty,removed:false,oneoff:true,inventory_item_id:null});
-  document.getElementById('addon-name').value=''; document.getElementById('addon-qty').value='1';
+  const nameInput = document.getElementById('addon-name');
+  const name = nameInput.value.trim();
+  const qty = parseInt(document.getElementById('addon-qty').value) || 1;
+  const invId = nameInput.dataset.invId || null;
+  if (!name) { alert('Enter item name / Ingresa el nombre del artículo.'); return; }
+  coItems.push({id:uid(), name, name_es:name, qty, removed:false, oneoff:!invId, inventory_item_id:invId});
+  nameInput.value = '';
+  nameInput.dataset.invId = '';
+  document.getElementById('addon-qty').value = '1';
+  document.getElementById('addon-item-dd').style.display = 'none';
   renderKitPreview();
 }
 function addCoKey() {
@@ -3702,6 +3724,214 @@ function highlightInvItem(itemId) {
       setTimeout(() => el.style.outline = '', 2500);
     }
   }, 200);
+}
+
+// ─── STEP 2 ADD ITEM SEARCH ─────────────────────────────────
+function searchAddonItem(input) {
+  const q = input.value.trim();
+  const dd = document.getElementById('addon-item-dd');
+  if (!q) { dd.style.display = 'none'; return; }
+  const rect = input.getBoundingClientRect();
+  dd.style.top = rect.bottom + 'px';
+  dd.style.left = rect.left + 'px';
+  dd.style.width = rect.width + 'px';
+  const filtered = inventoryItems
+    .filter(i => `${i.part_number||''} ${i.name}`.toLowerCase().includes(q.toLowerCase()))
+    .sort((a,b) => {
+      const aPN = (a.part_number||'').toLowerCase().startsWith(q.toLowerCase());
+      const bPN = (b.part_number||'').toLowerCase().startsWith(q.toLowerCase());
+      if (aPN && !bPN) return -1;
+      if (!aPN && bPN) return 1;
+      return a.name.localeCompare(b.name);
+    }).slice(0,12);
+  if (!filtered.length) { dd.style.display='none'; return; }
+  dd.style.display = '';
+  dd.innerHTML = filtered.map(i => `
+    <div data-name="${esc(i.name)}" data-pn="${esc(i.part_number||'')}" data-id="${i.id}"
+      onmousedown="event.preventDefault();selectAddonItem(this)"
+      style="padding:11px 14px;cursor:pointer;font-size:12px;font-weight:600;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:8px"
+      onmouseover="this.style.background='var(--sur2)'" onmouseout="this.style.background=''">
+      ${i.part_number?`<span style="font-family:var(--mono);font-size:10px;color:var(--acc);background:var(--acc-dim);padding:2px 7px;border-radius:5px;flex-shrink:0">${esc(i.part_number)}</span>`:''}
+      <span>${esc(i.name)}</span>
+      <span style="font-size:10px;color:var(--txt3);margin-left:auto">${i.tracking_type==='bulk'?'Stock: '+i.quantity_on_hand:''}</span>
+    </div>`).join('');
+  setTimeout(() => {
+    document.addEventListener('click', function closeIt(e) {
+      if (e.target !== input && !dd.contains(e.target)) {
+        dd.style.display = 'none';
+        document.removeEventListener('click', closeIt);
+      }
+    });
+  }, 100);
+}
+
+function selectAddonItem(el) {
+  document.getElementById('addon-name').value = el.dataset.name;
+  document.getElementById('addon-name').dataset.invId = el.dataset.id;
+  document.getElementById('addon-item-dd').style.display = 'none';
+}
+
+// ─── TEMPLATE CHANGE REQUESTS ────────────────────────────────
+function getTplChangeRequests() {
+  return JSON.parse(localStorage.getItem('kt_tpl_requests') || '[]');
+}
+function saveTplChangeRequests(list) {
+  localStorage.setItem('kt_tpl_requests', JSON.stringify(list));
+}
+
+function toggleTemplateRequest() {
+  const panel = document.getElementById('ej-template-request');
+  const confirm = document.getElementById('ej-confirm-request');
+  if (!panel) return;
+  const newItems = editingJobItems.filter(i => !i.id);
+  if (!newItems.length) {
+    alert('Add at least one new item first, then request a template change.');
+    return;
+  }
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : '';
+  confirm.style.display = isOpen ? 'none' : '';
+}
+
+async function saveActiveJobEdits(requestTemplateChange = false) {
+  if (!editingJob) return;
+  setSyncStatus('syncing');
+  try {
+    await db.from('jobs').update({
+      hcp_job_number: document.getElementById('ej-jobnum').value.trim() || null,
+      tech_names: document.getElementById('ej-names').value.trim(),
+      vehicle: document.getElementById('ej-vehicle').value.trim(),
+      notes: document.getElementById('ej-notes').value.trim(),
+      updated_at: new Date().toISOString()
+    }).eq('id', editingJob.id);
+
+    const newItems = editingJobItems.filter(i => !i.id);
+    if (newItems.length) {
+      await db.from('job_items').insert(newItems.map(i => ({
+        job_id: editingJob.id,
+        item_name: i.item_name,
+        item_name_es: i.item_name_es || i.item_name,
+        quantity: i.quantity,
+        is_oneoff: !i.inventory_item_id,
+        inventory_item_id: i.inventory_item_id || null
+      })));
+    }
+
+    // Submit template change request (NOT auto-apply)
+    if (requestTemplateChange && newItems.length) {
+      const note = document.getElementById('ej-request-note')?.value.trim() || '';
+      const requests = getTplChangeRequests();
+      requests.unshift({
+        id: uid(),
+        job_id: editingJob.id,
+        job_num: editingJob.hcp_job_number || '--',
+        job_type: editingJob.job_type || '--',
+        requested_by: document.getElementById('ej-names').value.trim() || 'Unknown',
+        items: newItems.map(i => ({ name: i.item_name, qty: i.quantity, inv_id: i.inventory_item_id })),
+        note,
+        timestamp: new Date().toISOString(),
+        status: 'pending'
+      });
+      saveTplChangeRequests(requests);
+      renderTplChangeRequestsBanner();
+      closeModal('edit-job-modal');
+      setSyncStatus('ok');
+      await loadAll();
+      alert(`✓ Job updated and template change request submitted!\n\nThe warehouse rep will be notified to review and approve the template update.`);
+      return;
+    }
+
+    closeModal('edit-job-modal');
+    setSyncStatus('ok');
+    await loadAll();
+    alert('✓ Job updated!');
+  } catch(e) {
+    setSyncStatus('error');
+    alert('Error saving changes: ' + e.message);
+  }
+}
+
+function renderTplChangeRequestsBanner() {
+  const el = document.getElementById('tpl-change-requests-banner');
+  if (!el) return;
+  const requests = getTplChangeRequests().filter(r => r.status === 'pending');
+  if (!requests.length) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="alert-banner" style="background:var(--amb-dim);border-color:rgba(251,191,36,.3)">
+    <span class="ai">📋</span>
+    <p><strong>${requests.length} template change request${requests.length>1?'s':''} pending review:</strong>
+    ${requests.map(r=>`${r.requested_by} — ${r.job_type} (${r.items.length} item${r.items.length>1?'s':''})`).join(' · ')}
+    <button class="btn btn-xs btn-p" style="margin-left:8px" onclick="openTplRequests()">Review</button></p>
+  </div>`;
+}
+
+function openTplRequests() {
+  const requests = getTplChangeRequests().filter(r => r.status === 'pending');
+  if (!requests.length) { alert('No pending requests.'); return; }
+  const details = requests.map((r, i) =>
+    `${i+1}. ${r.requested_by} · ${r.job_type} · Job ${r.job_num}\n` +
+    `   Items: ${r.items.map(item => item.name + ' x' + item.qty).join(', ')}\n` +
+    `   ${r.note ? 'Note: ' + r.note : ''}`
+  ).join('\n\n');
+  const action = prompt(`📋 Pending Template Change Requests:\n\n${details}\n\nEnter request number to APPROVE (or type "reject #" to reject, e.g. "reject 1"):`);
+  if (!action) return;
+  const all = getTplChangeRequests();
+  if (action.toLowerCase().startsWith('reject')) {
+    const num = parseInt(action.replace(/\D/g,'')) - 1;
+    const req = requests[num];
+    if (req) {
+      const idx = all.findIndex(r => r.id === req.id);
+      all[idx].status = 'rejected';
+      saveTplChangeRequests(all);
+      renderTplChangeRequestsBanner();
+      alert(`Request from ${req.requested_by} rejected.`);
+    }
+  } else {
+    const num = parseInt(action) - 1;
+    const req = requests[num];
+    if (req) {
+      applyTplChangeRequest(req, all);
+    }
+  }
+}
+
+async function applyTplChangeRequest(req, all) {
+  // Find matching template
+  const tpl = templates.find(t => t.name.toLowerCase().includes((req.job_type||'').toLowerCase()));
+  if (!tpl) {
+    const tplNames = templates.map((t, i) => `${i+1}. ${t.name}`).join('\n');
+    const pick = prompt(`Which template should these items be added to?\n\n${tplNames}\n\nEnter number:`);
+    if (!pick) return;
+    const idx = parseInt(pick) - 1;
+    if (!templates[idx]) return;
+    await doApplyTplRequest(req, templates[idx], all);
+  } else {
+    await doApplyTplRequest(req, tpl, all);
+  }
+}
+
+async function doApplyTplRequest(req, tpl, all) {
+  setSyncStatus('syncing');
+  try {
+    await db.from('template_items').insert(req.items.map(i => ({
+      template_id: tpl.id,
+      item_name: i.name,
+      item_name_es: i.name,
+      quantity: i.qty,
+      quantity_mode: 'per_tech',
+      inventory_item_id: i.inv_id || null,
+      sort_order: 99
+    })));
+    const idx = all.findIndex(r => r.id === req.id);
+    all[idx].status = 'approved';
+    saveTplChangeRequests(all);
+    renderTplChangeRequestsBanner();
+    setSyncStatus('ok');
+    await loadAll();
+    alert(`✓ Approved! ${req.items.length} item(s) added to template "${tpl.name}".\n\nFuture jobs using this template will include these items.`);
+  } catch(e) {
+    setSyncStatus('error');
+    alert('Error applying: ' + e.message);
+  }
 }
 
 // ─── GRAB MATERIAL ──────────────────────────────────────────
