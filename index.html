@@ -1261,7 +1261,8 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
     <hr>
     <div style="display:flex;gap:8px">
       <button class="btn btn-s" style="flex:1" onclick="closeModal('edit-job-modal')">Cancel</button>
-      <button class="btn btn-p" style="flex:1" onclick="saveActiveJobEdits()">Save Changes</button>
+      <button class="btn btn-s" style="flex:1" onclick="saveActiveJobEdits(false)">Save Job Only</button>
+      <button class="btn btn-p" style="flex:1" onclick="saveActiveJobEdits(true)">Save + Update Template</button>
     </div>
   </div>
 </div>
@@ -4389,7 +4390,7 @@ function addItemToActiveJob() {
   renderEditJobItems();
 }
 
-async function saveActiveJobEdits() {
+async function saveActiveJobEdits(saveToTemplate = false) {
   if (!editingJob) return;
   setSyncStatus('syncing');
   try {
@@ -4400,7 +4401,8 @@ async function saveActiveJobEdits() {
       notes: document.getElementById('ej-notes').value.trim(),
       updated_at: new Date().toISOString()
     }).eq('id', editingJob.id);
-    // Insert any new items added
+
+    // Insert new items added to job
     const newItems = editingJobItems.filter(i => !i.id);
     if (newItems.length) {
       await db.from('job_items').insert(newItems.map(i => ({
@@ -4408,15 +4410,65 @@ async function saveActiveJobEdits() {
         item_name: i.item_name,
         item_name_es: i.item_name_es || i.item_name,
         quantity: i.quantity,
-        is_oneoff: true,
-        inventory_item_id: null
+        is_oneoff: !i.inventory_item_id,
+        inventory_item_id: i.inventory_item_id || null
       })));
+
+      // Save new items to template if requested
+      if (saveToTemplate && newItems.length) {
+        // Find which templates this job used
+        const jobTemplateIds = editingJob.job_type ?
+          templates.filter(t => editingJob.job_type.toLowerCase().includes(t.name.toLowerCase())).map(t => t.id) : [];
+
+        if (jobTemplateIds.length) {
+          // Ask which template to update
+          const templateNames = jobTemplateIds.map(id => templates.find(t => t.id === id)?.name).filter(Boolean);
+          const confirmMsg = `Add these ${newItems.length} item(s) to template "${templateNames.join(', ')}"?\n\n${newItems.map(i => `• ${i.item_name} x${i.quantity}`).join('\n')}\n\nThis will affect all future jobs using this template.`;
+          if (confirm(confirmMsg)) {
+            for (const tplId of jobTemplateIds) {
+              await db.from('template_items').insert(newItems.map(i => ({
+                template_id: tplId,
+                item_name: i.item_name,
+                item_name_es: i.item_name_es || i.item_name,
+                quantity: i.quantity,
+                quantity_mode: 'per_tech',
+                inventory_item_id: i.inventory_item_id || null,
+                sort_order: 99
+              })));
+            }
+            alert(`✓ Items added to job and saved to template "${templateNames.join(', ')}".\n\nFuture jobs using this template will include these items automatically.`);
+          }
+        } else {
+          // No template found — offer to pick one
+          const tplNames = templates.map((t, i) => `${i + 1}. ${t.name}`).join('\n');
+          const pick = prompt(`Which template should these items be added to?\n\n${tplNames}\n\nEnter number (or cancel to skip):`);
+          if (pick) {
+            const tplIdx = parseInt(pick) - 1;
+            if (templates[tplIdx]) {
+              await db.from('template_items').insert(newItems.map(i => ({
+                template_id: templates[tplIdx].id,
+                item_name: i.item_name,
+                item_name_es: i.item_name_es || i.item_name,
+                quantity: i.quantity,
+                quantity_mode: 'per_tech',
+                inventory_item_id: i.inventory_item_id || null,
+                sort_order: 99
+              })));
+              alert(`✓ Items saved to template "${templates[tplIdx].name}".`);
+            }
+          }
+        }
+      }
     }
+
     closeModal('edit-job-modal');
     setSyncStatus('ok');
     await loadAll();
-    alert('✓ Job updated!');
-  } catch(e) { setSyncStatus('error'); alert('Error saving changes.'); }
+    if (!saveToTemplate || !newItems.length) alert('✓ Job updated!');
+  } catch(e) {
+    setSyncStatus('error');
+    alert('Error saving changes: ' + e.message);
+  }
 }
 
 function printDymoLabelById(jobId) {
@@ -5369,17 +5421,33 @@ function applyScheduleJob(idx) {
   if (j.date) document.getElementById('co-date').value = j.date;
   document.getElementById('co-addr').value = j.address || '';
   document.getElementById('co-bldg').value = j.client || '';
-  document.getElementById('co-vehicle').value = j.vehicle || '';
+  // Set vehicle
+  const vehicleSel = document.getElementById('co-vehicle-sel');
+  const vehicleInp = document.getElementById('co-vehicle');
+  if (j.vehicle) {
+    if (vehicleSel) vehicleSel.value = j.vehicle;
+    if (vehicleInp) vehicleInp.value = j.vehicle;
+  }
+  // Set techs
   if (j.techs && j.techs.length) {
     document.getElementById('co-names').value = j.techs.join(', ');
     document.getElementById('co-numtechs').value = j.techs.length;
   }
+  // Match template using new multi-template picker
   const mapped = mapJobType(j.type);
   if (mapped) {
-    const sel = document.getElementById('co-template');
-    // Try to match by template name
-    const opt = [...sel.options].find(o => o.text.toLowerCase().includes(mapped.toLowerCase()));
-    if (opt) { sel.value = opt.value; calcKit(); }
+    const match = templates.find(t => t.name.toLowerCase().includes(mapped.toLowerCase()));
+    if (match) {
+      selectedTemplateIds = [match.id];
+      updateTemplateDisplay();
+      // Check the checkbox in the picker
+      const opts = document.getElementById('co-template-options');
+      if (opts) {
+        const cb = opts.querySelector(`input[value="${match.id}"]`);
+        if (cb) cb.checked = true;
+      }
+      calcKit();
+    }
   }
   const hint = document.getElementById('hcp-hint');
   hint.className = 'info info-t';
