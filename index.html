@@ -1565,7 +1565,7 @@ function setSyncStatus(s) {
 async function loadAll() {
   setSyncStatus('syncing');
   try {
-    const [tRes, iRes, aRes, jRes, hRes, rRes, rqRes, cRes, kRes] = await Promise.all([
+    const [tRes, iRes, aRes, jRes, hRes, rRes, rqRes, cRes, kRes, krRes] = await Promise.all([
       db.from('templates').select('*, template_items(*)').order('name'),
       db.from('inventory_items').select('*').order('name'),
       db.from('assets').select('*').order('asset_tag'),
@@ -1574,7 +1574,8 @@ async function loadAll() {
       db.from('repair_tickets').select('*').neq('status','back_in_service').order('created_at', {ascending:false}),
       db.from('reorder_queue').select('*, inventory_items(name)').neq('status','received').order('created_at', {ascending:false}),
       db.from('categories').select('*').order('name'),
-      db.from('client_keys').select('*').order('checkout_date', {ascending:false})
+      db.from('client_keys').select('*').order('checkout_date', {ascending:false}),
+      db.from('key_registry').select('*').order('created_at', {ascending:true}).catch(() => ({data:[]}))
     ]);
     templates = tRes.data || [];
     inventoryItems = iRes.data || [];
@@ -1585,6 +1586,9 @@ async function loadAll() {
     reorderQueue = rqRes.data || [];
     categories = cRes.data || [];
     clientKeys = kRes.data || [];
+    if (krRes.data && krRes.data.length) {
+      localStorage.setItem('kt_key_registry', JSON.stringify(krRes.data));
+    }
     // Also load active picked_up jobs
     const pickRes = await db.from('jobs').select('*, job_items(*)').eq('status','picked_up');
     jobs = [...jobs, ...(pickRes.data||[])];
@@ -1639,10 +1643,41 @@ function renderActiveJobs() {
           <button class="btn btn-xs btn-p" onclick="editActiveJob('${j.id}')">✏ Edit</button>
           <button class="btn btn-xs btn-s" onclick="nav('returns')">Return</button>
           <button class="btn btn-xs btn-s" onclick="printDymoLabelById('${j.id}')">🖨 Label</button>
+          <button class="btn btn-xs btn-r" onclick="deleteActiveJob('${j.id}','${esc(j.hcp_job_number||'this job')}')">🗑 Delete</button>
         </div>
       </div>
     </div>
   `).join('');
+}
+
+async function deleteActiveJob(jobId, jobNum) {
+  if (!confirm(`Delete job ${jobNum}?\n\nThis will permanently remove the job and restore inventory quantities.\n\nThis cannot be undone.`)) return;
+  setSyncStatus('syncing');
+  try {
+    // Restore inventory quantities first
+    const job = jobs.find(j => j.id === jobId);
+    if (job && job.job_items) {
+      for (const item of job.job_items) {
+        if (item.inventory_item_id) {
+          const inv = inventoryItems.find(i => i.id === item.inventory_item_id);
+          if (inv && inv.tracking_type === 'bulk') {
+            await db.from('inventory_items').update({
+              quantity_on_hand: (inv.quantity_on_hand || 0) + item.quantity,
+              updated_at: new Date().toISOString()
+            }).eq('id', inv.id);
+          }
+        }
+      }
+    }
+    // Delete job items then job
+    await db.from('job_items').delete().eq('job_id', jobId);
+    await db.from('jobs').delete().eq('id', jobId);
+    setSyncStatus('ok');
+    await loadAll();
+  } catch(e) {
+    setSyncStatus('error');
+    alert('Error deleting job: ' + e.message);
+  }
 }
 
 function renderDashRepairs() {
@@ -4353,27 +4388,47 @@ function printDymoLabelById(jobId) {
 function getKeyRegistry() {
   return JSON.parse(localStorage.getItem('kt_key_registry') || '[]');
 }
-function saveKeyRegistry(list) {
+function saveKeyRegistryCacheOnly(list) {
   localStorage.setItem('kt_key_registry', JSON.stringify(list));
 }
-function openAddKeyRegistry() {
+
+async function loadKeyRegistry() {
+  try {
+    const { data } = await db.from('key_registry').select('*').order('created_at', { ascending: true });
+    if (data) localStorage.setItem('kt_key_registry', JSON.stringify(data));
+  } catch(e) { console.warn('Key registry load error:', e); }
+}
+
+async function openAddKeyRegistry() {
   const name = prompt('Key name / description (e.g. "Suite 4B Fob", "Main Entrance #101"):');
   if (!name) return;
   const client = prompt('Property / Client name:') || '';
   const qty = parseInt(prompt('Total quantity of this key:') || '1') || 1;
   const notes = prompt('Notes (optional):') || '';
-  const reg = getKeyRegistry();
-  reg.push({ id: uid(), name, client, qty, notes, added: new Date().toISOString() });
-  saveKeyRegistry(reg);
+  setSyncStatus('syncing');
+  try {
+    const { data } = await db.from('key_registry').insert({ name: name.trim(), client, qty, notes }).select();
+    const reg = getKeyRegistry();
+    if (data) reg.push(data[0]);
+    localStorage.setItem('kt_key_registry', JSON.stringify(reg));
+    setSyncStatus('ok');
+  } catch(e) {
+    const reg = getKeyRegistry();
+    reg.push({ id: uid(), name: name.trim(), client, qty, notes });
+    localStorage.setItem('kt_key_registry', JSON.stringify(reg));
+    setSyncStatus('ok');
+  }
   renderKeyRegistry();
+  renderCoKeyRegistryPicks();
 }
+
 function renderKeyRegistry() {
   const el = document.getElementById('key-registry-list');
   if (!el) return;
   const q = (document.getElementById('key-registry-search')?.value || '').toLowerCase();
   const reg = getKeyRegistry();
   const filtered = q ? reg.filter(k => `${k.name} ${k.client||''} ${k.notes||''}`.toLowerCase().includes(q)) : reg;
-  if (!reg.length) { el.innerHTML = '<div style="font-size:12px;color:var(--txt2)">No keys registered. Add keys your company holds on behalf of clients.</div>'; return; }
+  if (!reg.length) { el.innerHTML = '<div style="font-size:12px;color:var(--txt2)">No keys registered yet.</div>'; return; }
   if (!filtered.length) { el.innerHTML = '<div style="font-size:12px;color:var(--txt2)">No keys match your search.</div>'; return; }
   el.innerHTML = filtered.map((k) => {
     const origIdx = reg.indexOf(k);
@@ -4406,24 +4461,48 @@ function editKeyRegistry(i) {
   document.getElementById('edit-key-registry-modal').classList.add('open');
 }
 
-function saveKeyRegistryEdit() {
+async function saveKeyRegistryEdit() {
   const i = parseInt(document.getElementById('ekr-idx').value);
   const reg = getKeyRegistry();
   if (i < 0 || i >= reg.length) return;
-  reg[i].name = document.getElementById('ekr-name').value.trim() || reg[i].name;
-  reg[i].client = document.getElementById('ekr-client').value.trim();
-  reg[i].qty = parseInt(document.getElementById('ekr-qty').value) || 1;
-  reg[i].notes = document.getElementById('ekr-notes').value.trim();
-  saveKeyRegistry(reg);
+  const updated = {
+    name: document.getElementById('ekr-name').value.trim() || reg[i].name,
+    client: document.getElementById('ekr-client').value.trim(),
+    qty: parseInt(document.getElementById('ekr-qty').value) || 1,
+    notes: document.getElementById('ekr-notes').value.trim(),
+    updated_at: new Date().toISOString()
+  };
+  setSyncStatus('syncing');
+  try {
+    const keyId = reg[i].id;
+    if (keyId) await db.from('key_registry').update(updated).eq('id', keyId);
+    Object.assign(reg[i], updated);
+    localStorage.setItem('kt_key_registry', JSON.stringify(reg));
+    setSyncStatus('ok');
+  } catch(e) {
+    Object.assign(reg[i], updated);
+    localStorage.setItem('kt_key_registry', JSON.stringify(reg));
+    setSyncStatus('ok');
+  }
   closeModal('edit-key-registry-modal');
   renderKeyRegistry();
 }
 
-function deleteKeyRegistry(i) {
+async function deleteKeyRegistry(i) {
   if (!confirm('Remove this key from registry?')) return;
   const reg = getKeyRegistry();
-  reg.splice(i, 1);
-  saveKeyRegistry(reg);
+  const key = reg[i];
+  setSyncStatus('syncing');
+  try {
+    if (key.id) await db.from('key_registry').delete().eq('id', key.id);
+    reg.splice(i, 1);
+    localStorage.setItem('kt_key_registry', JSON.stringify(reg));
+    setSyncStatus('ok');
+  } catch(e) {
+    reg.splice(i, 1);
+    localStorage.setItem('kt_key_registry', JSON.stringify(reg));
+    setSyncStatus('ok');
+  }
   renderKeyRegistry();
 }
 
