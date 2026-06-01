@@ -2049,20 +2049,22 @@ function goStep(n) {
     calcKit(); coKeys=[]; renderCoKeys(); renderCoKeyRegistryPicks();
   }
   if (n===3) {
-    const tid=document.getElementById('co-template').value;
-    const tpl=templates.find(t=>t.id===tid);
-    const num=parseInt(document.getElementById('co-numtechs').value)||1;
-    const active=coItems.filter(i=>!i.removed);
-    document.getElementById('co-summary').innerHTML=`
-      <strong>Project:</strong> ${esc(tpl.name)}<br>
+    // Support both single and multi-template selection
+    const tids = selectedTemplateIds.length ? selectedTemplateIds :
+      (document.getElementById('co-template').value ? [document.getElementById('co-template').value] : []);
+    const tplNames = tids.map(id => templates.find(t=>t.id===id)?.name).filter(Boolean).join(' + ') || '--';
+    const num = parseInt(document.getElementById('co-numtechs').value) || 1;
+    const active = coItems.filter(i => !i.removed);
+    document.getElementById('co-summary').innerHTML = `
+      <strong>Project:</strong> ${esc(tplNames)}<br>
       <strong>WO #:</strong> ${esc(document.getElementById('co-jobnum').value||'--')}<br>
       <strong>Techs (${num}):</strong> ${esc(document.getElementById('co-names').value||'--')}<br>
       <strong>Site:</strong> ${esc(document.getElementById('co-addr').value||'--')}<br>
       <strong>Building:</strong> ${esc(document.getElementById('co-bldg').value||'--')}<br>
-      <strong>Vehicle:</strong> ${esc(document.getElementById('co-vehicle').value||'--')}<br>
+      <strong>Vehicle:</strong> ${esc(document.getElementById('co-vehicle').value||document.getElementById('co-vehicle-sel')?.value||'--')}<br>
       <strong>Date:</strong> ${esc(document.getElementById('co-date').value||'--')}<br><br>
-      <strong>Kit (${active.length} items):</strong><br>${active.map(i=>i.qty+'x '+i.name).join('<br>')}
-      ${coKeys.length?'<br><br><strong>Keys:</strong><br>'+coKeys.map(k=>k.qty+'x '+k.tag).join('<br>'):''}
+      <strong>Kit (${active.length} items):</strong><br>${active.map(i=>i.qty+'x '+esc(i.name)).join('<br>')}
+      ${coKeys.length?'<br><br><strong>Keys:</strong><br>'+coKeys.map(k=>k.qty+'x '+esc(k.tag)).join('<br>'):''}
     `;
   }
   document.querySelectorAll('.wiz-step').forEach(s=>s.classList.remove('active'));
@@ -2079,8 +2081,11 @@ function goStep(n) {
 async function completeCheckout() {
   const att=document.getElementById('co-attendant').value.trim();
   if (!att){alert('Enter attendant name / Ingresa nombre del encargado.');return;}
-  const tid=document.getElementById('co-template').value;
-  const tpl=templates.find(t=>t.id===tid);
+  const tids = selectedTemplateIds.length ? selectedTemplateIds :
+    (document.getElementById('co-template').value ? [document.getElementById('co-template').value] : []);
+  const tid = tids[0] || '';
+  const tpl = templates.find(t=>t.id===tid);
+  const tplNames = tids.map(id => templates.find(t=>t.id===id)?.name).filter(Boolean).join(' + ') || tpl?.name || '--';
   const num=parseInt(document.getElementById('co-numtechs').value)||1;
   const active=coItems.filter(i=>!i.removed);
   const jobId=uid();
@@ -2090,12 +2095,12 @@ async function completeCheckout() {
     id: jobId,
     hcp_job_number: document.getElementById('co-jobnum').value.trim()||null,
     template_id: tid,
-    job_type: tpl.job_type||tpl.name,
+    job_type: tplNames,
     tech_names: document.getElementById('co-names').value.trim(),
     num_techs: num,
     site_address: document.getElementById('co-addr').value.trim(),
     building_client: document.getElementById('co-bldg').value.trim(),
-    vehicle: document.getElementById('co-vehicle').value.trim(),
+    vehicle: document.getElementById('co-vehicle').value.trim() || document.getElementById('co-vehicle-sel')?.value || '',
     scheduled_date: document.getElementById('co-date').value||today(),
     notes: document.getElementById('co-notes').value.trim(),
     attendant_name: att,
