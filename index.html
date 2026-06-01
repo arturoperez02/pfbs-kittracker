@@ -997,7 +997,17 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
     <div id="bulk-fields">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div class="fg"><label>Quantity on Hand</label><input type="number" id="inv-qty" min="0" value="0"></div>
-        <div class="fg"><label>Low Stock Alert Below</label><input type="number" id="inv-threshold" min="0" value="2"></div>
+        <div class="fg" id="inv-threshold-row">
+          <label>Low Stock Alert Below</label>
+          <div style="display:flex;align-items:center;gap:10px">
+            <input type="number" id="inv-threshold" min="0" value="2" style="width:80px">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-weight:600;color:var(--txt2)">
+              <input type="checkbox" id="inv-no-min" onchange="toggleNoMin(this)" style="width:16px;height:16px;accent-color:var(--acc)">
+              No minimum / Don't alert
+            </label>
+          </div>
+          <div style="font-size:10px;color:var(--txt3);margin-top:4px">Set to 0 or check "No minimum" to disable reorder alerts for this item.</div>
+        </div>
       </div>
     </div>
     <div class="fg"><label>Unit Cost ($)</label><input type="number" id="inv-cost" min="0" step="0.01" value="0" placeholder="0.00"></div>
@@ -1699,7 +1709,7 @@ function renderDashRepairs() {
 
 function renderDashReorder() {
   const el = document.getElementById('dash-reorder');
-  const low = inventoryItems.filter(i => i.tracking_type==='bulk' && i.quantity_on_hand <= i.low_stock_threshold);
+  const low = inventoryItems.filter(i => i.tracking_type==='bulk' && i.low_stock_threshold > 0 && i.quantity_on_hand <= i.low_stock_threshold);
   if (!low.length && !reorderQueue.length) { el.innerHTML = '<div class="empty" style="padding:20px 8px"><div class="ei" style="font-size:24px">📦</div><p style="font-size:11px">Stock OK</p></div>'; return; }
   el.innerHTML = low.slice(0,3).map(i => `
     <div style="padding:8px 0;border-bottom:1px solid var(--bdr)">
@@ -1710,7 +1720,7 @@ function renderDashReorder() {
 }
 
 function renderLowStockAlerts() {
-  const low = inventoryItems.filter(i => i.tracking_type==='bulk' && i.quantity_on_hand <= i.low_stock_threshold);
+  const low = inventoryItems.filter(i => i.tracking_type==='bulk' && i.low_stock_threshold > 0 && i.quantity_on_hand <= i.low_stock_threshold);
   const el = document.getElementById('repair-alerts');
   if (!el) return;
   let alertHtml = '';
@@ -2339,7 +2349,7 @@ async function completeReturn(jobId) {
               status: item.return_condition==='lost'?'reported':'reported'
             });
             // Add to reorder queue if below threshold
-            if (inv && inv.quantity_on_hand <= inv.low_stock_threshold) {
+            if (inv && inv.low_stock_threshold > 0 && inv.quantity_on_hand <= inv.low_stock_threshold) {
               await db.from('reorder_queue').insert({
                 inventory_item_id: inv.id,
                 item_name: inv.name,
@@ -2445,7 +2455,7 @@ function togglePrefixGroup(code) {
 }
 
 function renderInvCard(item, inGroup=false) {
-  const isLow = item.tracking_type==='bulk' && item.quantity_on_hand <= item.low_stock_threshold;
+  const isLow = item.tracking_type==='bulk' && item.low_stock_threshold > 0 && item.quantity_on_hand <= item.low_stock_threshold;
   const itemAssets = assets.filter(a => a.inventory_item_id === item.id);
   const cat = categories.find(c => c.id === item.category_id);
   const border = inGroup ? 'border-bottom:1px solid var(--bdr)' : 'border:1px solid var(--bdr);border-radius:var(--r);margin-bottom:8px';
@@ -2507,7 +2517,7 @@ function renderInventory() {
       .sort((a,b) => (a.part_number||'').localeCompare(b.part_number||''));
     if (!items.length) return '';
     const isExpanded = expandedPrefixes[code] !== false;
-    const lowCount = items.filter(i => i.tracking_type==='bulk' && i.quantity_on_hand <= i.low_stock_threshold).length;
+    const lowCount = items.filter(i => i.tracking_type==='bulk' && i.low_stock_threshold > 0 && i.quantity_on_hand <= i.low_stock_threshold).length;
     return `
       <div style="margin-bottom:10px">
         <div onclick="togglePrefixGroup('${code}')" style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:var(--sur2);border:1px solid var(--bdr);border-radius:${isExpanded?'var(--r2) var(--r2) 0 0':'var(--r2)'};cursor:pointer;user-select:none">
@@ -2530,12 +2540,22 @@ function renderInventory() {
     </div>` : '');
 }
 
+function toggleNoMin(cb) {
+  const inp = document.getElementById('inv-threshold');
+  if (cb.checked) { inp.value = '0'; inp.disabled = true; inp.style.opacity = '.4'; }
+  else { inp.disabled = false; inp.style.opacity = '1'; if (!inp.value || inp.value === '0') inp.value = '2'; }
+}
+
 function openAddItem() {
   currentInvItem = null;
   document.getElementById('inv-modal-t').textContent = 'Add Inventory Item';
   ['inv-name','inv-name-es','inv-supplier','inv-supplier-url','inv-supplier-sku','inv-notes'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('inv-qty').value = '0';
   document.getElementById('inv-threshold').value = '2';
+  document.getElementById('inv-threshold').disabled = false;
+  document.getElementById('inv-threshold').style.opacity = '1';
+  const noMin = document.getElementById('inv-no-min');
+  if (noMin) { noMin.checked = false; }
   document.getElementById('inv-cost').value = '0';
   document.getElementById('inv-is-asset').checked = false;
   document.getElementById('bulk-fields').style.display = '';
@@ -2552,7 +2572,14 @@ function editInvItem(id) {
   document.getElementById('inv-name').value = item.name || '';
   document.getElementById('inv-name-es').value = item.name_es || '';
   document.getElementById('inv-qty').value = item.quantity_on_hand || 0;
-  document.getElementById('inv-threshold').value = item.low_stock_threshold || 2;
+  document.getElementById('inv-threshold').value = item.low_stock_threshold || 0;
+  const noMin = document.getElementById('inv-no-min');
+  const threshInp = document.getElementById('inv-threshold');
+  if (noMin) {
+    noMin.checked = (item.low_stock_threshold === 0 || item.low_stock_threshold == null);
+    threshInp.disabled = noMin.checked;
+    threshInp.style.opacity = noMin.checked ? '.4' : '1';
+  }
   document.getElementById('inv-cost').value = item.unit_cost || 0;
   document.getElementById('inv-supplier').value = item.supplier_name || '';
   document.getElementById('inv-supplier-url').value = item.supplier_url || '';
@@ -2608,7 +2635,7 @@ async function saveInventoryItem() {
     part_number: partNumber,
     tracking_type: isAsset ? 'asset' : 'bulk',
     quantity_on_hand: isAsset ? 0 : parseInt(document.getElementById('inv-qty').value) || 0,
-    low_stock_threshold: parseInt(document.getElementById('inv-threshold').value) || 2,
+    low_stock_threshold: document.getElementById('inv-no-min')?.checked ? 0 : (parseInt(document.getElementById('inv-threshold').value) || 0),
     unit_cost: parseFloat(document.getElementById('inv-cost').value) || 0,
     supplier_name: document.getElementById('inv-supplier').value.trim() || null,
     supplier_url: document.getElementById('inv-supplier-url').value.trim() || null,
@@ -4644,7 +4671,7 @@ function confirmRerun() {
 // ─── REORDER QUEUE ──────────────────────────────────────────
 function renderReorderQueue() {
   const el=document.getElementById('reorder-list');
-  const low=inventoryItems.filter(i=>i.tracking_type==='bulk'&&i.quantity_on_hand<=i.low_stock_threshold);
+  const low=inventoryItems.filter(i=>i.tracking_type==='bulk'&&i.low_stock_threshold>0&&i.quantity_on_hand<=i.low_stock_threshold);
   if (!low.length&&!reorderQueue.length){el.innerHTML='<div class="empty"><div class="ei">✅</div><p>All stock levels OK</p></div>';return;}
   el.innerHTML=`
     ${low.map(item=>`
