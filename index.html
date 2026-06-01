@@ -804,7 +804,30 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
       <div class="panel" id="panel-ditanks">
         <div class="sec-hdr">
           <div><div class="sec-title">DI Tanks</div><div class="sec-sub">Pair registry, assignments & PPM log</div></div>
-          <button class="btn btn-p btn-sm" onclick="openAddDIPair()">+ Add Pair</button>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-t btn-sm" onclick="enterDIScanMode()">📡 Scan</button>
+            <button class="btn btn-p btn-sm" onclick="openAddDIPair()">+ Add Pair</button>
+          </div>
+        </div>
+
+        <!-- DI SCAN MODE -->
+        <div id="di-scan-mode" style="display:none;background:var(--sur);border:2px solid var(--teal);border-radius:var(--r2);padding:14px;margin-bottom:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div style="font-size:14px;font-weight:700;color:var(--teal)">📡 Scan DI Tank Barcode</div>
+            <button class="btn btn-s btn-xs" onclick="exitDIScanMode()">✕ Exit</button>
+          </div>
+          <div style="font-size:11px;color:var(--txt2);margin-bottom:10px">
+            Scan the barcode on the physical tank. The pair will be identified and you can make changes.<br>
+            <span style="color:var(--txt3)">Escanea el código de barras en el tanque físico para identificarlo.</span>
+          </div>
+          <input type="text" id="di-scan-input"
+            placeholder="Scan barcode or type pair ID (e.g. DI-001)..."
+            style="font-size:16px;font-family:var(--mono);font-weight:700;border:2px solid var(--teal);background:var(--sur2);margin-bottom:10px"
+            oninput="autoProcessDIScan(this)"
+            onkeydown="if(event.key==='Enter')processDIScan()"
+            autocomplete="off" autofocus>
+          <div id="di-scan-feedback" style="min-height:44px;margin-bottom:10px"></div>
+          <div id="di-scan-result" style="display:none"></div>
         </div>
 
         <!-- Alerts -->
@@ -4421,6 +4444,106 @@ async function submitGrabMaterial() {
     setSyncStatus('error');
     alert('Error submitting. Check connection. / Error al enviar. Verifica la conexión.');
   }
+}
+
+// ─── DI SCAN MODE ───────────────────────────────────────────
+function enterDIScanMode() {
+  const panel = document.getElementById('di-scan-mode');
+  if (panel) panel.style.display = '';
+  document.getElementById('di-scan-feedback').innerHTML = '';
+  document.getElementById('di-scan-result').style.display = 'none';
+  document.getElementById('di-scan-result').innerHTML = '';
+  const input = document.getElementById('di-scan-input');
+  if (input) { input.value = ''; setTimeout(() => input.focus(), 100); }
+}
+
+function exitDIScanMode() {
+  document.getElementById('di-scan-mode').style.display = 'none';
+  document.getElementById('di-scan-input').value = '';
+  document.getElementById('di-scan-feedback').innerHTML = '';
+  document.getElementById('di-scan-result').style.display = 'none';
+}
+
+function autoProcessDIScan(input) {
+  clearTimeout(input._t);
+  if (input.value.trim().length >= 3) {
+    input._t = setTimeout(() => { if (input.value.trim()) processDIScan(); }, 80);
+  }
+}
+
+function processDIScan() {
+  const input = document.getElementById('di-scan-input');
+  const raw = input.value.trim().toUpperCase().replace(/[\n\r]/g,'');
+  if (!raw) return;
+
+  const pairs = getDIPairs();
+  const pair = pairs.find(p => p.id.toUpperCase() === raw);
+
+  if (!pair) {
+    showDIScanFeedback('error', `⚠ Unknown pair: ${raw} — not in registry`);
+    beep('error');
+    input.value = '';
+    input.focus();
+    return;
+  }
+
+  showDIScanFeedback('success', `✓ Found: ${pair.id}`);
+  beep('success');
+  input.value = '';
+
+  // Show pair detail card with action buttons
+  const ppmColor = pair.last_ppm == null ? 'var(--txt3)' : pair.last_ppm >= DI_PPM_ALERT ? 'var(--red)' : pair.last_ppm >= 15 ? 'var(--amb)' : 'var(--grn)';
+  const statusColor = pair.status === 'deployed' ? 'var(--blue)' : pair.status === 'stock' ? 'var(--grn)' : 'var(--txt3)';
+  const resultEl = document.getElementById('di-scan-result');
+  resultEl.style.display = '';
+  resultEl.innerHTML = `
+    <div style="background:var(--sur2);border:2px solid var(--teal);border-radius:var(--r2);padding:14px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <span style="font-size:28px">💧</span>
+        <div style="flex:1">
+          <div style="font-weight:900;font-size:18px;font-family:var(--mono);color:var(--acc)">${pair.id}</div>
+          <div style="font-size:12px;color:var(--txt2)">
+            <span style="color:${statusColor};font-weight:700">${pair.status.toUpperCase()}</span>
+            ${pair.vehicle ? ` · 🚗 ${pair.vehicle}` : ''}
+            ${pair.resin ? ` · ${pair.resin}` : ''}
+          </div>
+          <div style="font-size:12px;color:${ppmColor};font-weight:700;margin-top:3px">
+            Last PPM: ${pair.last_ppm ?? 'No readings yet'}
+            ${pair.last_read ? ` · ${fd(pair.last_read)}` : ''}
+          </div>
+        </div>
+      </div>
+      <div style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">What would you like to do?</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        ${pair.status==='deployed'?`
+          <button class="btn btn-p btn-sm" onclick="exitDIScanMode();openDISwap('${pair.id}')">🔄 Swap Pair</button>
+          <button class="btn btn-s btn-sm" onclick="exitDIScanMode();openDIMove('${pair.id}')">🚛 Move Pair</button>
+        `:''}
+        ${pair.status==='stock'?`
+          <button class="btn btn-g btn-sm" onclick="exitDIScanMode();deployDIPair('${pair.id}')">🚛 Deploy</button>
+        `:''}
+        <button class="btn btn-s btn-sm" onclick="exitDIScanMode();openDIEdit('${pair.id}')">✏ Edit Details</button>
+        <button class="btn btn-t btn-sm" onclick="printDILabel('${pair.id}','${esc(pair.vehicle||'')}','${esc(pair.resin||'')}')">🏷 Print Label</button>
+        ${pair.status!=='retired'?`<button class="btn btn-r btn-sm" onclick="exitDIScanMode();retireDIPair('${pair.id}')">Retire</button>`:''}
+        <button class="btn btn-s btn-sm" onclick="exitDIScanMode()">Cancel</button>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--txt3);text-align:center">Scan another barcode to identify a different pair</div>
+  `;
+  // Keep input focused for next scan
+  setTimeout(() => input.focus(), 100);
+}
+
+function showDIScanFeedback(type, msg) {
+  const el = document.getElementById('di-scan-feedback');
+  const colors = {
+    success: {bg:'var(--grn-dim)',border:'rgba(52,211,153,.3)',color:'var(--grn)'},
+    error:   {bg:'var(--red-dim)',border:'rgba(248,113,113,.3)',color:'var(--red)'}
+  };
+  const c = colors[type];
+  el.innerHTML = `<div style="padding:10px 14px;background:${c.bg};border:1px solid ${c.border};border-radius:9px;font-size:13px;font-weight:700;color:${c.color}">${msg}</div>`;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.innerHTML = '', 3000);
 }
 
 // ─── DI TANKS ────────────────────────────────────────────────
