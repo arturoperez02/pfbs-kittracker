@@ -437,6 +437,9 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
       <div class="sync-indicator">
         <div class="sync-dot" id="sync-dot"></div>
         <span id="sync-label">live</span>
+        <button onclick="manualSync()" id="sync-btn" title="Sync now / Sincronizar"
+          style="background:none;border:none;cursor:pointer;padding:0 2px;color:var(--txt3);font-size:13px;line-height:1;transition:transform .4s"
+          onmouseover="this.style.color='var(--acc)'" onmouseout="this.style.color='var(--txt3)'">🔄</button>
       </div>
       <div class="mode-pill tech" id="mode-pill">Tech View</div>
     </div>
@@ -1683,9 +1686,24 @@ const closeModal = id => document.getElementById(id).classList.remove('open');
 function setSyncStatus(s) {
   const dot = document.getElementById('sync-dot');
   const lbl = document.getElementById('sync-label');
-  if (s === 'syncing') { dot.className = 'sync-dot syncing'; lbl.textContent = 'syncing'; }
-  else if (s === 'error') { dot.className = 'sync-dot error'; lbl.textContent = 'offline'; }
-  else { dot.className = 'sync-dot'; lbl.textContent = 'live'; }
+  const btn = document.getElementById('sync-btn');
+  if (s === 'syncing') {
+    dot.className = 'sync-dot syncing'; lbl.textContent = 'syncing';
+    if (btn) btn.style.transform = 'rotate(360deg)';
+  } else if (s === 'error') {
+    dot.className = 'sync-dot error'; lbl.textContent = 'offline';
+    if (btn) btn.style.transform = '';
+  } else {
+    dot.className = 'sync-dot'; lbl.textContent = 'live';
+    if (btn) btn.style.transform = '';
+  }
+}
+
+async function manualSync() {
+  const btn = document.getElementById('sync-btn');
+  if (btn) btn.style.transform = 'rotate(360deg)';
+  await loadAll();
+  if (btn) setTimeout(() => btn.style.transform = '', 500);
 }
 
 // ─── DATA LOADING ───────────────────────────────────────────
@@ -1721,6 +1739,13 @@ async function loadAll() {
     reorderQueue = rqRes.data || [];
     categories = cRes.data || [];
     clientKeys = kRes.data || [];
+    // Load DI pairs separately — safe, won't crash if table missing
+    loadDIPairs().catch(() => {});
+    // Load all synced data safely
+    loadAllSettings().catch(() => {});
+    loadInspectionsFromSupabase().catch(() => {});
+    loadGrabRequestsFromSupabase().catch(() => {});
+    loadTplRequestsFromSupabase().catch(() => {});
     // key_registry loaded separately above — already saved to localStorage
     // Also load active picked_up jobs
     const pickRes = await db.from('jobs').select('*, job_items(*)').eq('status','picked_up');
@@ -1904,7 +1929,7 @@ function savePin() {
   const np=document.getElementById('cp-new').value.trim(), cp=document.getElementById('cp-confirm').value.trim();
   if (np.length<4||np.length>6||!/^\d+$/.test(np)) { document.getElementById('cp-err').textContent='PIN must be 4–6 digits.'; return; }
   if (np!==cp) { document.getElementById('cp-err').textContent='PINs do not match.'; return; }
-  localStorage.setItem('kt_pin',np); closeModal('change-pin-modal'); alert('PIN changed!');
+  localStorage.setItem('kt_pin',np); syncSettingToSupabase('kt_pin',np); closeModal('change-pin-modal'); alert('PIN changed!');
 }
 function lockWarehouse() { clearTimeout(autoLockTimer); setMode('tech'); }
 function resetAutoLock() {
@@ -1943,8 +1968,8 @@ function nav(id) {
   if (id==='rentals') renderRentals();
   if (id==='reorder') renderReorderQueue();
   if (id==='keys') renderKeysPanel();
-  if (id==='inspections') renderInspList();
-  if (id==='ditanks') renderDIPanel();
+  if (id==='inspections') { loadInspectionsFromSupabase().then(() => renderInspList()); }
+  if (id==='ditanks') { loadDIPairs().then(() => renderDIPanel()); }
   if (id==='dashboard') refresh();
 }
 
@@ -2714,6 +2739,7 @@ function getPrefixList() {
 }
 function savePrefixList(list) {
   localStorage.setItem('kt_prefix_list', JSON.stringify(list));
+  syncSettingToSupabase('kt_prefix_list', list);
 }
 
 function fillPrefixSelect(selectedCode) {
@@ -3064,6 +3090,73 @@ async function saveAsset() {
   } catch(e){ setSyncStatus('error'); alert('Error saving asset. Tag may already exist.'); }
 }
 
+// ─── SUPABASE SETTINGS SYNC ──────────────────────────────────
+async function syncSettingToSupabase(key, value) {
+  try {
+    await db.from('app_settings').upsert({ key, value: JSON.stringify(value), updated_at: new Date().toISOString() }, { onConflict: 'key' });
+  } catch(e) { console.warn('Settings sync:', key, e.message); }
+}
+
+async function loadAllSettings() {
+  try {
+    const { data } = await db.from('app_settings').select('*');
+    if (!data) return;
+    data.forEach(row => {
+      try {
+        const val = JSON.parse(row.value);
+        const str = typeof val === 'string' ? val : JSON.stringify(val);
+        if (['kt_company','kt_pin','kt_autolock'].includes(row.key)) localStorage.setItem(row.key, str);
+        else localStorage.setItem(row.key, JSON.stringify(val));
+      } catch(e) {}
+    });
+  } catch(e) { console.warn('Settings load:', e.message); }
+}
+
+// ─── INSPECTIONS SYNC ────────────────────────────────────────
+async function loadInspectionsFromSupabase() {
+  try {
+    const { data } = await db.from('inspections').select('*').order('created_at', { ascending: true });
+    if (data) {
+      const mapped = data.map(i => ({ id: i.id, name: i.name, serial: i.serial, lastDate: i.last_date, interval: String(i.interval_days||365), notes: i.notes||'' }));
+      localStorage.setItem('kt_insp', JSON.stringify(mapped));
+    }
+  } catch(e) { console.warn('Inspections load:', e.message); }
+}
+async function saveInspectionToSupabase(item) {
+  try { await db.from('inspections').upsert({ id: item.id, name: item.name, serial: item.serial||null, last_date: item.lastDate||null, interval_days: parseInt(item.interval)||365, notes: item.notes||null, updated_at: new Date().toISOString() }, { onConflict: 'id' }); } catch(e) { console.warn('Inspection save:', e.message); }
+}
+async function deleteInspectionFromSupabase(id) {
+  try { await db.from('inspections').delete().eq('id', id); } catch(e) {}
+}
+
+// ─── GRAB REQUESTS SYNC ──────────────────────────────────────
+async function loadGrabRequestsFromSupabase() {
+  try {
+    const { data } = await db.from('grab_requests').select('*').order('timestamp', { ascending: false }).limit(50);
+    if (data) localStorage.setItem('kt_grabs', JSON.stringify(data));
+  } catch(e) { console.warn('Grab load:', e.message); }
+}
+async function saveGrabRequestToSupabase(req) {
+  try { await db.from('grab_requests').upsert({ id: req.id, tech_name: req.tech_name, job: req.job||null, reason: req.reason||null, items: req.items, note: req.note||null, timestamp: req.timestamp, acknowledged: req.acknowledged||false }, { onConflict: 'id' }); } catch(e) { console.warn('Grab save:', e.message); }
+}
+async function acknowledgeGrabsInSupabase() {
+  try { await db.from('grab_requests').update({ acknowledged: true }).eq('acknowledged', false); } catch(e) {}
+}
+
+// ─── TEMPLATE REQUESTS SYNC ──────────────────────────────────
+async function loadTplRequestsFromSupabase() {
+  try {
+    const { data } = await db.from('template_requests').select('*').order('timestamp', { ascending: false }).limit(50);
+    if (data) localStorage.setItem('kt_tpl_requests', JSON.stringify(data));
+  } catch(e) { console.warn('Tpl requests load:', e.message); }
+}
+async function saveTplRequestToSupabase(req) {
+  try { await db.from('template_requests').upsert({ id: req.id, type: req.type||'template_change', job_id: req.job_id||null, job_num: req.job_num||null, job_type: req.job_type||null, requested_by: req.requested_by||null, items: req.items||[], note: req.note||null, timestamp: req.timestamp, status: req.status||'pending' }, { onConflict: 'id' }); } catch(e) { console.warn('Tpl request save:', e.message); }
+}
+async function updateTplRequestStatusInSupabase(id, status) {
+  try { await db.from('template_requests').update({ status }).eq('id', id); } catch(e) {}
+}
+
 // ─── COMPANY & SETTINGS ────────────────────────────────────
 function getCompanyName() {
   return localStorage.getItem('kt_company') || 'PF Building Services';
@@ -3072,6 +3165,7 @@ function settingsSaveCompany() {
   const v = document.getElementById('s-company').value.trim();
   if (!v) { alert('Enter company name.'); return; }
   localStorage.setItem('kt_company', v);
+  syncSettingToSupabase('kt_company', v);
   alert('✓ Company name saved!');
 }
 
@@ -3081,6 +3175,7 @@ function getVehicles() {
 }
 function saveVehicles(list) {
   localStorage.setItem('kt_vehicles', JSON.stringify(list));
+  syncSettingToSupabase('kt_vehicles', list);
 }
 function fillVehicleSelect() {
   const vehicles = getVehicles();
@@ -3212,7 +3307,7 @@ function settingsSavePin() {
 
 function settingsSaveAutoLock() {
   const v = parseInt(document.getElementById('s-autolock').value);
-  localStorage.setItem('kt_autolock', String(v));
+  localStorage.setItem('kt_autolock', String(v)); syncSettingToSupabase('kt_autolock', String(v));
   resetAutoLock();
   document.getElementById('lock-timer').textContent = v === 0 ? 'Manual lock only' : v < 3600000 ? `Auto-locks in ${v/60000}min` : `Auto-locks in ${v/3600000}h`;
   alert('✓ Auto-lock saved!');
@@ -4107,6 +4202,8 @@ function getTplChangeRequests() {
 }
 function saveTplChangeRequests(list) {
   localStorage.setItem('kt_tpl_requests', JSON.stringify(list));
+  // Sync new/updated items
+  list.forEach(req => saveTplRequestToSupabase(req));
 }
 
 function toggleTemplateRequest() {
@@ -4433,6 +4530,7 @@ async function submitGrabMaterial() {
     };
     grabs.unshift(entry);
     localStorage.setItem('kt_grabs', JSON.stringify(grabs.slice(0, 50)));
+    saveGrabRequestToSupabase(entry);
 
     closeModal('grab-modal');
     setSyncStatus('ok');
@@ -4549,10 +4647,48 @@ function showDIScanFeedback(type, msg) {
 // ─── DI TANKS ────────────────────────────────────────────────
 const DI_PPM_ALERT = 25;
 
+// DI Pairs — Supabase with localStorage cache
 function getDIPairs() { return JSON.parse(localStorage.getItem('kt_di_pairs') || '[]'); }
-function saveDIPairs(p) { localStorage.setItem('kt_di_pairs', JSON.stringify(p)); }
 function getDIReadings() { return JSON.parse(localStorage.getItem('kt_di_readings') || '[]'); }
-function saveDIReadings(r) { localStorage.setItem('kt_di_readings', JSON.stringify(r)); }
+
+async function loadDIPairs() {
+  try {
+    const { data } = await db.from('di_pairs').select('*').order('created_at', { ascending: true });
+    if (data) localStorage.setItem('kt_di_pairs', JSON.stringify(data));
+    const { data: readings } = await db.from('di_readings').select('*').order('timestamp', { ascending: false }).limit(50);
+    if (readings) localStorage.setItem('kt_di_readings', JSON.stringify(readings));
+  } catch(e) { console.warn('DI pairs load error:', e); }
+}
+
+async function saveDIPairs(pairs) {
+  localStorage.setItem('kt_di_pairs', JSON.stringify(pairs));
+  // Sync each pair to Supabase
+  try {
+    for (const p of pairs) {
+      await db.from('di_pairs').upsert({
+        id: p.id, resin: p.resin||null, date_received: p.date_received||null,
+        status: p.status||'stock', vehicle: p.vehicle||null, notes: p.notes||null,
+        last_ppm: p.last_ppm??null, last_read: p.last_read||null,
+        deployed_at: p.deployed_at||null, retired_at: p.retired_at||null,
+        move_history: p.move_history||[], updated_at: new Date().toISOString()
+      }, { onConflict: 'id' });
+    }
+  } catch(e) { console.warn('DI pairs save error:', e); }
+}
+
+function saveDIReadings(readings) {
+  localStorage.setItem('kt_di_readings', JSON.stringify(readings));
+}
+
+async function saveDIReadingToSupabase(reading) {
+  try {
+    await db.from('di_readings').insert({
+      id: reading.id, pair_id: reading.pair_id, tech_name: reading.tech_name,
+      vehicle: reading.vehicle||null, ppm: reading.ppm, notes: reading.notes||null,
+      alert: reading.alert||false, timestamp: reading.timestamp
+    });
+  } catch(e) { console.warn('DI reading save error:', e); }
+}
 
 function openDIForm() {
   fillDIVehicleDropdowns();
@@ -4630,8 +4766,9 @@ function submitDIReading() {
   };
   readings.unshift(reading);
   saveDIReadings(readings);
+  saveDIReadingToSupabase(reading);
 
-  // Update pair's last PPM
+  // Update pair's last PPM in Supabase
   const pairs = getDIPairs();
   const pair = pairs.find(p => p.id === pairId);
   if (pair) { pair.last_ppm = ppm; pair.last_read = new Date().toISOString(); saveDIPairs(pairs); }
@@ -4921,9 +5058,15 @@ let inspItems = [];
 function loadInspItems() {
   inspItems = JSON.parse(localStorage.getItem('kt_insp') || '[]');
 }
+async function syncInspItems() {
+  await loadInspectionsFromSupabase();
+  inspItems = JSON.parse(localStorage.getItem('kt_insp') || '[]');
+}
 
 function saveInspItems() {
   localStorage.setItem('kt_insp', JSON.stringify(inspItems));
+  // Sync all to Supabase
+  inspItems.forEach(item => saveInspectionToSupabase(item));
 }
 
 function inspStatus(item) {
@@ -5037,8 +5180,10 @@ function markInspDone(i) {
 function deleteInsp(i) {
   if (!confirm('Remove this item?')) return;
   loadInspItems();
+  const item = inspItems[i];
   inspItems.splice(i, 1);
   saveInspItems();
+  if (item && item.id) deleteInspectionFromSupabase(item.id);
   renderInspList();
 }
 
@@ -5081,6 +5226,7 @@ function openGrabLog() {
     const all = JSON.parse(localStorage.getItem('kt_grabs') || '[]');
     all.forEach(g => g.acknowledged = true);
     localStorage.setItem('kt_grabs', JSON.stringify(all));
+    acknowledgeGrabsInSupabase();
     renderInspAlerts();
   }
 }
@@ -6575,7 +6721,7 @@ document.getElementById('co-date').value=today();
 setMode('tech');
 loadAll();
 loadTechRoster();
-setInterval(loadAll, 90000); // refresh every 90 seconds
+setInterval(loadAll, 30000); // Refresh every 30 seconds — keeps all devices in sync // refresh every 90 seconds
 </script>
 </body>
 </html>
