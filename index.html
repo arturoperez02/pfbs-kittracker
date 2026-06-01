@@ -1413,7 +1413,13 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
     <div class="modal-handle"></div>
     <div class="modal-t"><span>💧 DI Tank Reading / Lectura PPM</span><button class="xbtn" onclick="closeModal('di-form-modal')">✕</button></div>
     <div class="info-b" style="margin-bottom:14px">Only submit when DI tanks were used today.<br><span style="color:var(--txt3)">Solo enviar si se usaron los tanques DI hoy.</span></div>
-    <div class="fg"><label>Your Name / Tu Nombre</label><input type="text" id="di-tech-name" placeholder="Enter your name..."></div>
+    <div class="fg"><label>Your Name / Tu Nombre</label>
+      <div style="position:relative">
+        <input type="text" id="di-tech-name" placeholder="Type or select your name..."
+          oninput="searchDITechRoster(this)" autocomplete="off">
+        <div id="di-tech-dd" style="display:none;position:fixed;background:var(--sur);border:2px solid var(--acc);border-radius:0 0 9px 9px;z-index:99999;max-height:180px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.6)"></div>
+      </div>
+    </div>
     <div class="fg"><label>Vehicle / Vehículo</label>
       <select id="di-vehicle-sel" onchange="onDIVehicleChange(this.value)">
         <option value="">— select your vehicle —</option>
@@ -1457,12 +1463,47 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
         <option value="deployed">Deployed (on truck)</option>
       </select>
     </div>
-    <div class="fg"><label>Assigned Vehicle (if deployed)</label><input type="text" id="dip-vehicle" placeholder="Truck #, Van #..."></div>
+    <div class="fg"><label>Assigned Vehicle (if deployed)</label>
+      <select id="dip-vehicle-sel" onchange="document.getElementById('dip-vehicle').value=this.value" style="margin-bottom:6px">
+        <option value="">— select vehicle —</option>
+      </select>
+      <input type="text" id="dip-vehicle" placeholder="Or type vehicle name...">
+    </div>
     <div class="fg"><label>Notes</label><input type="text" id="dip-notes" placeholder="Vendor, batch, notes..."></div>
     <hr>
     <div style="display:flex;gap:8px">
       <button class="btn btn-s" style="flex:1" onclick="closeModal('di-add-pair-modal')">Cancel</button>
       <button class="btn btn-p" style="flex:1" onclick="saveDIPair()">Add Pair</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT DI PAIR MODAL -->
+<div class="ov" id="di-edit-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-t"><span>✏ Edit DI Pair</span><button class="xbtn" onclick="closeModal('di-edit-modal')">✕</button></div>
+    <input type="hidden" id="di-edit-id">
+    <div class="fg"><label>Pair ID</label><input type="text" id="di-edit-pair-id" placeholder="DI-001..."></div>
+    <div class="fg"><label>Resin Type</label><input type="text" id="di-edit-resin" placeholder="Standard, Premium..."></div>
+    <div class="fg"><label>Status</label>
+      <select id="di-edit-status">
+        <option value="stock">In Stock</option>
+        <option value="deployed">Deployed</option>
+        <option value="retired">Retired</option>
+      </select>
+    </div>
+    <div class="fg"><label>Assigned Vehicle</label>
+      <select id="di-edit-vehicle-sel" onchange="document.getElementById('di-edit-vehicle').value=this.value" style="margin-bottom:6px">
+        <option value="">— select vehicle —</option>
+      </select>
+      <input type="text" id="di-edit-vehicle" placeholder="Or type vehicle name...">
+    </div>
+    <div class="fg"><label>Notes</label><input type="text" id="di-edit-notes" placeholder="Notes..."></div>
+    <hr>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="flex:1" onclick="closeModal('di-edit-modal')">Cancel</button>
+      <button class="btn btn-p" style="flex:1" onclick="saveDIPairEdit()">Save Changes</button>
     </div>
   </div>
 </div>
@@ -1496,15 +1537,48 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-t"><span>🔄 Swap DI Pair</span><button class="xbtn" onclick="closeModal('di-swap-modal')">✕</button></div>
-    <div class="info-b" style="margin-bottom:14px">Retire the old pair and deploy a fresh one from stock.</div>
+    <div class="info-b" style="margin-bottom:14px">Retire the old pair and deploy a replacement.</div>
     <input type="hidden" id="di-swap-old-id">
-    <div class="fg"><label>Retiring Pair</label><div id="di-swap-old-label" style="font-weight:700;color:var(--red);font-family:var(--mono);padding:10px;background:var(--sur2);border-radius:8px"></div></div>
-    <div class="fg"><label>New Pair from Stock</label>
-      <select id="di-swap-new-sel">
-        <option value="">— select replacement —</option>
-      </select>
+
+    <!-- Retiring pair -->
+    <div class="fg"><label>Retiring Pair</label>
+      <div id="di-swap-old-label" style="font-weight:700;color:var(--red);font-family:var(--mono);padding:10px;background:var(--sur2);border-radius:8px"></div>
     </div>
-    <div class="fg"><label>Vehicle</label><input type="text" id="di-swap-vehicle" placeholder="Truck #..."></div>
+
+    <!-- Source toggle -->
+    <div class="fg"><label>Replacement Source</label>
+      <div style="display:flex;gap:6px">
+        <button id="di-swap-from-stock-btn" class="btn btn-p btn-sm active-cond" style="flex:1" onclick="toggleSwapSource('stock')">📦 From Stock</button>
+        <button id="di-swap-new-btn" class="btn btn-s btn-sm" style="flex:1" onclick="toggleSwapSource('new')">✨ Create New Pair</button>
+      </div>
+    </div>
+
+    <!-- From stock -->
+    <div id="di-swap-stock-section">
+      <div class="fg"><label>New Pair from Stock</label>
+        <select id="di-swap-new-sel">
+          <option value="">— select replacement —</option>
+        </select>
+        <div id="di-swap-no-stock" style="display:none;font-size:11px;color:var(--amb);margin-top:4px">⚠ No pairs in stock — use "Create New Pair" instead.</div>
+      </div>
+    </div>
+
+    <!-- Create new -->
+    <div id="di-swap-new-section" style="display:none;background:var(--sur2);border-radius:9px;padding:12px;margin-bottom:10px">
+      <div style="font-size:11px;font-weight:700;color:var(--acc);margin-bottom:10px;text-transform:uppercase">New Pair Details</div>
+      <div class="fg"><label>Pair ID</label><input type="text" id="di-swap-new-id" placeholder="Auto-generated..." style="font-family:var(--mono);font-weight:700"></div>
+      <div class="fg"><label>Resin Type</label><input type="text" id="di-swap-new-resin" placeholder="Standard, Premium..."></div>
+      <div class="fg"><label>Date Received</label><input type="date" id="di-swap-new-date"></div>
+      <div class="fg"><label>Notes</label><input type="text" id="di-swap-new-notes" placeholder="Vendor, batch..."></div>
+    </div>
+
+    <!-- Vehicle -->
+    <div class="fg"><label>Deploy to Vehicle</label>
+      <select id="di-swap-vehicle-sel" onchange="document.getElementById('di-swap-vehicle').value=this.value" style="margin-bottom:6px">
+        <option value="">— select vehicle —</option>
+      </select>
+      <input type="text" id="di-swap-vehicle" placeholder="Or type vehicle name...">
+    </div>
     <hr>
     <div style="display:flex;gap:8px">
       <button class="btn btn-s" style="flex:1" onclick="closeModal('di-swap-modal')">Cancel</button>
@@ -3573,6 +3647,78 @@ async function undoReturn(jobId) {
   }
 }
 
+function searchDITechRoster(input) {
+  const q = (input.value || '').toLowerCase();
+  const dd = document.getElementById('di-tech-dd');
+  if (!dd || !_techRoster.length) return;
+  const filtered = _techRoster.filter(t => t.toLowerCase().includes(q));
+  if (!filtered.length) { dd.style.display = 'none'; return; }
+  const rect = input.getBoundingClientRect();
+  dd.style.top = rect.bottom + 'px';
+  dd.style.left = rect.left + 'px';
+  dd.style.width = rect.width + 'px';
+  dd.style.display = '';
+  dd.innerHTML = filtered.map(t => `
+    <div onmousedown="event.preventDefault();document.getElementById('di-tech-name').value='${t.replace(/'/g,"\\'")}';document.getElementById('di-tech-dd').style.display='none'"
+      style="padding:11px 14px;cursor:pointer;font-size:13px;font-weight:600;border-bottom:1px solid var(--bdr)"
+      onmouseover="this.style.background='var(--sur2)'" onmouseout="this.style.background=''">
+      👷 ${t}
+    </div>`).join('');
+  setTimeout(() => {
+    document.addEventListener('click', function closeIt(e) {
+      if (!dd.contains(e.target) && e.target !== input) {
+        dd.style.display = 'none';
+        document.removeEventListener('click', closeIt);
+      }
+    });
+  }, 100);
+}
+
+function fillDIVehicleDropdowns() {
+  const vehicles = getVehicles();
+  const deployedVehicles = [...new Set(getDIPairs().filter(p => p.vehicle).map(p => p.vehicle))];
+  const all = [...new Set([...vehicles, ...deployedVehicles])];
+  const opts = '<option value="">— select vehicle —</option>' + all.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+  ['dip-vehicle-sel','di-edit-vehicle-sel','di-swap-vehicle'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.tagName === 'SELECT') el.innerHTML = opts;
+  });
+}
+
+function openDIEdit(pairId) {
+  const pairs = getDIPairs();
+  const pair = pairs.find(p => p.id === pairId);
+  if (!pair) return;
+  fillDIVehicleDropdowns();
+  document.getElementById('di-edit-id').value = pairId;
+  document.getElementById('di-edit-pair-id').value = pair.id;
+  document.getElementById('di-edit-resin').value = pair.resin || '';
+  document.getElementById('di-edit-status').value = pair.status || 'stock';
+  document.getElementById('di-edit-vehicle').value = pair.vehicle || '';
+  document.getElementById('di-edit-notes').value = pair.notes || '';
+  const vSel = document.getElementById('di-edit-vehicle-sel');
+  if (vSel && pair.vehicle) vSel.value = pair.vehicle;
+  document.getElementById('di-edit-modal').classList.add('open');
+}
+
+function saveDIPairEdit() {
+  const origId = document.getElementById('di-edit-id').value;
+  const pairs = getDIPairs();
+  const idx = pairs.findIndex(p => p.id === origId);
+  if (idx === -1) return;
+  pairs[idx] = {
+    ...pairs[idx],
+    id: document.getElementById('di-edit-pair-id').value.trim() || origId,
+    resin: document.getElementById('di-edit-resin').value.trim(),
+    status: document.getElementById('di-edit-status').value,
+    vehicle: document.getElementById('di-edit-vehicle').value.trim(),
+    notes: document.getElementById('di-edit-notes').value.trim()
+  };
+  saveDIPairs(pairs);
+  closeModal('di-edit-modal');
+  renderDIPanel();
+}
+
 function openDIMove(pairId) {
   const pairs = getDIPairs();
   const pair = pairs.find(p => p.id === pairId);
@@ -4278,6 +4424,8 @@ function getDIReadings() { return JSON.parse(localStorage.getItem('kt_di_reading
 function saveDIReadings(r) { localStorage.setItem('kt_di_readings', JSON.stringify(r)); }
 
 function openDIForm() {
+  fillDIVehicleDropdowns();
+  if (!_techRoster.length) loadTechRoster();
   // Get tech's name and find their active job to determine vehicle
   const techName = (document.getElementById('tech-name')?.value || '').trim().toLowerCase();
   const activeJob = jobs.find(j =>
@@ -4368,6 +4516,7 @@ function submitDIReading() {
 }
 
 function openAddDIPair() {
+  fillDIVehicleDropdowns();
   // Auto-generate next pair ID
   const pairs = getDIPairs();
   const nums = pairs.map(p => parseInt((p.id||'').replace(/\D/g,''))).filter(n => !isNaN(n));
@@ -4401,34 +4550,101 @@ function saveDIPair() {
   renderDIPanel();
 }
 
+function toggleSwapSource(mode) {
+  const stockSection = document.getElementById('di-swap-stock-section');
+  const newSection = document.getElementById('di-swap-new-section');
+  const stockBtn = document.getElementById('di-swap-from-stock-btn');
+  const newBtn = document.getElementById('di-swap-new-btn');
+  if (mode === 'stock') {
+    stockSection.style.display = '';
+    newSection.style.display = 'none';
+    stockBtn.classList.add('active-cond'); stockBtn.classList.replace('btn-s','btn-p');
+    newBtn.classList.remove('active-cond'); newBtn.classList.replace('btn-p','btn-s');
+  } else {
+    stockSection.style.display = 'none';
+    newSection.style.display = '';
+    newBtn.classList.add('active-cond'); newBtn.classList.replace('btn-s','btn-p');
+    stockBtn.classList.remove('active-cond'); stockBtn.classList.replace('btn-p','btn-s');
+    // Auto-generate new pair ID
+    const pairs = getDIPairs();
+    const nums = pairs.map(p => parseInt((p.id||'').replace(/\D/g,''))).filter(n => !isNaN(n));
+    const next = nums.length ? Math.max(...nums) + 1 : 1;
+    document.getElementById('di-swap-new-id').value = 'DI-' + String(next).padStart(3,'0');
+    document.getElementById('di-swap-new-date').value = today();
+  }
+}
+
 function openDISwap(pairId) {
   const pairs = getDIPairs();
   const old = pairs.find(p => p.id === pairId);
   if (!old) return;
+  fillDIVehicleDropdowns();
   document.getElementById('di-swap-old-id').value = pairId;
   document.getElementById('di-swap-old-label').textContent = `${old.id}${old.vehicle?' — '+old.vehicle:''} (Last PPM: ${old.last_ppm ?? '--'})`;
-  document.getElementById('di-swap-vehicle').value = old.vehicle || '';
+  // Set vehicle
+  const vSel = document.getElementById('di-swap-vehicle-sel');
+  const vInp = document.getElementById('di-swap-vehicle');
+  if (vSel && old.vehicle) vSel.value = old.vehicle;
+  if (vInp) vInp.value = old.vehicle || '';
+  // Fill stock pairs dropdown
   const stock = pairs.filter(p => p.status === 'stock');
   const sel = document.getElementById('di-swap-new-sel');
   sel.innerHTML = '<option value="">— select replacement —</option>' +
     stock.map(p => `<option value="${p.id}">${p.id}${p.resin?' — '+p.resin:''}</option>`).join('');
+  const noStock = document.getElementById('di-swap-no-stock');
+  if (noStock) noStock.style.display = stock.length ? 'none' : '';
+  // Reset to stock mode
+  toggleSwapSource('stock');
   document.getElementById('di-swap-modal').classList.add('open');
 }
 
 function confirmDISwap() {
   const oldId = document.getElementById('di-swap-old-id').value;
-  const newId = document.getElementById('di-swap-new-sel').value;
-  const vehicle = document.getElementById('di-swap-vehicle').value.trim();
-  if (!newId) { alert('Select a replacement pair from stock.'); return; }
+  const vehicle = document.getElementById('di-swap-vehicle').value.trim() ||
+                  document.getElementById('di-swap-vehicle-sel')?.value || '';
   const pairs = getDIPairs();
   const old = pairs.find(p => p.id === oldId);
-  const fresh = pairs.find(p => p.id === newId);
-  if (old) { old.status = 'retired'; old.retired_at = new Date().toISOString(); }
-  if (fresh) { fresh.status = 'deployed'; fresh.vehicle = vehicle; fresh.deployed_at = new Date().toISOString(); }
-  saveDIPairs(pairs);
-  closeModal('di-swap-modal');
-  renderDIPanel();
-  alert(`✓ Swap complete!\n${oldId} → Retired\n${newId} → Deployed on ${vehicle||'--'}`);
+  if (!old) return;
+
+  const isNewMode = document.getElementById('di-swap-new-section').style.display !== 'none';
+
+  if (isNewMode) {
+    // Create brand new pair
+    const newId = document.getElementById('di-swap-new-id').value.trim();
+    if (!newId) { alert('Enter a pair ID for the new pair.'); return; }
+    if (pairs.find(p => p.id === newId)) { alert(`Pair ${newId} already exists. Choose a different ID.`); return; }
+    // Retire old
+    old.status = 'retired';
+    old.retired_at = new Date().toISOString();
+    // Add new pair as deployed
+    pairs.push({
+      id: newId,
+      resin: document.getElementById('di-swap-new-resin').value.trim(),
+      date_received: document.getElementById('di-swap-new-date').value,
+      notes: document.getElementById('di-swap-new-notes').value.trim(),
+      status: 'deployed',
+      vehicle,
+      deployed_at: new Date().toISOString(),
+      last_ppm: null,
+      last_read: null
+    });
+    saveDIPairs(pairs);
+    closeModal('di-swap-modal');
+    renderDIPanel();
+    alert(`✓ Swap complete!\n${oldId} → Retired\n${newId} → Deployed on ${vehicle||'--'}`);
+  } else {
+    // From stock
+    const newId = document.getElementById('di-swap-new-sel').value;
+    if (!newId) { alert('Select a replacement pair from stock, or switch to "Create New Pair".'); return; }
+    const fresh = pairs.find(p => p.id === newId);
+    old.status = 'retired';
+    old.retired_at = new Date().toISOString();
+    if (fresh) { fresh.status = 'deployed'; fresh.vehicle = vehicle; fresh.deployed_at = new Date().toISOString(); }
+    saveDIPairs(pairs);
+    closeModal('di-swap-modal');
+    renderDIPanel();
+    alert(`✓ Swap complete!\n${oldId} → Retired\n${newId} → Deployed on ${vehicle||'--'}`);
+  }
 }
 
 function retireDIPair(pairId) {
@@ -4488,6 +4704,7 @@ function renderDIPanel() {
             <button class="btn btn-p btn-xs" onclick="openDISwap('${p.id}')">🔄 Swap</button>
             <button class="btn btn-s btn-xs" onclick="openDIMove('${p.id}')">🚛 Move</button>`:''}
           ${p.status==='stock'?`<button class="btn btn-g btn-xs" onclick="deployDIPair('${p.id}')">Deploy</button>`:''}
+          <button class="btn btn-s btn-xs" onclick="openDIEdit('${p.id}')">✏ Edit</button>
           <button class="btn btn-r btn-xs" onclick="retireDIPair('${p.id}')">Retire</button>
         </div>
       </div>`;
