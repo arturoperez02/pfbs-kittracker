@@ -445,7 +445,7 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
   <div class="scroll"><div class="inner">
     <!-- MODE SELECTOR -->
     <div class="mode-sel">
-      <button class="mode-opt tech active" id="btn-tech" onclick="setMode('tech')">👷 Tech View</button>
+      <button class="mode-opt tech active" id="btn-tech" onclick="setMode('tech')">👷 Tech / Técnico</button>
       <button class="mode-opt warehouse" id="btn-wh" onclick="requestWarehouse()">🏭 Warehouse 🔒</button>
     </div>
 
@@ -723,9 +723,27 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
         <div class="sec-hdr">
           <div><div class="sec-title">Inventory</div><div class="sec-sub">Organized by prefix</div></div>
           <div style="display:flex;gap:7px">
+            <button class="btn btn-t btn-sm" onclick="enterInvScanMode()">📡 Scan</button>
             <button class="btn btn-s btn-sm" onclick="openAddItem()">+ Item</button>
             <button class="btn btn-p btn-sm" onclick="openAddAsset()">+ Asset</button>
           </div>
+        </div>
+        <!-- INVENTORY SCAN MODE -->
+        <div id="inv-scan-mode" style="display:none;background:var(--sur);border:2px solid var(--teal);border-radius:var(--r2);padding:14px;margin-bottom:12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div style="font-size:14px;font-weight:700;color:var(--teal)">📡 Inventory Scan Mode</div>
+            <button class="btn btn-s btn-xs" onclick="exitInvScanMode()">✕ Exit</button>
+          </div>
+          <input type="text" id="inv-scan-input"
+            placeholder="Scan or type part number (e.g. CLN-001)..."
+            style="font-size:15px;font-family:var(--mono);font-weight:700;border:2px solid var(--teal);background:var(--sur2);margin-bottom:10px"
+            oninput="autoProcessInvScan(this)"
+            onkeydown="if(event.key==='Enter')processInvScan()"
+            autocomplete="off">
+          <div id="inv-scan-feedback" style="min-height:36px;margin-bottom:10px"></div>
+          <div style="font-size:10px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Scanned Items — tap item to view · ✕ to remove</div>
+          <div id="inv-scan-list"></div>
+          <div id="inv-scan-empty" style="font-size:12px;color:var(--txt3);text-align:center;padding:16px">Scan a barcode to add items to the list</div>
         </div>
         <div class="search-wrap"><span class="search-ico">🔍</span><input type="text" id="inv-search" placeholder="Search all items..." oninput="renderInventory()"></div>
         <div id="inv-list"></div>
@@ -849,20 +867,34 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
     <!-- ===== TECH MODE ===== -->
     <div id="tech-mode">
       <div class="card">
-        <div class="card-title">Find Your Kit / Encuentra Tu Equipo</div>
-        <div style="font-size:12px;color:var(--txt2);margin-bottom:13px;line-height:1.7">
-          Enter your name or scan your job QR code to see what's packed for you.<br>
-          <span style="color:var(--txt3)">Ingresa tu nombre o escanea el código QR de tu trabajo.</span>
+        <!-- Language toggle -->
+        <div style="display:flex;gap:6px;margin-bottom:14px">
+          <button id="lang-en" class="btn btn-p btn-xs active-cond" onclick="setTechLang('en')" style="flex:1;font-weight:700">🇺🇸 English</button>
+          <button id="lang-es" class="btn btn-s btn-xs" onclick="setTechLang('es')" style="flex:1;font-weight:700">🇲🇽 Español</button>
         </div>
-        <div class="fg"><label>Your Name / Tu Nombre</label>
-          <div style="display:flex;gap:8px">
-            <input type="text" id="tech-name" placeholder="Enter your name..." onkeydown="if(event.key==='Enter')loadTechView()">
-            <button class="btn btn-p btn-sm" onclick="loadTechView()">View Kit</button>
+        <div class="card-title" id="tv-title">Find Your Kit / Encuentra Tu Equipo</div>
+        <div style="font-size:12px;color:var(--txt2);margin-bottom:13px;line-height:1.7" id="tv-subtitle">
+          Enter your name to see what's packed for you.<br>
+          <span style="color:var(--txt3)">Ingresa tu nombre para ver tu equipo.</span>
+        </div>
+        <div class="fg">
+          <label id="tv-name-label">Your Name / Tu Nombre</label>
+          <div style="position:relative">
+            <div style="display:flex;gap:8px">
+              <input type="text" id="tech-name"
+                placeholder="Enter your name / Ingresa tu nombre..."
+                onkeydown="if(event.key==='Enter')loadTechView()"
+                oninput="searchTechRosterTV(this)"
+                onfocus="searchTechRosterTV(this)"
+                autocomplete="off" style="flex:1">
+              <button class="btn btn-p btn-sm" id="tv-view-btn" onclick="loadTechView()">View Kit / Ver</button>
+            </div>
+            <div id="tv-roster-dd" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--sur);border:2px solid var(--acc);border-radius:0 0 9px 9px;z-index:99999;max-height:180px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.6)"></div>
           </div>
         </div>
       </div>
       <div id="tech-kit-area">
-        <div class="empty"><div class="ei">👷</div><p>Enter your name above<br>to see your active kit<br><span style="color:var(--txt3)">Ingresa tu nombre arriba para ver tu equipo</span></p></div>
+        <div class="empty"><div class="ei">👷</div><p id="tv-empty-msg">Enter your name above<br>to see your active kit<br><span style="color:var(--txt3)">Ingresa tu nombre arriba para ver tu equipo</span></p></div>
       </div>
 
       <!-- DI TANK BUTTON -->
@@ -875,10 +907,21 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
           </div>
           <button class="btn btn-sm" style="background:var(--cyn);color:#000;font-weight:700;flex-shrink:0" onclick="openDIForm()">Submit Reading</button>
         </div>
-        <!-- Tech's recent readings -->
         <div id="tech-di-history" style="display:none">
           <div style="font-size:10px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Your Recent Readings / Tus Lecturas Recientes</div>
           <div id="tech-di-readings-list"></div>
+        </div>
+      </div>
+
+      <!-- GRAB MATERIAL -->
+      <div class="card" style="margin-top:12px;border:1px solid rgba(245,166,35,.3);background:var(--acc-dim)">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="font-size:28px">📦</span>
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:14px;color:var(--acc)">Grab Material / Tomar Material</div>
+            <div style="font-size:11px;color:var(--txt2);margin-top:2px">No rep available? Log what you take<br><span style="color:var(--txt3)">¿No hay encargado? Registra lo que tomas</span></div>
+          </div>
+          <button class="btn btn-p btn-sm" style="flex-shrink:0" onclick="openGrabMaterial()">Grab / Tomar</button>
         </div>
       </div>
     </div>
@@ -1293,6 +1336,50 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
   </div>
 </div>
 
+<!-- GRAB MATERIAL MODAL -->
+<div class="ov" id="grab-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-t">
+      <span>📦 Grab Material / Tomar Material</span>
+      <button class="xbtn" onclick="closeModal('grab-modal')">✕</button>
+    </div>
+    <div class="info-b" style="margin-bottom:14px">Log items you are taking from the warehouse.<br><span style="color:var(--txt3)">Registra los materiales que estás tomando del almacén.</span></div>
+    <div class="fg">
+      <label>Your Name / Tu Nombre</label>
+      <div style="position:relative">
+        <input type="text" id="grab-tech-name" placeholder="Type or select your name..." oninput="searchGrabRoster(this)" autocomplete="off">
+        <div id="grab-roster-dd" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--sur);border:2px solid var(--acc);border-radius:0 0 9px 9px;z-index:99999;max-height:180px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.6)"></div>
+      </div>
+    </div>
+    <div class="fg"><label>Job # / Site (optional)</label><input type="text" id="grab-job" placeholder="1234, Salesforce Tower..."></div>
+    <div class="fg"><label>Reason / Razón</label>
+      <select id="grab-reason">
+        <option value="Urgent job need">Urgent job need / Necesidad urgente</option>
+        <option value="Replacement — damaged">Replacement — damaged / Dañado</option>
+        <option value="Replacement — lost">Replacement — lost / Perdido</option>
+        <option value="Restocking truck">Restocking truck / Reabasteciendo</option>
+        <option value="Other">Other / Otro</option>
+      </select>
+    </div>
+    <div style="font-size:12px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Items / Artículos</div>
+    <div style="position:relative;margin-bottom:8px">
+      <input type="text" id="grab-item-search" placeholder="🔍 Type part # or item name (e.g. CLN-001)..."
+        oninput="searchGrabItem(this)" autocomplete="off" style="font-family:var(--mono)">
+      <div id="grab-item-dd" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--sur);border:2px solid var(--acc);border-radius:0 0 9px 9px;z-index:99999;max-height:200px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.6)"></div>
+    </div>
+    <div id="grab-items-list" style="margin-bottom:12px"></div>
+    <div style="background:var(--red-dim);border:1px solid rgba(248,113,113,.3);border-radius:9px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--red)">
+      ⚠ Submitting deducts from inventory and alerts the warehouse.<br>
+      <span style="opacity:.7">Al enviar se deduce del inventario y se alerta al almacén.</span>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="flex:1" onclick="closeModal('grab-modal')">Cancel / Cancelar</button>
+      <button class="btn btn-p" style="flex:1" onclick="submitGrabMaterial()">Submit / Enviar</button>
+    </div>
+  </div>
+</div>
+
 <!-- DI TANK READING MODAL (Tech View) -->
 <div class="ov" id="di-form-modal">
   <div class="modal">
@@ -1600,7 +1687,7 @@ function setMode(mode) {
   document.getElementById('tech-mode').style.display = mode==='tech' ? '' : 'none';
   document.getElementById('warehouse-nav').style.display = mode==='warehouse' ? '' : 'none';
   const pill = document.getElementById('mode-pill');
-  pill.textContent = mode==='warehouse' ? 'Warehouse' : 'Tech View';
+  pill.textContent = mode==='warehouse' ? '🏭 Warehouse' : '👷 Tech / Técnico';
   pill.className = 'mode-pill ' + mode;
   if (mode==='warehouse') { resetAutoLock(); refresh(); }
   if (mode==='tech') { clearTimeout(autoLockTimer); document.getElementById('tech-kit-area').innerHTML = '<div class="empty"><div class="ei">👷</div><p>Enter your name above<br>to see your active kit</p></div>'; }
@@ -2321,7 +2408,7 @@ function renderInvCard(item, inGroup=false) {
   const itemAssets = assets.filter(a => a.inventory_item_id === item.id);
   const cat = categories.find(c => c.id === item.category_id);
   const border = inGroup ? 'border-bottom:1px solid var(--bdr)' : 'border:1px solid var(--bdr);border-radius:var(--r);margin-bottom:8px';
-  return `<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--sur);${border}">
+  return `<div id="inv-item-${item.id}" style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--sur);${border};transition:outline .3s">
     <div style="flex:1;min-width:0">
       <div style="display:flex;align-items:center;gap:7px;margin-bottom:2px;flex-wrap:wrap">
         ${item.part_number?`<span style="font-family:var(--mono);font-size:10px;color:var(--acc);background:var(--acc-dim);padding:2px 7px;border-radius:5px;flex-shrink:0">${item.part_number}</span>`:''}
@@ -3348,6 +3435,366 @@ function renderTechDIReadings(techName) {
   }).join('');
 }
 
+// ─── TECH VIEW BILINGUAL ────────────────────────────────────
+let techLang = 'en';
+const TV_STRINGS = {
+  en: {
+    title: 'Find Your Kit',
+    subtitle: 'Enter your name to see what\'s packed for you.',
+    nameLabel: 'Your Name',
+    placeholder: 'Enter your name...',
+    viewBtn: 'View Kit',
+    emptyMsg: 'Enter your name above<br>to see your active kit',
+    diBtn: 'Submit Reading',
+    grabBtn: 'Grab / Take',
+    confirmBtn: 'Confirm Pickup'
+  },
+  es: {
+    title: 'Encuentra Tu Equipo',
+    subtitle: 'Ingresa tu nombre para ver lo que está empacado para ti.',
+    nameLabel: 'Tu Nombre',
+    placeholder: 'Ingresa tu nombre...',
+    viewBtn: 'Ver Equipo',
+    emptyMsg: 'Ingresa tu nombre arriba<br>para ver tu equipo activo',
+    diBtn: 'Enviar Lectura',
+    grabBtn: 'Tomar Material',
+    confirmBtn: 'Confirmar Recibo'
+  }
+};
+
+function setTechLang(lang) {
+  techLang = lang;
+  const s = TV_STRINGS[lang];
+  document.getElementById('lang-en').classList.toggle('active-cond', lang==='en');
+  document.getElementById('lang-es').classList.toggle('active-cond', lang==='es');
+  document.getElementById('lang-en').classList.toggle('btn-p', lang==='en');
+  document.getElementById('lang-en').classList.toggle('btn-s', lang!=='en');
+  document.getElementById('lang-es').classList.toggle('btn-p', lang==='es');
+  document.getElementById('lang-es').classList.toggle('btn-s', lang!=='es');
+  const title = document.getElementById('tv-title');
+  const subtitle = document.getElementById('tv-subtitle');
+  const nameLabel = document.getElementById('tv-name-label');
+  const viewBtn = document.getElementById('tv-view-btn');
+  const emptyMsg = document.getElementById('tv-empty-msg');
+  const nameInput = document.getElementById('tech-name');
+  if (title) title.textContent = s.title;
+  if (subtitle) subtitle.innerHTML = s.subtitle;
+  if (nameLabel) nameLabel.textContent = s.nameLabel;
+  if (viewBtn) viewBtn.textContent = s.viewBtn;
+  if (emptyMsg) emptyMsg.innerHTML = s.emptyMsg;
+  if (nameInput) nameInput.placeholder = s.placeholder;
+}
+
+function searchTechRosterTV(input) {
+  const q = (input.value || '').toLowerCase();
+  const dd = document.getElementById('tv-roster-dd');
+  if (!dd || !_techRoster.length) return;
+  const filtered = _techRoster.filter(t => t.toLowerCase().includes(q));
+  if (!filtered.length) { dd.style.display = 'none'; return; }
+  dd.style.display = '';
+  dd.innerHTML = filtered.map(t => `
+    <div onmousedown="event.preventDefault();document.getElementById('tech-name').value='${t.replace(/'/g,"\\'")}';document.getElementById('tv-roster-dd').style.display='none'"
+      style="padding:12px 14px;cursor:pointer;font-size:13px;font-weight:600;border-bottom:1px solid var(--bdr)"
+      onmouseover="this.style.background='var(--sur2)'" onmouseout="this.style.background=''">
+      👷 ${t}
+    </div>`).join('');
+  setTimeout(() => {
+    document.addEventListener('click', function closeIt(e) {
+      if (!dd.contains(e.target) && e.target !== input) {
+        dd.style.display = 'none';
+        document.removeEventListener('click', closeIt);
+      }
+    });
+  }, 100);
+}
+
+// ─── INVENTORY SCAN MODE ─────────────────────────────────────
+let invScanItems = []; // [{id, name, part_number, quantity_on_hand}]
+
+function enterInvScanMode() {
+  invScanItems = [];
+  const panel = document.getElementById('inv-scan-mode');
+  const emptyEl = document.getElementById('inv-scan-empty');
+  const listEl = document.getElementById('inv-scan-list');
+  if (panel) panel.style.display = '';
+  if (listEl) listEl.innerHTML = '';
+  if (emptyEl) emptyEl.style.display = '';
+  document.getElementById('inv-scan-feedback').innerHTML = '';
+  setTimeout(() => document.getElementById('inv-scan-input')?.focus(), 100);
+}
+
+function exitInvScanMode() {
+  invScanItems = [];
+  document.getElementById('inv-scan-mode').style.display = 'none';
+  document.getElementById('inv-scan-list').innerHTML = '';
+  document.getElementById('inv-scan-feedback').innerHTML = '';
+  document.getElementById('inv-scan-input').value = '';
+}
+
+function autoProcessInvScan(input) {
+  clearTimeout(input._scanTimer);
+  if (input.value.trim().length >= 3) {
+    input._scanTimer = setTimeout(() => { if (input.value.trim()) processInvScan(); }, 80);
+  }
+}
+
+function processInvScan() {
+  const input = document.getElementById('inv-scan-input');
+  const raw = input.value.trim().toUpperCase().replace(/[\n\r]/g, '');
+  input.value = '';
+  input.focus();
+  if (!raw) return;
+
+  // Find by part number
+  const item = inventoryItems.find(i => i.part_number && i.part_number.toUpperCase() === raw);
+
+  if (!item) {
+    showInvScanFeedback('error', `⚠ Unknown: ${raw} — not in inventory`);
+    beep('error');
+    return;
+  }
+
+  // Check if already scanned
+  if (invScanItems.find(i => i.id === item.id)) {
+    showInvScanFeedback('already', `↩ ${item.name} already in list`);
+    beep('already');
+    renderInvScanList();
+    return;
+  }
+
+  invScanItems.push({...item});
+  showInvScanFeedback('success', `✓ ${item.part_number} — ${item.name}`);
+  beep('success');
+  renderInvScanList();
+}
+
+function showInvScanFeedback(type, msg) {
+  const el = document.getElementById('inv-scan-feedback');
+  const colors = {
+    success: {bg:'var(--grn-dim)',border:'rgba(52,211,153,.3)',color:'var(--grn)'},
+    error:   {bg:'var(--red-dim)',border:'rgba(248,113,113,.3)',color:'var(--red)'},
+    already: {bg:'var(--amb-dim)',border:'rgba(251,191,36,.3)', color:'var(--amb)'}
+  };
+  const c = colors[type];
+  el.innerHTML = `<div style="padding:9px 14px;background:${c.bg};border:1px solid ${c.border};border-radius:9px;font-size:13px;font-weight:700;color:${c.color}">${msg}</div>`;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.innerHTML = '', 2000);
+}
+
+function renderInvScanList() {
+  const listEl = document.getElementById('inv-scan-list');
+  const emptyEl = document.getElementById('inv-scan-empty');
+  if (!listEl) return;
+  if (!invScanItems.length) {
+    listEl.innerHTML = '';
+    if (emptyEl) emptyEl.style.display = '';
+    return;
+  }
+  if (emptyEl) emptyEl.style.display = 'none';
+  listEl.innerHTML = invScanItems.map((item, i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:11px 12px;background:var(--sur2);border:1px solid var(--bdr);border-left:3px solid var(--teal);border-radius:9px;margin-bottom:7px">
+      <div style="flex:1;min-width:0;cursor:pointer" onclick="highlightInvItem('${item.id}')">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--acc);background:var(--acc-dim);padding:2px 7px;border-radius:5px">${esc(item.part_number||'--')}</span>
+          <span style="font-size:13px;font-weight:700">${esc(item.name)}</span>
+        </div>
+        <div style="font-size:11px;color:var(--txt2);margin-top:3px;font-family:var(--mono)">
+          Stock: ${item.quantity_on_hand ?? '--'}
+          ${item.tracking_type==='asset'?'· Asset':'· Bulk'}
+        </div>
+      </div>
+      <div style="display:flex;gap:5px;flex-shrink:0">
+        <button class="btn btn-s btn-xs" onclick="highlightInvItem('${item.id}')">View</button>
+        <button class="btn btn-r btn-xs" onclick="invScanItems.splice(${i},1);renderInvScanList()">✕</button>
+      </div>
+    </div>`).join('');
+}
+
+function highlightInvItem(itemId) {
+  // Exit scan mode, scroll to item in inventory list
+  exitInvScanMode();
+  document.getElementById('inv-search').value = '';
+  renderInventory();
+  setTimeout(() => {
+    const el = document.getElementById('inv-item-' + itemId);
+    if (el) {
+      el.scrollIntoView({behavior:'smooth', block:'center'});
+      el.style.outline = '3px solid var(--acc)';
+      el.style.transition = 'outline 0.3s';
+      setTimeout(() => el.style.outline = '', 2500);
+    }
+  }, 200);
+}
+
+// ─── GRAB MATERIAL ──────────────────────────────────────────
+let grabItems = [];
+
+function openGrabMaterial() {
+  grabItems = [];
+  document.getElementById('grab-tech-name').value = document.getElementById('tech-name')?.value || '';
+  document.getElementById('grab-job').value = '';
+  document.getElementById('grab-item-search').value = '';
+  document.getElementById('grab-items-list').innerHTML = '';
+  document.getElementById('grab-item-dd').style.display = 'none';
+  document.getElementById('grab-roster-dd').style.display = 'none';
+  document.getElementById('grab-modal').classList.add('open');
+  // Pre-fill roster
+  showGrabRoster();
+}
+
+function showGrabRoster() {
+  const input = document.getElementById('grab-tech-name');
+  if (!input || !_techRoster.length) return;
+  renderGrabRosterDD('');
+}
+
+function searchGrabRoster(input) {
+  renderGrabRosterDD(input.value.toLowerCase());
+}
+
+function renderGrabRosterDD(q) {
+  const dd = document.getElementById('grab-roster-dd');
+  if (!dd) return;
+  const filtered = _techRoster.filter(t => t.toLowerCase().includes(q));
+  if (!filtered.length) { dd.style.display = 'none'; return; }
+  dd.style.display = '';
+  dd.innerHTML = filtered.map(t => `
+    <div onmousedown="event.preventDefault();document.getElementById('grab-tech-name').value='${t.replace(/'/g,"\\'")}';document.getElementById('grab-roster-dd').style.display='none'"
+      style="padding:11px 14px;cursor:pointer;font-size:13px;font-weight:600;border-bottom:1px solid var(--bdr)"
+      onmouseover="this.style.background='var(--sur2)'" onmouseout="this.style.background=''">
+      👷 ${t}
+    </div>`).join('');
+  setTimeout(() => {
+    document.addEventListener('click', function closeIt(e) {
+      if (!dd.contains(e.target) && e.target !== document.getElementById('grab-tech-name')) {
+        dd.style.display = 'none';
+        document.removeEventListener('click', closeIt);
+      }
+    });
+  }, 100);
+}
+
+function searchGrabItem(input) {
+  const q = input.value.toLowerCase().trim();
+  const dd = document.getElementById('grab-item-dd');
+  if (!q) { dd.style.display = 'none'; return; }
+  const filtered = inventoryItems
+    .filter(i => `${i.part_number||''} ${i.name}`.toLowerCase().includes(q))
+    .sort((a,b) => {
+      // Prioritize part number matches first
+      const aPN = (a.part_number||'').toLowerCase().startsWith(q);
+      const bPN = (b.part_number||'').toLowerCase().startsWith(q);
+      if (aPN && !bPN) return -1;
+      if (!aPN && bPN) return 1;
+      return a.name.localeCompare(b.name);
+    })
+    .slice(0, 12);
+  if (!filtered.length) {
+    dd.style.display = '';
+    dd.innerHTML = `<div style="padding:10px 14px;font-size:12px;color:var(--txt2)">No match found / Sin coincidencia</div>`;
+    return;
+  }
+  dd.style.display = '';
+  dd.innerHTML = filtered.map(i => `
+    <div data-id="${i.id}" data-name="${esc(i.name)}" data-pn="${esc(i.part_number||'')}" data-stock="${i.quantity_on_hand||0}"
+      onmousedown="event.preventDefault();addGrabItem(this)"
+      style="padding:11px 14px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:8px"
+      onmouseover="this.style.background='var(--sur2)'" onmouseout="this.style.background=''">
+      ${i.part_number?`<span style="font-family:var(--mono);font-size:10px;color:var(--acc);background:var(--acc-dim);padding:2px 7px;border-radius:5px;flex-shrink:0">${esc(i.part_number)}</span>`:''}
+      <span style="font-weight:600;flex:1">${esc(i.name)}</span>
+      <span style="font-size:10px;color:var(--txt3)">Stock: ${i.quantity_on_hand||0}</span>
+    </div>`).join('');
+}
+
+function addGrabItem(el) {
+  const id = el.dataset.id;
+  const name = el.dataset.name;
+  const pn = el.dataset.pn;
+  const stock = parseInt(el.dataset.stock) || 0;
+  document.getElementById('grab-item-dd').style.display = 'none';
+  document.getElementById('grab-item-search').value = '';
+  // Check if already in list
+  const existing = grabItems.find(i => i.id === id);
+  if (existing) { existing.qty++; } else { grabItems.push({id, name, pn, qty: 1, stock}); }
+  renderGrabItemsList();
+}
+
+function renderGrabItemsList() {
+  const el = document.getElementById('grab-items-list');
+  if (!grabItems.length) { el.innerHTML = ''; return; }
+  el.innerHTML = grabItems.map((item, i) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--sur2);border:1px solid var(--bdr);border-radius:9px;margin-bottom:6px">
+      <div style="flex:1;min-width:0">
+        ${item.pn?`<span style="font-family:var(--mono);font-size:10px;color:var(--acc);background:var(--acc-dim);padding:1px 6px;border-radius:4px;margin-right:6px">${item.pn}</span>`:''}
+        <span style="font-size:12px;font-weight:600">${esc(item.name)}</span>
+        <div style="font-size:10px;color:var(--txt3);margin-top:2px">In stock: ${item.stock}</div>
+      </div>
+      <button class="btn btn-s btn-xs" style="width:28px;justify-content:center" onclick="adjGrabQty(${i},-1)">−</button>
+      <span style="font-family:var(--mono);font-size:14px;font-weight:700;color:var(--acc);min-width:24px;text-align:center">${item.qty}</span>
+      <button class="btn btn-s btn-xs" style="width:28px;justify-content:center" onclick="adjGrabQty(${i},1)">+</button>
+      <button class="btn btn-r btn-xs" onclick="grabItems.splice(${i},1);renderGrabItemsList()">✕</button>
+    </div>`).join('');
+}
+
+function adjGrabQty(i, delta) {
+  grabItems[i].qty = Math.max(1, grabItems[i].qty + delta);
+  renderGrabItemsList();
+}
+
+async function submitGrabMaterial() {
+  const techName = document.getElementById('grab-tech-name').value.trim();
+  const job = document.getElementById('grab-job').value.trim();
+  const reason = document.getElementById('grab-reason').value;
+  if (!techName) { alert('Enter your name / Ingresa tu nombre'); return; }
+  if (!grabItems.length) { alert('Add at least one item / Agrega al menos un artículo'); return; }
+
+  // Check qty vs stock
+  const overStock = grabItems.filter(i => i.qty > i.stock);
+  if (overStock.length) {
+    const names = overStock.map(i => `${i.pn||i.name} (requested: ${i.qty}, stock: ${i.stock})`).join('\n');
+    if (!confirm(`⚠ Some items exceed current stock:\n${names}\n\nSubmit anyway?`)) return;
+  }
+
+  setSyncStatus('syncing');
+  try {
+    // Deduct from inventory
+    for (const item of grabItems) {
+      const inv = inventoryItems.find(i => i.id === item.id);
+      if (inv && inv.tracking_type === 'bulk') {
+        const newQty = Math.max(0, (inv.quantity_on_hand || 0) - item.qty);
+        await db.from('inventory_items').update({
+          quantity_on_hand: newQty,
+          updated_at: new Date().toISOString()
+        }).eq('id', item.id);
+      }
+    }
+
+    // Log the grab to localStorage for dashboard alert
+    const grabs = JSON.parse(localStorage.getItem('kt_grabs') || '[]');
+    const entry = {
+      id: uid(),
+      tech_name: techName,
+      job: job || '--',
+      reason,
+      items: grabItems.map(i => ({...i})),
+      timestamp: new Date().toISOString(),
+      acknowledged: false
+    };
+    grabs.unshift(entry);
+    localStorage.setItem('kt_grabs', JSON.stringify(grabs.slice(0, 50)));
+
+    closeModal('grab-modal');
+    setSyncStatus('ok');
+    await loadAll();
+
+    alert(`✓ Submitted! The warehouse has been notified.\n\n¡Enviado! El almacén ha sido notificado.\n\n${grabItems.map(i=>`${i.pn||''} ${i.name} x${i.qty}`).join('\n')}`);
+    grabItems = [];
+  } catch(e) {
+    setSyncStatus('error');
+    alert('Error submitting. Check connection. / Error al enviar. Verifica la conexión.');
+  }
+}
+
 // ─── DI TANKS ────────────────────────────────────────────────
 const DI_PPM_ALERT = 25;
 
@@ -3749,13 +4196,40 @@ function renderInspAlerts() {
   const soon = inspItems.filter(i => inspStatus(i).status === 'soon');
   const el = document.getElementById('repair-alerts');
   if (!el) return;
+  // Grab material alerts
+  const grabs = JSON.parse(localStorage.getItem('kt_grabs') || '[]');
+  const unacked = grabs.filter(g => !g.acknowledged);
+  const grabAlert = unacked.length
+    ? `<div class="alert-banner" style="background:var(--acc-dim);border-color:rgba(245,166,35,.3)">
+        <span class="ai">📦</span>
+        <p><strong>${unacked.length} self-serve material grab${unacked.length>1?'s':''} need review:</strong>
+        ${unacked.map(g=>`${g.tech_name} — ${g.items.map(i=>i.pn||i.name).join(', ')}`).join(' · ')}
+        <button class="btn btn-xs btn-p" style="margin-left:8px" onclick="openGrabLog()">Review</button></p>
+      </div>` : '';
   const diAlert = renderDIAlerts();
   const inspAlert = overdue.length
     ? `<div class="alert-banner"><span class="ai">🔍</span><p><strong>${overdue.length} inspection${overdue.length>1?'s':''} overdue:</strong> ${overdue.map(i=>i.name).join(', ')} <button class="btn btn-xs btn-warn" style="margin-left:8px" onclick="nav('inspections')">View</button></p></div>`
     : soon.length
     ? `<div class="alert-banner" style="background:var(--amb-dim);border-color:rgba(245,158,11,.25)"><span class="ai">⏰</span><p style="color:var(--amb)"><strong>${soon.length} inspection${soon.length>1?'s':''} due soon</strong> <button class="btn btn-xs btn-s" style="margin-left:8px" onclick="nav('inspections')">View</button></p></div>`
     : '';
-  el.innerHTML = diAlert + inspAlert + (repairs.length ? `<div class="alert-banner"><span class="ai">🔧</span><p><strong>${repairs.length} item${repairs.length>1?'s':''} in repair queue</strong> <button class="btn btn-xs btn-warn" style="margin-left:8px" onclick="nav('repairs')">View</button></p></div>` : '');
+  el.innerHTML = grabAlert + diAlert + inspAlert + (repairs.length ? `<div class="alert-banner"><span class="ai">🔧</span><p><strong>${repairs.length} item${repairs.length>1?'s':''} in repair queue</strong> <button class="btn btn-xs btn-warn" style="margin-left:8px" onclick="nav('repairs')">View</button></p></div>` : '');
+}
+
+function openGrabLog() {
+  const grabs = JSON.parse(localStorage.getItem('kt_grabs') || '[]');
+  const unacked = grabs.filter(g => !g.acknowledged);
+  if (!unacked.length) { alert('No pending grabs.'); return; }
+  const details = unacked.map(g =>
+    `${g.tech_name} — ${new Date(g.timestamp).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}\n` +
+    `Job: ${g.job} · Reason: ${g.reason}\n` +
+    g.items.map(i => `  • ${i.pn||''} ${i.name} x${i.qty}`).join('\n')
+  ).join('\n\n');
+  if (confirm(`📦 Pending Material Grabs:\n\n${details}\n\nMark all as reviewed?`)) {
+    const all = JSON.parse(localStorage.getItem('kt_grabs') || '[]');
+    all.forEach(g => g.acknowledged = true);
+    localStorage.setItem('kt_grabs', JSON.stringify(all));
+    renderInspAlerts();
+  }
 }
 
 // ─── EDIT ACTIVE JOB ────────────────────────────────────────
