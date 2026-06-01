@@ -4556,6 +4556,10 @@ function saveDIPair() {
   saveDIPairs(pairs);
   closeModal('di-add-pair-modal');
   renderDIPanel();
+  const newPair = getDIPairs().find(p => p.id === id);
+  if (confirm(`✓ Pair ${id} added!\n\nPrint barcode label now?`)) {
+    printDILabel(id, newPair?.vehicle || '', newPair?.resin || '');
+  }
 }
 
 function toggleSwapSource(mode) {
@@ -4639,7 +4643,10 @@ function confirmDISwap() {
     saveDIPairs(pairs);
     closeModal('di-swap-modal');
     renderDIPanel();
-    alert(`✓ Swap complete!\n${oldId} → Retired\n${newId} → Deployed on ${vehicle||'--'}`);
+    if (confirm(`✓ Swap complete!\n${oldId} → Retired\n${newId} → Deployed on ${vehicle||'--'}\n\nPrint barcode label for ${newId} now?`)) {
+      const newPair = getDIPairs().find(p => p.id === newId);
+      printDILabel(newId, vehicle, newPair?.resin || '');
+    }
   } else {
     // From stock
     const newId = document.getElementById('di-swap-new-sel').value;
@@ -4651,7 +4658,10 @@ function confirmDISwap() {
     saveDIPairs(pairs);
     closeModal('di-swap-modal');
     renderDIPanel();
-    alert(`✓ Swap complete!\n${oldId} → Retired\n${newId} → Deployed on ${vehicle||'--'}`);
+    if (confirm(`✓ Swap complete!\n${oldId} → Retired\n${newId} → Deployed on ${vehicle||'--'}\n\nPrint barcode label for ${newId} now?`)) {
+      const freshPair = getDIPairs().find(p => p.id === newId);
+      printDILabel(newId, vehicle, freshPair?.resin || '');
+    }
   }
 }
 
@@ -4662,6 +4672,26 @@ function retireDIPair(pairId) {
   if (pair) { pair.status = 'retired'; pair.retired_at = new Date().toISOString(); }
   saveDIPairs(pairs);
   renderDIPanel();
+}
+
+function printDILabel(pairId, vehicle, resin) {
+  const barcodeSVG = generateBarcodeSVG(pairId, 34);
+  const html = `
+    <div style="width:2in;height:1in;box-sizing:border-box;border:1.5px solid #000;padding:5px 7px;background:#fff;font-family:Arial,sans-serif;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;margin:0 auto">
+      <div style="text-align:center">
+        <div style="font-weight:900;font-size:15px;font-family:'Courier New',monospace;color:#000;letter-spacing:1px;line-height:1">💧 ${pairId}</div>
+        ${vehicle ? `<div style="font-size:8px;font-weight:700;color:#333;margin-top:2px">🚗 ${vehicle}</div>` : ''}
+        ${resin ? `<div style="font-size:7px;color:#555;margin-top:1px">${resin}</div>` : ''}
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center">
+        <div style="overflow:hidden;max-width:100%">${barcodeSVG}</div>
+        <div style="display:flex;justify-content:space-between;width:100%;margin-top:2px">
+          <div style="font-size:6px;color:#444;text-transform:uppercase">DI TANK PAIR</div>
+          <div style="font-size:6px;color:#000;font-family:'Courier New',monospace">${esc(getCompanyName())}</div>
+        </div>
+      </div>
+    </div>`;
+  showLabelPrint(html, `🏷 DI Tank Label — ${pairId}`);
 }
 
 function renderDIPanel() {
@@ -4713,6 +4743,7 @@ function renderDIPanel() {
             <button class="btn btn-s btn-xs" onclick="openDIMove('${p.id}')">🚛 Move</button>`:''}
           ${p.status==='stock'?`<button class="btn btn-g btn-xs" onclick="deployDIPair('${p.id}')">Deploy</button>`:''}
           <button class="btn btn-s btn-xs" onclick="openDIEdit('${p.id}')">✏ Edit</button>
+          <button class="btn btn-t btn-xs" onclick="printDILabel('${p.id}','${esc(p.vehicle||'')}','${esc(p.resin||'')}')">🏷 Label</button>
           <button class="btn btn-r btn-xs" onclick="retireDIPair('${p.id}')">Retire</button>
         </div>
       </div>`;
