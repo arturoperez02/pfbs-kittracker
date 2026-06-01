@@ -1416,7 +1416,10 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
     <div class="fg"><label>Your Name / Tu Nombre</label>
       <div style="position:relative">
         <input type="text" id="di-tech-name" placeholder="Type or select your name..."
-          oninput="searchDITechRoster(this)" autocomplete="off">
+          oninput="searchDITechRoster(this)"
+          onfocus="searchDITechRoster(this)"
+          onclick="searchDITechRoster(this)"
+          autocomplete="off">
         <div id="di-tech-dd" style="display:none;position:fixed;background:var(--sur);border:2px solid var(--acc);border-radius:0 0 9px 9px;z-index:99999;max-height:180px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.6)"></div>
       </div>
     </div>
@@ -3650,15 +3653,20 @@ async function undoReturn(jobId) {
 function searchDITechRoster(input) {
   const q = (input.value || '').toLowerCase();
   const dd = document.getElementById('di-tech-dd');
-  if (!dd || !_techRoster.length) return;
-  const filtered = _techRoster.filter(t => t.toLowerCase().includes(q));
+  if (!dd) return;
+  if (!_techRoster.length) {
+    loadTechRoster().then(() => searchDITechRoster(input));
+    return;
+  }
+  const filtered = q ? _techRoster.filter(t => t.toLowerCase().includes(q)) : _techRoster;
   if (!filtered.length) { dd.style.display = 'none'; return; }
   const rect = input.getBoundingClientRect();
   dd.style.top = rect.bottom + 'px';
   dd.style.left = rect.left + 'px';
   dd.style.width = rect.width + 'px';
   dd.style.display = '';
-  dd.innerHTML = filtered.map(t => `
+  dd.innerHTML = `<div style="padding:6px 12px;font-size:10px;color:var(--txt3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--bdr)">TechSched Roster</div>` +
+    filtered.map(t => `
     <div onmousedown="event.preventDefault();document.getElementById('di-tech-name').value='${t.replace(/'/g,"\\'")}';document.getElementById('di-tech-dd').style.display='none'"
       style="padding:11px 14px;cursor:pointer;font-size:13px;font-weight:600;border-bottom:1px solid var(--bdr)"
       onmouseover="this.style.background='var(--sur2)'" onmouseout="this.style.background=''">
