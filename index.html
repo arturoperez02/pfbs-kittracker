@@ -3679,7 +3679,7 @@ function fillDIVehicleDropdowns() {
   const deployedVehicles = [...new Set(getDIPairs().filter(p => p.vehicle).map(p => p.vehicle))];
   const all = [...new Set([...vehicles, ...deployedVehicles])];
   const opts = '<option value="">— select vehicle —</option>' + all.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
-  ['dip-vehicle-sel','di-edit-vehicle-sel','di-swap-vehicle'].forEach(id => {
+  ['dip-vehicle-sel','di-edit-vehicle-sel','di-swap-vehicle-sel'].forEach(id => {
     const el = document.getElementById(id);
     if (el && el.tagName === 'SELECT') el.innerHTML = opts;
   });
