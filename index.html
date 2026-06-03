@@ -1775,27 +1775,30 @@ async function loadAll() {
 
 // ─── REFRESH UI ─────────────────────────────────────────────
 function refresh() {
-  document.getElementById('dash-date').textContent = new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
-  const activeJobs = jobs.filter(j => ['packed','picked_up'].includes(j.status));
-  document.getElementById('s-out').textContent = activeJobs.length;
-  document.getElementById('s-done').textContent = history.length;
-  document.getElementById('s-rep').textContent = repairs.length;
-  document.getElementById('s-inv').textContent = inventoryItems.length;
-  const keysOut = clientKeys.filter(k => k.status !== 'returned').length;
-  const keysEl = document.getElementById('s-keys-out');
-  if (keysEl) keysEl.textContent = keysOut;
-  renderActiveJobs();
-  renderDashRepairs();
-  renderDashReorder();
-  renderLowStockAlerts();
-  renderTplChangeRequestsBanner();
-  fillTemplateSelect();
-  fillReturnSelect();
-  renderInventory();
-  renderRepairs();
-  renderTplGrid();
-  renderHistory();
-  renderReorderQueue();
+  try {
+    document.getElementById('dash-date').textContent = new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+    const activeJobs = jobs.filter(j => ['packed','picked_up'].includes(j.status));
+    document.getElementById('s-out').textContent = activeJobs.length;
+    document.getElementById('s-done').textContent = history.length;
+    document.getElementById('s-rep').textContent = repairs.length;
+    document.getElementById('s-inv').textContent = inventoryItems.length;
+    const keysOut = clientKeys.filter(k => k.status !== 'returned').length;
+    const keysEl = document.getElementById('s-keys-out');
+    if (keysEl) keysEl.textContent = keysOut;
+    renderActiveJobs();
+    renderDashRepairs();
+    renderDashReorder();
+    try { renderLowStockAlerts(); } catch(e) { console.warn('renderLowStockAlerts:', e); }
+    try { renderTplChangeRequestsBanner(); } catch(e) { console.warn('renderTplChangeRequestsBanner:', e); }
+    fillTemplateSelect();
+    fillReturnSelect();
+    renderInventory();
+    renderRepairs();
+    renderTplGrid();
+    renderHistory();
+    renderReorderQueue();
+    try { fillAllVehicleDropdowns(); } catch(e) { console.warn('fillAllVehicleDropdowns:', e); }
+  } catch(e) { console.error('refresh error:', e); }
 }
 
 // ─── DASHBOARD RENDERS ──────────────────────────────────────
@@ -1884,7 +1887,7 @@ function renderLowStockAlerts() {
   let alertHtml = '';
   if (low.length) alertHtml += `<div class="alert-banner"><span class="ai">⚠️</span><p><strong>${low.length} item${low.length>1?'s':''} low on stock:</strong> ${low.map(i=>i.name).join(', ')} <button class="btn btn-xs btn-warn" style="margin-left:8px" onclick="nav('inventory')">View</button></p></div>`;
   el.innerHTML = alertHtml;
-  renderInspAlerts();
+  try { renderInspAlerts(); } catch(e) { console.warn('renderInspAlerts:', e); }
 }
 
 // ─── MODE ───────────────────────────────────────────────────
@@ -1904,10 +1907,15 @@ function setMode(mode) {
 
 // ─── PIN ────────────────────────────────────────────────────
 function requestWarehouse() {
-  pinEntry = '';
-  document.getElementById('pin-err').textContent = '';
-  updatePinDots();
-  document.getElementById('pin-modal').classList.add('open');
+  try {
+    pinEntry = '';
+    document.getElementById('pin-err').textContent = '';
+    updatePinDots();
+    document.getElementById('pin-modal').classList.add('open');
+  } catch(e) {
+    console.error('requestWarehouse error:', e);
+    alert('Error opening warehouse mode: ' + e.message);
+  }
 }
 function closePinModal() { pinEntry=''; updatePinDots(); document.getElementById('pin-err').textContent=''; closeModal('pin-modal'); }
 function updatePinDots() {
@@ -6177,58 +6185,25 @@ function showPrint(html) {
 
 // For Dymo labels — shows in dedicated preview modal
 function printWithDymoSDK() {
-  // Get the barcode image data
-  const img = document.querySelector('#label-preview-content img');
-  const titleEl = document.querySelector('#label-preview-content [style*="font-family:\'Courier New\'"]') ||
-                  document.querySelector('#label-preview-content div > div');
-  const partNum = titleEl ? titleEl.textContent.trim() : 'LABEL';
-
+  const titleEl = document.querySelector('#label-preview-content div');
+  const partNum = (titleEl ? titleEl.textContent.trim() : 'LABEL').split('\n')[0].trim();
   try {
-    // Try Dymo Label Framework (requires Dymo Label Software installed)
-    const label = dymo.label.framework.openLabelXml(`<?xml version="1.0" encoding="utf-8"?>
-<DieCutLabel Version="8.0" Units="twips">
-  <PaperOrientation>Landscape</PaperOrientation>
-  <Id>Address</Id>
-  <PaperName>30334 Medium Multipurpose</PaperName>
-  <DrawCommands>
-    <RoundRectangle X="0" Y="0" Width="3240" Height="1800" Rx="270" Ry="270"/>
-  </DrawCommands>
-  <ObjectInfo>
-    <BarcodeObject>
-      <Name>BARCODE</Name>
-      <ForeColor Alpha="255" Red="0" Green="0" Blue="0"/>
-      <BackColor Alpha="0" Red="255" Green="255" Blue="255"/>
-      <LinkedObjectName></LinkedObjectName>
-      <Rotation>Rotation0</Rotation>
-      <IsMirrored>False</IsMirrored>
-      <IsVariable>True</IsVariable>
-      <Text>${partNum}</Text>
-      <Type>Code128Auto</Type>
-      <Size>Small</Size>
-      <TextPosition>Bottom</TextPosition>
-      <TextFont Family="Arial" Size="9" Bold="False" Italic="False" Underline="False" StrikeOut="False"/>
-      <CheckSumEnabled>False</CheckSumEnabled>
-      <TextEmbedded>True</TextEmbedded>
-    </BarcodeObject>
-    <ObjectLayout>
-      <DynamicLayoutManager>
-        <RotationBehavior>ClearObjects</RotationBehavior>
-        <LabelObjectData ObjectName="BARCODE">
-          <Position X="180" Y="180"/>
-          <Size Width="2880" Height="1080"/>
-        </LabelObjectData>
-      </DynamicLayoutManager>
-    </ObjectLayout>
-  </ObjectInfo>
-</DieCutLabel>`);
-    const printers = dymo.label.framework.getPrinters();
+    const framework = window['dymo'] && window['dymo']['label'] && window['dymo']['label']['framework'];
+    if (!framework) {
+      alert('DYMO Label Software not detected.\n\nMake sure DYMO Label Software is installed and running, then try again.\n\nOr use "Browser Print" instead.');
+      return;
+    }
+    const printers = framework.getPrinters();
     const dymoP = printers.find(p => p.printerType === 'LabelWriterPrinter');
-    if (!dymoP) { alert('Dymo printer not found. Make sure Dymo software is running.'); return; }
+    if (!dymoP) { alert('Dymo printer not found. Make sure it is connected and DYMO software is running.'); return; }
+    const labelXml = `<?xml version="1.0" encoding="utf-8"?><DieCutLabel Version="8.0" Units="twips"><PaperOrientation>Landscape</PaperOrientation><Id>Address</Id><PaperName>30334 Medium Multipurpose</PaperName><DrawCommands><RoundRectangle X="0" Y="0" Width="3240" Height="1800" Rx="270" Ry="270"/></DrawCommands><ObjectInfo><BarcodeObject><Name>BARCODE</Name><ForeColor Alpha="255" Red="0" Green="0" Blue="0"/><BackColor Alpha="0" Red="255" Green="255" Blue="255"/><LinkedObjectName></LinkedObjectName><Rotation>Rotation0</Rotation><IsMirrored>False</IsMirrored><IsVariable>True</IsVariable><Text>${partNum}</Text><Type>Code128Auto</Type><Size>Medium</Size><TextPosition>Bottom</TextPosition><TextFont Family="Arial" Size="10" Bold="False" Italic="False" Underline="False" StrikeOut="False"/><CheckSumEnabled>False</CheckSumEnabled><TextEmbedded>True</TextEmbedded></BarcodeObject><ObjectLayout><DynamicLayoutManager><RotationBehavior>ClearObjects</RotationBehavior><LabelObjectData ObjectName="BARCODE"><Position X="180" Y="180"/><Size Width="2880" Height="1260"/></LabelObjectData></DynamicLayoutManager></ObjectLayout></ObjectInfo></DieCutLabel>`;
+    const label = framework.openLabelXml(labelXml);
     label.setObjectText('BARCODE', partNum);
     label.print(dymoP.name);
     closeModal('label-preview-modal');
+    alert('✓ Printing ' + partNum + ' to ' + dymoP.name);
   } catch(e) {
-    alert('Dymo SDK not available. Make sure DYMO Label Software is installed and running.\n\nUse "Browser Print" instead.\n\nError: ' + e.message);
+    alert('Dymo SDK error: ' + e.message + '\n\nTry "Browser Print" instead.');
   }
 }
 
