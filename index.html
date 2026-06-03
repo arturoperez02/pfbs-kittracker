@@ -735,6 +735,7 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
           <div><div class="sec-title">Inventory</div><div class="sec-sub">Organized by prefix</div></div>
           <div style="display:flex;gap:7px">
             <button class="btn btn-t btn-sm" onclick="enterInvScanMode()">📡 Scan</button>
+            <button class="btn btn-t btn-sm" onclick="openBarcodeTest()">🏷 Test Label</button>
             <button class="btn btn-s btn-sm" onclick="openAddItem()">+ Item</button>
             <button class="btn btn-p btn-sm" onclick="openAddAsset()">+ Asset</button>
           </div>
@@ -1636,16 +1637,16 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
     <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px;margin-bottom:16px">
       <div style="font-size:12px;font-weight:700;color:#1d4ed8;margin-bottom:8px">📋 How to print on Dymo 550 Turbo</div>
       <div style="font-size:11px;color:#1e40af;line-height:2">
-        1. Connect Dymo 550 + load <strong>30252</strong> label stock<br>
+        1. Connect Dymo 550 + load <strong>30334</strong> label stock<br>
         2. Tap <strong>Print Label</strong> below<br>
         3. Select <strong>DYMO LabelWriter 550 Turbo</strong> as printer<br>
-        4. Set paper size: <strong>30252 Address</strong> · Margins: <strong>None</strong> · Scale: <strong>100%</strong><br>
+        4. Set paper size: <strong>30334 Medium Multi-Purpose</strong> · Margins: <strong>None</strong> · Scale: <strong>100%</strong><br>
         5. Print ✓
       </div>
     </div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-s" style="flex:1" onclick="closeModal('label-preview-modal')">Close</button>
-      <button class="btn btn-p" style="flex:1" onclick="window.print()">🖨 Print Label</button>
+      <button class="btn btn-p" style="flex:1" onclick="printLabelOnly()">🖨 Print Label</button>
     </div>
   </div>
 </div>
@@ -2319,7 +2320,7 @@ function printDymoLabel() {
   const kitSummary = (j.job_items||j.kit||[]).slice(0,4).map(i=>`${i.quantity||i.qty}x ${i.item_name||i.name}`).join(' · ');
   const hasMore = (j.job_items||j.kit||[]).length > 4;
   const html = `
-    <div style="width:2in;height:1in;box-sizing:border-box;border:2px solid #000;padding:5px 7px;background:#fff;font-family:Arial,sans-serif;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden">
+    <div style="width:2.25in;height:1.25in;box-sizing:border-box;border:2px solid #000;padding:5px 7px;background:#fff;font-family:Arial,sans-serif;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden">
       <div style="font-weight:900;font-size:16px;font-family:'Courier New',monospace;color:#000;letter-spacing:.5px;line-height:1">${esc(j.hcp_job_number||'NO JOB #')}</div>
       <div style="font-size:8px;font-weight:700;color:#000;line-height:1.2">${esc(j.projName||j.job_type||'--')} · ${esc(j.tech_names||'--')}</div>
       <div style="font-size:7px;color:#333;line-height:1.2">${esc(j.building_client||j.site_address||'--')}</div>
@@ -4986,9 +4987,9 @@ function retireDIPair(pairId) {
 }
 
 function printDILabel(pairId, vehicle, resin) {
-  const barcodeSVG = generateBarcodeSVG(pairId, 34);
+  const barcodeSVG = generateBarcodeSVG(pairId, 50);
   const html = `
-    <div style="width:2in;height:1in;box-sizing:border-box;border:1.5px solid #000;padding:5px 7px;background:#fff;font-family:Arial,sans-serif;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;margin:0 auto">
+    <div style="width:2.25in;height:1.25in;box-sizing:border-box;border:1.5px solid #000;padding:5px 7px;background:#fff;font-family:Arial,sans-serif;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;margin:0 auto">
       <div style="text-align:center">
         <div style="font-weight:900;font-size:15px;font-family:'Courier New',monospace;color:#000;letter-spacing:1px;line-height:1">💧 ${pairId}</div>
         ${vehicle ? `<div style="font-size:8px;font-weight:700;color:#333;margin-top:2px">🚗 ${vehicle}</div>` : ''}
@@ -6163,6 +6164,43 @@ function showPrint(html) {
 }
 
 // For Dymo labels — shows in dedicated preview modal
+function printLabelOnly() {
+  const content = document.getElementById('label-preview-content').innerHTML;
+  const printWin = window.open('', '_blank', 'width=600,height=400');
+  if (!printWin) {
+    // Fallback if popup blocked — use print-area
+    document.getElementById('print-content').innerHTML = content;
+    document.getElementById('print-area').style.display = 'block';
+    window.print();
+    document.getElementById('print-area').style.display = 'none';
+    return;
+  }
+  printWin.document.write(`<!DOCTYPE html><html><head><style>
+    @page { margin: 0; size: 2.25in 1.25in; }
+    @media print { body { margin: 0; padding: 0; } }
+    body { margin: 0; padding: 0; background: white; display: flex; justify-content: center; align-items: center; width: 2.25in; height: 1.25in; overflow: hidden; }
+  </style></head><body>${content}</body></html>`);
+  printWin.document.close();
+  printWin.onload = () => { printWin.focus(); printWin.print(); printWin.close(); };
+}
+
+function openBarcodeTest() {
+  const part = prompt('Enter part number or ID to test (e.g. CLN-001, DI-001):');
+  if (!part) return;
+  const barcodeSVG = generateBarcodeSVG(part.trim().toUpperCase(), 50);
+  const html = `
+    <div style="width:2.25in;height:1.25in;box-sizing:border-box;border:1.5px solid #000;padding:5px 7px;background:#fff;font-family:Arial,sans-serif;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;margin:0 auto">
+      <div style="text-align:center">
+        <div style="font-weight:900;font-size:14px;font-family:'Courier New',monospace;color:#000;letter-spacing:1px">${part.trim().toUpperCase()}</div>
+        <div style="font-size:7px;color:#555">BARCODE TEST LABEL</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center">
+        ${barcodeSVG}
+      </div>
+    </div>`;
+  showLabelPrint(html, '🏷 Barcode Test — ' + part.trim().toUpperCase());
+}
+
 function showLabelPrint(html, title) {
   document.getElementById('label-preview-content').innerHTML = html;
   document.getElementById('label-modal-title').textContent = title || '🏷 Label Preview';
@@ -6430,7 +6468,7 @@ function applyScheduleJob(idx) {
 
 // ─── DYMO ITEM LABEL (2" x 1") ──────────────────────────────
 // Pure JS Code128 barcode generator — no library needed
-function generateBarcodeSVG(text, height=40) {
+function generateBarcodeSVG(text, height=50) {
   const CODE128_B = {
     ' ':0,  '!':1,  '"':2,  '#':3,  '$':4,  '%':5,  '&':6,  "'":7,
     '(':8,  ')':9,  '*':10, '+':11, ',':12, '-':13, '.':14, '/':15,
@@ -6483,15 +6521,15 @@ function generateBarcodeSVG(text, height=40) {
   codes.push(checksum % 103);
   codes.push(STOP);
 
+  const W = 3; // Wider bars — easier for scanner to read
   let bars = '';
   let x = 0;
-  const W = 2; // bar width multiplier
 
   for (const code of codes) {
     const pattern = PATTERNS[code] || '11011001100';
     for (let i = 0; i < pattern.length; i++) {
       const w = parseInt(pattern[i]) * W;
-      if (i % 2 === 0) { // bar (black)
+      if (i % 2 === 0) {
         bars += `<rect x="${x}" y="0" width="${w}" height="${height}" fill="#000"/>`;
       }
       x += w;
@@ -6499,13 +6537,12 @@ function generateBarcodeSVG(text, height=40) {
   }
 
   const totalWidth = x;
-  const label = text;
   const fontSize = 9;
-
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="${height + fontSize + 4}" viewBox="0 0 ${totalWidth} ${height + fontSize + 4}" preserveAspectRatio="xMidYMid meet" style="display:block;max-width:100%">
+  // Use fixed pixel size — do NOT scale down, scanners need minimum bar width
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${totalWidth}" height="${height + fontSize + 4}" viewBox="0 0 ${totalWidth} ${height + fontSize + 4}" style="display:block">
     <rect width="${totalWidth}" height="${height + fontSize + 4}" fill="white"/>
     ${bars}
-    <text x="${totalWidth/2}" y="${height + fontSize + 1}" text-anchor="middle" font-family="Courier New, monospace" font-size="${fontSize}" fill="#000">${label}</text>
+    <text x="${totalWidth/2}" y="${height + fontSize + 1}" text-anchor="middle" font-family="Courier New, monospace" font-size="${fontSize}" fill="#000">${text}</text>
   </svg>`;
 }
 
@@ -6514,19 +6551,19 @@ function printItemLabel(itemId) {
   if (!item || !item.part_number) { alert('Item needs a part number first.'); return; }
   const cat = categories.find(c => c.id === item.category_id);
   const nameShort = item.name.length > 22 ? item.name.substring(0,20)+'…' : item.name;
-  const barcodeSVG = generateBarcodeSVG(item.part_number, 36);
+  const barcodeSVG = generateBarcodeSVG(item.part_number, 50);
 
   const html = `
-    <div style="width:2in;height:1in;box-sizing:border-box;border:1.5px solid #000;padding:5px 8px;background:#fff;font-family:Arial,sans-serif;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;margin:0 auto">
+    <div style="width:2.25in;height:1.25in;box-sizing:border-box;border:1.5px solid #000;padding:5px 8px;background:#fff;font-family:Arial,sans-serif;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;margin:0 auto">
       <div style="text-align:center">
-        <div style="font-weight:900;font-size:13px;font-family:'Courier New',monospace;color:#000;letter-spacing:1px;line-height:1">${esc(item.part_number)}</div>
-        <div style="font-weight:700;font-size:8px;color:#000;line-height:1.3;margin-top:2px">${esc(nameShort)}</div>
+        <div style="font-weight:900;font-size:14px;font-family:'Courier New',monospace;color:#000;letter-spacing:1px;line-height:1">${esc(item.part_number)}</div>
+        <div style="font-weight:700;font-size:9px;color:#000;line-height:1.3;margin-top:2px">${esc(nameShort)}</div>
       </div>
       <div style="display:flex;flex-direction:column;align-items:center">
         <div style="overflow:hidden;max-width:100%">${barcodeSVG}</div>
         <div style="display:flex;justify-content:space-between;width:100%;margin-top:2px">
-          <div style="font-size:6px;color:#444;text-transform:uppercase;letter-spacing:.2px">${esc(cat?cat.name:'')}</div>
-          <div style="font-size:6px;color:#000;font-family:'Courier New',monospace">${esc(getCompanyName())}</div>
+          <div style="font-size:7px;color:#444;text-transform:uppercase;letter-spacing:.2px">${esc(cat?cat.name:'')}</div>
+          <div style="font-size:7px;color:#000;font-family:'Courier New',monospace">${esc(getCompanyName())}</div>
         </div>
       </div>
     </div>`;
