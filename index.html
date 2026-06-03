@@ -6469,19 +6469,15 @@ function applyScheduleJob(idx) {
 // ─── DYMO ITEM LABEL (2" x 1") ──────────────────────────────
 // Pure JS Code128 barcode generator — no library needed
 function generateBarcodeSVG(text, height=50) {
+  // Returns an <img> tag with barcode rendered as PNG via canvas
+  // This avoids SVG scaling issues when printing
   const CODE128_B = {
-    ' ':0,  '!':1,  '"':2,  '#':3,  '$':4,  '%':5,  '&':6,  "'":7,
-    '(':8,  ')':9,  '*':10, '+':11, ',':12, '-':13, '.':14, '/':15,
-    '0':16, '1':17, '2':18, '3':19, '4':20, '5':21, '6':22, '7':23,
-    '8':24, '9':25, ':':26, ';':27, '<':28, '=':29, '>':30, '?':31,
-    '@':32, 'A':33, 'B':34, 'C':35, 'D':36, 'E':37, 'F':38, 'G':39,
-    'H':40, 'I':41, 'J':42, 'K':43, 'L':44, 'M':45, 'N':46, 'O':47,
-    'P':48, 'Q':49, 'R':50, 'S':51, 'T':52, 'U':53, 'V':54, 'W':55,
-    'X':56, 'Y':57, 'Z':58, '[':59, '\\':60, ']':61, '^':62, '_':63,
-    '`':64, 'a':65, 'b':66, 'c':67, 'd':68, 'e':69, 'f':70, 'g':71,
-    'h':72, 'i':73, 'j':74, 'k':75, 'l':76, 'm':77, 'n':78, 'o':79,
-    'p':80, 'q':81, 'r':82, 's':83, 't':84, 'u':85, 'v':86, 'w':87,
-    'x':88, 'y':89, 'z':90, '{':91, '|':92, '}':93, '~':94
+    ' ':0,'!':1,'"':2,'#':3,'$':4,'%':5,'&':6,"'":7,'(':8,')':9,'*':10,'+':11,',':12,'-':13,'.':14,'/':15,
+    '0':16,'1':17,'2':18,'3':19,'4':20,'5':21,'6':22,'7':23,'8':24,'9':25,':':26,';':27,'<':28,'=':29,'>':30,'?':31,
+    '@':32,'A':33,'B':34,'C':35,'D':36,'E':37,'F':38,'G':39,'H':40,'I':41,'J':42,'K':43,'L':44,'M':45,'N':46,'O':47,
+    'P':48,'Q':49,'R':50,'S':51,'T':52,'U':53,'V':54,'W':55,'X':56,'Y':57,'Z':58,'[':59,'\\':60,']':61,'^':62,'_':63,
+    '`':64,'a':65,'b':66,'c':67,'d':68,'e':69,'f':70,'g':71,'h':72,'i':73,'j':74,'k':75,'l':76,'m':77,'n':78,'o':79,
+    'p':80,'q':81,'r':82,'s':83,'t':84,'u':85,'v':86,'w':87,'x':88,'y':89,'z':90,'{':91,'|':92,'}':93,'~':94
   };
   const PATTERNS = [
     '11011001100','11001101100','11001100110','10010011000','10010001100',
@@ -6507,43 +6503,40 @@ function generateBarcodeSVG(text, height=50) {
     '10111101110','11101011110','11110101110','11010000100','11010010000',
     '11010011100','1100011101011'
   ];
-  const START_B = 104;
-  const STOP = 106;
 
-  let codes = [START_B];
-  let checksum = START_B;
+  // Build code sequence
+  let codes = [104]; // START B
+  let checksum = 104;
   for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    const val = CODE128_B[c] !== undefined ? CODE128_B[c] : 0;
+    const val = CODE128_B[text[i]] !== undefined ? CODE128_B[text[i]] : 0;
     codes.push(val);
     checksum += val * (i + 1);
   }
   codes.push(checksum % 103);
-  codes.push(STOP);
+  codes.push(106); // STOP
 
-  const W = 3; // Wider bars — easier for scanner to read
-  let bars = '';
-  let x = 0;
-
+  // Build bit string
+  let bits = '';
   for (const code of codes) {
-    const pattern = PATTERNS[code] || '11011001100';
-    for (let i = 0; i < pattern.length; i++) {
-      const w = parseInt(pattern[i]) * W;
-      if (i % 2 === 0) {
-        bars += `<rect x="${x}" y="0" width="${w}" height="${height}" fill="#000"/>`;
-      }
-      x += w;
-    }
+    bits += PATTERNS[code] || '11011001100';
   }
 
-  const totalWidth = x;
-  const fontSize = 9;
-  // Use fixed pixel size — do NOT scale down, scanners need minimum bar width
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${totalWidth}" height="${height + fontSize + 4}" viewBox="0 0 ${totalWidth} ${height + fontSize + 4}" style="display:block">
-    <rect width="${totalWidth}" height="${height + fontSize + 4}" fill="white"/>
-    ${bars}
-    <text x="${totalWidth/2}" y="${height + fontSize + 1}" text-anchor="middle" font-family="Courier New, monospace" font-size="${fontSize}" fill="#000">${text}</text>
-  </svg>`;
+  // Render to canvas at 4px per module (high density for printing)
+  const W = 3; // px per module — 3px = ~0.8mm at 96dpi
+  const canvas = document.createElement('canvas');
+  canvas.width = bits.length * W;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#000000';
+  for (let i = 0; i < bits.length; i++) {
+    if (bits[i] === '1') {
+      ctx.fillRect(i * W, 0, W, height);
+    }
+  }
+  const dataURL = canvas.toDataURL('image/png');
+  return `<img src="${dataURL}" style="display:block;width:${canvas.width}px;height:${height}px;image-rendering:pixelated" alt="barcode">`;
 }
 
 function printItemLabel(itemId) {
