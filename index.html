@@ -2933,6 +2933,15 @@ function renderInvCard(item, inGroup=false) {
   const itemAssets = assets.filter(a => a.inventory_item_id === item.id);
   const cat = categories.find(c => c.id === item.category_id);
   const border = inGroup ? 'border-bottom:1px solid var(--bdr)' : 'border:1px solid var(--bdr);border-radius:var(--r);margin-bottom:8px';
+
+  // Build location breakdown if we have location data
+  const itemLocStock = locationStock[item.id] || {};
+  const locBreakdown = invLocations.length && Object.keys(itemLocStock).length
+    ? invLocations.filter(l => (itemLocStock[l.id] || 0) > 0).map(l =>
+        `<span style="font-size:10px;color:var(--txt2);margin-right:8px">${getLocIcon(l.type)} ${esc(l.name)}: <strong style="color:var(--grn)">${itemLocStock[l.id]}</strong></span>`
+      ).join('')
+    : '';
+
   return `<div id="inv-item-${item.id}" style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--sur);${border};transition:outline .3s">
     <div style="flex:1;min-width:0">
       <div style="display:flex;align-items:center;gap:7px;margin-bottom:2px;flex-wrap:wrap">
@@ -2940,6 +2949,7 @@ function renderInvCard(item, inGroup=false) {
         <span style="font-weight:700;font-size:13px">${item.name}</span>
       </div>
       <div style="font-size:11px;color:var(--txt2);font-family:var(--mono)">${cat?cat.name:''} ${item.tracking_type==='asset'?'· Asset':''}</div>
+      ${locBreakdown ? `<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:2px">${locBreakdown}</div>` : ''}
       ${item.supplier_url?`<a href="${item.supplier_url}" target="_blank" style="font-size:10px;color:var(--acc);text-decoration:none">🔗 Reorder</a>`:''}
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
@@ -2950,6 +2960,7 @@ function renderInvCard(item, inGroup=false) {
       <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">
         <button class="btn btn-xs btn-s" onclick="editInvItem('${item.id}')">Edit</button>
         <button class="btn btn-xs btn-t" onclick="printItemLabel('${item.id}')">🏷</button>
+        <button class="btn btn-xs btn-t" onclick="openTransferModal();quickTransferFrom('',&apos;${item.id}&apos;)" title="Transfer">↔</button>
         ${isLow?`<button class="btn btn-xs btn-warn" onclick="addToReorder('${item.id}')">Reorder</button>`:''}
       </div>
     </div>
@@ -4916,18 +4927,32 @@ async function confirmTransfer() {
 async function saveNewLocation() {
   const name = document.getElementById('loc-name').value.trim();
   if (!name) { alert('Enter a location name.'); return; }
+  const type = document.getElementById('loc-type').value;
+  const notes = document.getElementById('loc-notes').value.trim() || null;
   setSyncStatus('syncing');
   try {
-    const { data } = await db.from('inventory_locations').insert({
-      name, type: document.getElementById('loc-type').value,
-      notes: document.getElementById('loc-notes').value.trim()||null,
-      sort_order: invLocations.length + 1
+    const { data, error } = await db.from('inventory_locations').insert({
+      name, type, notes, sort_order: invLocations.length + 1
     }).select();
+    if (error) throw error;
     if (data) invLocations.push(data[0]);
     setSyncStatus('ok');
     closeModal('add-location-modal');
     renderLocationsPanel();
-  } catch(e) { setSyncStatus('error'); alert('Error: ' + e.message); }
+    alert(`✓ "${name}" added as a location!`);
+  } catch(e) {
+    setSyncStatus('error');
+    // Table likely doesn't exist yet — add to local list so it works immediately
+    if (e.message && (e.message.includes('does not exist') || e.message.includes('relation') || e.message.includes('42P01'))) {
+      invLocations.push({ id: 'local-' + uid(), name, type, notes, sort_order: invLocations.length + 1 });
+      setSyncStatus('ok');
+      closeModal('add-location-modal');
+      renderLocationsPanel();
+      alert(`✓ "${name}" added locally.\n\n⚠ To save permanently, run the inventory_locations.sql in Supabase, then reload.`);
+    } else {
+      alert('Error adding location: ' + e.message);
+    }
+  }
 }
 
 async function deactivateLocation(locId, name) {
