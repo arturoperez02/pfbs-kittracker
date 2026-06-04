@@ -804,6 +804,40 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
         <div id="hist-list"></div>
       </div>
 
+      <!-- LOCATIONS -->
+      <div class="panel" id="panel-locations">
+        <div class="sec-hdr">
+          <div><div class="sec-title">Locations</div><div class="sec-sub">Stock by location & transfer log</div></div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-s btn-sm" onclick="openAddLocation()">+ Location</button>
+            <button class="btn btn-p btn-sm" onclick="openTransferModal()">↔ Transfer</button>
+          </div>
+        </div>
+
+        <!-- Vehicle Fleet section -->
+        <div style="background:var(--sur2);border:1px solid var(--bdr);border-radius:var(--r2);padding:14px;margin-bottom:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div>
+              <div class="card-title" style="margin:0">🚛 Vehicle Fleet</div>
+              <div style="font-size:11px;color:var(--txt2);margin-top:2px">All vehicles sync to dropdowns everywhere</div>
+            </div>
+            <button class="btn btn-p btn-sm" onclick="openAddVehicleFull()">+ Add Vehicle</button>
+          </div>
+          <div id="vehicles-list"></div>
+        </div>
+
+        <!-- Location cards -->
+        <div id="loc-cards" style="margin-bottom:16px"></div>
+
+        <!-- Transfer log -->
+        <div class="card-title" style="margin-bottom:10px">Transfer Log</div>
+        <div class="search-wrap" style="margin-bottom:10px">
+          <span class="search-ico">🔍</span>
+          <input type="text" id="transfer-search" placeholder="Search transfers..." oninput="renderTransferLog()">
+        </div>
+        <div id="transfer-log"></div>
+      </div>
+
       <!-- DI TANKS -->
       <div class="panel" id="panel-ditanks">
         <div class="sec-hdr">
@@ -975,6 +1009,7 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
     <button class="bn" onclick="nav('keys')"><span class="bi">🔑</span>Keys</button>
     <button class="bn" onclick="nav('history')"><span class="bi">📜</span>History</button>
     <button class="bn" onclick="nav('ditanks')"><span class="bi">💧</span>DI Tanks</button>
+    <button class="bn" onclick="nav('locations')"><span class="bi">📍</span>Locations</button>
   </nav>
 </div>
 
@@ -1390,6 +1425,108 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
   </div>
 </div>
 
+<!-- TRANSFER MODAL -->
+<div class="ov" id="transfer-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-t"><span>↔ Transfer Material</span><button class="xbtn" onclick="closeModal('transfer-modal')">✕</button></div>
+    <div class="info-b" style="margin-bottom:14px">Move stock between locations. Quantities update automatically.</div>
+    <div class="fg">
+      <label>Item / Artículo</label>
+      <div style="position:relative">
+        <input type="text" id="tr-item-search" placeholder="🔍 Search item or part number..."
+          oninput="searchTransferItem(this)" autocomplete="off" style="font-family:var(--mono)">
+        <div id="tr-item-dd" style="display:none;position:fixed;background:var(--sur);border:2px solid var(--acc);border-radius:0 0 10px 10px;z-index:99999;max-height:200px;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.7)"></div>
+        <input type="hidden" id="tr-item-id">
+      </div>
+      <div id="tr-item-stocks" style="margin-top:6px"></div>
+    </div>
+    <div class="fg"><label>From</label>
+      <select id="tr-from" onchange="updateTransferStockInfo()">
+        <option value="">— select location —</option>
+      </select>
+      <div id="tr-from-stock" style="font-size:11px;color:var(--txt2);margin-top:4px"></div>
+    </div>
+    <div class="fg"><label>To</label>
+      <select id="tr-to">
+        <option value="">— select location —</option>
+      </select>
+    </div>
+    <div class="fg"><label>Quantity</label>
+      <input type="number" id="tr-qty" min="1" value="1">
+    </div>
+    <div class="fg"><label>Transferred by</label>
+      <div style="position:relative">
+        <input type="text" id="tr-by" placeholder="Your name..."
+          oninput="searchTransferRoster(this)" onfocus="searchTransferRoster(this)" autocomplete="off">
+        <div id="tr-by-dd" style="display:none;position:fixed;background:var(--sur);border:2px solid var(--acc);border-radius:0 0 9px 9px;z-index:99999;max-height:160px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.6)"></div>
+      </div>
+    </div>
+    <div class="fg"><label>Notes (optional)</label><input type="text" id="tr-notes" placeholder="Reason for transfer..."></div>
+    <hr>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="flex:1" onclick="closeModal('transfer-modal')">Cancel</button>
+      <button class="btn btn-p" style="flex:1" onclick="confirmTransfer()">↔ Transfer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD VEHICLE MODAL -->
+<div class="ov" id="add-vehicle-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-t"><span>🚛 Add Vehicle</span><button class="xbtn" onclick="closeModal('add-vehicle-modal')">✕</button></div>
+    <div class="fg"><label>Vehicle Name *</label><input type="text" id="veh-name" placeholder="e.g. Van #2, Truck #5..."></div>
+    <div class="fg"><label>Type</label>
+      <select id="veh-type">
+        <option value="van">🚐 Van</option>
+        <option value="truck">🚛 Truck</option>
+        <option value="trailer">🚜 Trailer</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="fg"><label>Year</label><input type="text" id="veh-year" placeholder="2022"></div>
+      <div class="fg"><label>Make</label><input type="text" id="veh-make" placeholder="Ford, Chevy..."></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="fg"><label>Model</label><input type="text" id="veh-model" placeholder="Transit, Express..."></div>
+      <div class="fg"><label>License Plate</label><input type="text" id="veh-plate" placeholder="ABC 1234"></div>
+    </div>
+    <div class="fg"><label>Notes</label><input type="text" id="veh-notes" placeholder="Color, storage notes..."></div>
+    <div class="info-b" style="margin-top:8px">
+      Adding a vehicle automatically creates a matching inventory location for stock tracking.
+    </div>
+    <hr>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="flex:1" onclick="closeModal('add-vehicle-modal')">Cancel</button>
+      <button class="btn btn-p" style="flex:1" onclick="saveNewVehicle()">Add Vehicle</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD LOCATION MODAL -->
+<div class="ov" id="add-location-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-t"><span>+ Add Location</span><button class="xbtn" onclick="closeModal('add-location-modal')">✕</button></div>
+    <div class="fg"><label>Location Name</label><input type="text" id="loc-name" placeholder="e.g. Warehouse 2, Van #5..."></div>
+    <div class="fg"><label>Type</label>
+      <select id="loc-type">
+        <option value="warehouse">🏭 Warehouse</option>
+        <option value="vehicle">🚛 Vehicle</option>
+        <option value="offsite">🏠 Offsite</option>
+      </select>
+    </div>
+    <div class="fg"><label>Notes (optional)</label><input type="text" id="loc-notes" placeholder="Address, description..."></div>
+    <hr>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="flex:1" onclick="closeModal('add-location-modal')">Cancel</button>
+      <button class="btn btn-p" style="flex:1" onclick="saveNewLocation()">Add Location</button>
+    </div>
+  </div>
+</div>
+
 <!-- GRAB MATERIAL MODAL -->
 <div class="ov" id="grab-modal">
   <div class="modal">
@@ -1754,6 +1891,8 @@ async function loadAll() {
     clientKeys = kRes.data || [];
     // Load DI pairs separately — safe, won't crash if table missing
     loadDIPairs().catch(() => {});
+    loadLocations().catch(() => {});
+    loadVehicles().catch(() => {});
     // Load all synced data safely
     loadAllSettings().catch(() => {});
     loadInspectionsFromSupabase().catch(() => {});
@@ -1968,7 +2107,7 @@ function nav(id) {
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.bn').forEach(b=>b.classList.remove('active'));
   document.getElementById('panel-'+id).classList.add('active');
-  const ids=['dashboard','checkout','returns','rentals','inventory','repairs','inspections','templates','keys','history','ditanks'];
+  const ids=['dashboard','checkout','returns','rentals','inventory','repairs','inspections','templates','keys','history','ditanks','locations'];
   const idx=ids.indexOf(id);
   if (idx>=0) document.querySelectorAll('.bn')[idx]?.classList.add('active');
   document.querySelector('.scroll').scrollTop=0;
@@ -1993,6 +2132,7 @@ function nav(id) {
   if (id==='keys') renderKeysPanel();
   if (id==='inspections') { loadInspectionsFromSupabase().then(() => renderInspList()); }
   if (id==='ditanks') { loadDIPairs().then(() => { fillAllVehicleDropdowns(); renderDIPanel(); }); }
+  if (id==='locations') { Promise.all([loadLocations(), loadVehicles()]).then(() => renderLocationsPanel()); }
   if (id==='dashboard') refresh();
 }
 
@@ -3193,12 +3333,75 @@ function settingsSaveCompany() {
 }
 
 // ─── VEHICLES ───────────────────────────────────────────────
+// Vehicles — Supabase-backed, localStorage cache
+let vehiclesList = []; // full vehicle objects from Supabase
+
 function getVehicles() {
+  // Returns just names for dropdowns (backwards compatible)
+  if (vehiclesList.length) return vehiclesList.map(v => v.name);
   return JSON.parse(localStorage.getItem('kt_vehicles') || '[]');
 }
-function saveVehicles(list) {
+
+async function loadVehicles() {
+  try {
+    const { data } = await db.from('vehicles').select('*').eq('is_active', true).order('sort_order');
+    if (data && data.length) {
+      vehiclesList = data;
+      localStorage.setItem('kt_vehicles', JSON.stringify(data.map(v => v.name)));
+    }
+  } catch(e) { console.warn('Vehicles load:', e.message); }
+}
+
+async function saveVehicles(list) {
+  // list is array of name strings (from settings)
   localStorage.setItem('kt_vehicles', JSON.stringify(list));
   syncSettingToSupabase('kt_vehicles', list);
+  // Sync new vehicles to vehicles table
+  try {
+    for (const name of list) {
+      if (!vehiclesList.find(v => v.name === name)) {
+        const { data } = await db.from('vehicles').insert({ name, sort_order: vehiclesList.length + 1 }).select();
+        if (data) vehiclesList.push(data[0]);
+      }
+    }
+  } catch(e) { console.warn('Vehicles sync:', e.message); }
+}
+
+async function addVehicleFull(vehicleData) {
+  // Add vehicle with full details
+  try {
+    const { data } = await db.from('vehicles').insert({
+      name: vehicleData.name,
+      type: vehicleData.type || 'van',
+      year: vehicleData.year || null,
+      make: vehicleData.make || null,
+      model: vehicleData.model || null,
+      plate: vehicleData.plate || null,
+      notes: vehicleData.notes || null,
+      sort_order: vehiclesList.length + 1
+    }).select();
+    if (data) {
+      vehiclesList.push(data[0]);
+      localStorage.setItem('kt_vehicles', JSON.stringify(vehiclesList.map(v => v.name)));
+      // Also add as a location automatically
+      await db.from('inventory_locations').insert({
+        name: vehicleData.name, type: 'vehicle', sort_order: invLocations.length + 1
+      });
+      await loadLocations();
+    }
+    return data?.[0];
+  } catch(e) { console.warn('addVehicleFull:', e.message); return null; }
+}
+
+async function deactivateVehicle(vehicleId, name) {
+  if (!confirm(`Archive vehicle "${name}"? It will be hidden but history is preserved.`)) return;
+  try {
+    await db.from('vehicles').update({ is_active: false }).eq('id', vehicleId);
+    vehiclesList = vehiclesList.filter(v => v.id !== vehicleId);
+    localStorage.setItem('kt_vehicles', JSON.stringify(vehiclesList.map(v => v.name)));
+    fillAllVehicleDropdowns();
+    renderVehiclesSection();
+  } catch(e) { alert('Error: ' + e.message); }
 }
 function buildVehicleOptions(currentValue) {
   // Always pull fresh from localStorage (synced from Supabase)
@@ -4431,6 +4634,359 @@ async function doApplyTplRequest(req, tpl, all) {
     setSyncStatus('error');
     alert('Error applying: ' + e.message);
   }
+}
+
+// ─── LOCATIONS ───────────────────────────────────────────────
+let invLocations = [];
+let locationStock = {};  // { itemId: { locationId: qty } }
+let transferLog = [];
+
+async function loadLocations() {
+  try {
+    const { data: locs } = await db.from('inventory_locations').select('*').eq('is_active', true).order('sort_order');
+    if (locs) invLocations = locs;
+    const { data: stock } = await db.from('inventory_location_stock').select('*');
+    if (stock) {
+      locationStock = {};
+      stock.forEach(s => {
+        if (!locationStock[s.inventory_item_id]) locationStock[s.inventory_item_id] = {};
+        locationStock[s.inventory_item_id][s.location_id] = s.quantity;
+      });
+    }
+    const { data: transfers } = await db.from('inventory_transfers').select('*, inventory_items(name,part_number), from_loc:inventory_locations!from_location_id(name), to_loc:inventory_locations!to_location_id(name)').order('transferred_at', { ascending: false }).limit(100);
+    if (transfers) transferLog = transfers;
+  } catch(e) { console.warn('Locations load:', e.message); }
+}
+
+function getLocIcon(type) {
+  return type === 'vehicle' ? '🚛' : type === 'offsite' ? '🏠' : '🏭';
+}
+
+function renderLocationsPanel() {
+  renderVehiclesSection();
+  renderLocCards();
+  renderTransferLog();
+  fillLocationSelects();
+}
+
+function renderLocCards() {
+  const el = document.getElementById('loc-cards');
+  if (!el) return;
+  if (!invLocations.length) {
+    el.innerHTML = '<div class="empty"><div class="ei">📍</div><p>No locations yet. Add your first location.</p></div>';
+    return;
+  }
+  el.innerHTML = invLocations.map(loc => {
+    // Get all items with stock at this location
+    const itemsHere = Object.entries(locationStock)
+      .map(([itemId, locs]) => ({ itemId, qty: locs[loc.id] || 0 }))
+      .filter(i => i.qty > 0);
+    const totalItems = itemsHere.length;
+    const totalUnits = itemsHere.reduce((s, i) => s + i.qty, 0);
+    return `<div class="card" style="margin-bottom:12px;border-left:3px solid var(--acc)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <span style="font-size:24px">${getLocIcon(loc.type)}</span>
+        <div style="flex:1">
+          <div style="font-weight:800;font-size:15px">${esc(loc.name)}</div>
+          <div style="font-size:11px;color:var(--txt2);text-transform:uppercase;letter-spacing:.05em">${loc.type}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:20px;font-weight:900;color:var(--acc)">${totalItems}</div>
+          <div style="font-size:10px;color:var(--txt3)">item types</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:20px;font-weight:900;color:var(--grn)">${totalUnits}</div>
+          <div style="font-size:10px;color:var(--txt3)">total units</div>
+        </div>
+      </div>
+      ${itemsHere.length ? `
+        <div style="display:flex;flex-direction:column;gap:4px">
+          ${itemsHere.slice(0,5).map(i => {
+            const item = inventoryItems.find(inv => inv.id === i.itemId);
+            if (!item) return '';
+            return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--sur2);border-radius:7px">
+              ${item.part_number ? `<span style="font-family:var(--mono);font-size:10px;color:var(--acc);background:var(--acc-dim);padding:1px 6px;border-radius:4px;flex-shrink:0">${item.part_number}</span>` : ''}
+              <span style="font-size:12px;font-weight:600;flex:1">${esc(item.name)}</span>
+              <span style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--grn)">${i.qty}</span>
+              <button class="btn btn-s btn-xs" onclick="quickTransferFrom('${loc.id}','${i.itemId}')">↔</button>
+            </div>`;
+          }).join('')}
+          ${itemsHere.length > 5 ? `<div style="font-size:11px;color:var(--txt3);text-align:center;padding:4px">+${itemsHere.length-5} more items</div>` : ''}
+        </div>` : `<div style="font-size:12px;color:var(--txt3);text-align:center;padding:8px">No stock at this location</div>`}
+      <div style="margin-top:10px;display:flex;gap:6px">
+        <button class="btn btn-p btn-sm" style="flex:1" onclick="openTransferModal('${loc.id}')">↔ Transfer In/Out</button>
+        <button class="btn btn-r btn-xs" onclick="deactivateLocation('${loc.id}','${esc(loc.name)}')">Archive</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderTransferLog() {
+  const el = document.getElementById('transfer-log');
+  if (!el) return;
+  const q = (document.getElementById('transfer-search')?.value || '').toLowerCase();
+  const filtered = q ? transferLog.filter(t =>
+    `${t.inventory_items?.name||''} ${t.inventory_items?.part_number||''} ${t.from_loc?.name||''} ${t.to_loc?.name||''} ${t.transferred_by||''}`.toLowerCase().includes(q)
+  ) : transferLog;
+  if (!filtered.length) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--txt2);padding:8px">No transfers yet.</div>';
+    return;
+  }
+  el.innerHTML = filtered.slice(0,30).map(t => `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--sur2);border:1px solid var(--bdr);border-radius:9px;margin-bottom:6px">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:700">
+          ${t.inventory_items?.part_number ? `<span style="font-family:var(--mono);font-size:10px;color:var(--acc);background:var(--acc-dim);padding:1px 5px;border-radius:4px;margin-right:5px">${t.inventory_items.part_number}</span>` : ''}
+          ${esc(t.inventory_items?.name || '--')}
+        </div>
+        <div style="font-size:11px;color:var(--txt2);margin-top:2px">
+          ${esc(t.from_loc?.name||'--')} → ${esc(t.to_loc?.name||'--')}
+          ${t.transferred_by ? ` · ${esc(t.transferred_by)}` : ''}
+        </div>
+        ${t.notes ? `<div style="font-size:10px;color:var(--txt3)">${esc(t.notes)}</div>` : ''}
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-size:16px;font-weight:900;color:var(--acc);font-family:var(--mono)">${t.quantity}</div>
+        <div style="font-size:10px;color:var(--txt3)">${new Date(t.transferred_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+      </div>
+    </div>`).join('');
+}
+
+function fillLocationSelects() {
+  const opts = '<option value="">— select location —</option>' +
+    invLocations.map(l => `<option value="${l.id}">${getLocIcon(l.type)} ${esc(l.name)}</option>`).join('');
+  ['tr-from','tr-to'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = opts;
+  });
+}
+
+function openTransferModal(fromLocId) {
+  document.getElementById('tr-item-search').value = '';
+  document.getElementById('tr-item-id').value = '';
+  document.getElementById('tr-item-stocks').innerHTML = '';
+  document.getElementById('tr-from-stock').innerHTML = '';
+  document.getElementById('tr-qty').value = '1';
+  document.getElementById('tr-notes').value = '';
+  document.getElementById('tr-item-dd').style.display = 'none';
+  fillLocationSelects();
+  if (fromLocId) {
+    const sel = document.getElementById('tr-from');
+    if (sel) sel.value = fromLocId;
+  }
+  document.getElementById('transfer-modal').classList.add('open');
+}
+
+function quickTransferFrom(locId, itemId) {
+  const item = inventoryItems.find(i => i.id === itemId);
+  openTransferModal(locId);
+  if (item) {
+    document.getElementById('tr-item-search').value = `${item.part_number ? item.part_number + ' — ' : ''}${item.name}`;
+    document.getElementById('tr-item-id').value = itemId;
+    updateTransferStockInfo();
+  }
+}
+
+function searchTransferItem(input) {
+  const q = input.value.trim();
+  const dd = document.getElementById('tr-item-dd');
+  if (!q) { dd.style.display = 'none'; return; }
+  const rect = input.getBoundingClientRect();
+  dd.style.top = rect.bottom + 'px'; dd.style.left = rect.left + 'px'; dd.style.width = rect.width + 'px';
+  const filtered = inventoryItems.filter(i => `${i.part_number||''} ${i.name}`.toLowerCase().includes(q.toLowerCase())).slice(0,10);
+  if (!filtered.length) { dd.style.display = 'none'; return; }
+  dd.style.display = '';
+  dd.innerHTML = filtered.map(i => `
+    <div data-id="${i.id}" data-name="${esc(i.name)}" data-pn="${esc(i.part_number||'')}"
+      onmousedown="event.preventDefault();selectTransferItem(this)"
+      style="padding:10px 14px;cursor:pointer;font-size:12px;font-weight:600;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:8px"
+      onmouseover="this.style.background='var(--sur2)'" onmouseout="this.style.background=''">
+      ${i.part_number?`<span style="font-family:var(--mono);font-size:10px;color:var(--acc);background:var(--acc-dim);padding:2px 7px;border-radius:5px;flex-shrink:0">${esc(i.part_number)}</span>`:''}
+      <span>${esc(i.name)}</span>
+    </div>`).join('');
+}
+
+function selectTransferItem(el) {
+  document.getElementById('tr-item-search').value = (el.dataset.pn ? el.dataset.pn + ' — ' : '') + el.dataset.name;
+  document.getElementById('tr-item-id').value = el.dataset.id;
+  document.getElementById('tr-item-dd').style.display = 'none';
+  updateTransferStockInfo();
+}
+
+function updateTransferStockInfo() {
+  const itemId = document.getElementById('tr-item-id').value;
+  const fromId = document.getElementById('tr-from').value;
+  if (!itemId) return;
+  // Show stock at each location for this item
+  const stockEl = document.getElementById('tr-item-stocks');
+  const fromStockEl = document.getElementById('tr-from-stock');
+  const itemStock = locationStock[itemId] || {};
+  const lines = invLocations.map(l => {
+    const qty = itemStock[l.id] || 0;
+    return `<span style="margin-right:10px">${getLocIcon(l.type)} ${esc(l.name)}: <strong style="color:${qty>0?'var(--grn)':'var(--txt3)'}">${qty}</strong></span>`;
+  }).join('');
+  stockEl.innerHTML = `<div style="font-size:11px;color:var(--txt2);padding:6px 10px;background:var(--sur2);border-radius:7px">${lines}</div>`;
+  if (fromId) {
+    const qty = itemStock[fromId] || 0;
+    fromStockEl.textContent = `Available at this location: ${qty}`;
+    fromStockEl.style.color = qty > 0 ? 'var(--grn)' : 'var(--red)';
+  }
+}
+
+function searchTransferRoster(input) {
+  const q = (input.value||'').toLowerCase();
+  const dd = document.getElementById('tr-by-dd');
+  if (!dd || !_techRoster.length) return;
+  const filtered = q ? _techRoster.filter(t => t.toLowerCase().includes(q)) : _techRoster;
+  if (!filtered.length) { dd.style.display='none'; return; }
+  const rect = input.getBoundingClientRect();
+  dd.style.top=rect.bottom+'px'; dd.style.left=rect.left+'px'; dd.style.width=rect.width+'px';
+  dd.style.display='';
+  dd.innerHTML = filtered.map(t=>`
+    <div onmousedown="event.preventDefault();document.getElementById('tr-by').value='${t.replace(/'/g,"\\'")}';document.getElementById('tr-by-dd').style.display='none'"
+      style="padding:10px 14px;cursor:pointer;font-size:13px;font-weight:600;border-bottom:1px solid var(--bdr)"
+      onmouseover="this.style.background='var(--sur2)'" onmouseout="this.style.background=''">👷 ${t}</div>`).join('');
+}
+
+async function confirmTransfer() {
+  const itemId = document.getElementById('tr-item-id').value;
+  const fromId = document.getElementById('tr-from').value;
+  const toId = document.getElementById('tr-to').value;
+  const qty = parseInt(document.getElementById('tr-qty').value) || 0;
+  const by = document.getElementById('tr-by').value.trim();
+  const notes = document.getElementById('tr-notes').value.trim();
+  if (!itemId) { alert('Select an item.'); return; }
+  if (!fromId) { alert('Select a From location.'); return; }
+  if (!toId) { alert('Select a To location.'); return; }
+  if (fromId === toId) { alert('From and To locations must be different.'); return; }
+  if (qty < 1) { alert('Enter a valid quantity.'); return; }
+  // Check available stock
+  const available = (locationStock[itemId]||{})[fromId] || 0;
+  if (qty > available) {
+    if (!confirm(`⚠ Only ${available} units available at this location.\nTransfer ${available} instead?`)) return;
+  }
+  const actualQty = Math.min(qty, available);
+  setSyncStatus('syncing');
+  try {
+    // Update from location stock
+    const fromNew = Math.max(0, available - actualQty);
+    await db.from('inventory_location_stock').upsert({
+      inventory_item_id: itemId, location_id: fromId, quantity: fromNew, updated_at: new Date().toISOString()
+    }, { onConflict: 'inventory_item_id,location_id' });
+    // Update to location stock
+    const toQty = (locationStock[itemId]||{})[toId] || 0;
+    await db.from('inventory_location_stock').upsert({
+      inventory_item_id: itemId, location_id: toId, quantity: toQty + actualQty, updated_at: new Date().toISOString()
+    }, { onConflict: 'inventory_item_id,location_id' });
+    // Log the transfer
+    await db.from('inventory_transfers').insert({
+      inventory_item_id: itemId, from_location_id: fromId, to_location_id: toId,
+      quantity: actualQty, transferred_by: by||null, notes: notes||null
+    });
+    setSyncStatus('ok');
+    closeModal('transfer-modal');
+    await loadLocations();
+    renderLocationsPanel();
+    const item = inventoryItems.find(i => i.id === itemId);
+    const fromLoc = invLocations.find(l => l.id === fromId);
+    const toLoc = invLocations.find(l => l.id === toId);
+    alert(`✓ Transfer complete!\n${actualQty}x ${item?.name||''}\n${fromLoc?.name||'--'} → ${toLoc?.name||'--'}`);
+  } catch(e) {
+    setSyncStatus('error');
+    alert('Transfer error: ' + e.message);
+  }
+}
+
+async function saveNewLocation() {
+  const name = document.getElementById('loc-name').value.trim();
+  if (!name) { alert('Enter a location name.'); return; }
+  setSyncStatus('syncing');
+  try {
+    const { data } = await db.from('inventory_locations').insert({
+      name, type: document.getElementById('loc-type').value,
+      notes: document.getElementById('loc-notes').value.trim()||null,
+      sort_order: invLocations.length + 1
+    }).select();
+    if (data) invLocations.push(data[0]);
+    setSyncStatus('ok');
+    closeModal('add-location-modal');
+    renderLocationsPanel();
+  } catch(e) { setSyncStatus('error'); alert('Error: ' + e.message); }
+}
+
+async function deactivateLocation(locId, name) {
+  if (!confirm(`Archive "${name}"? It will be hidden but transfer history is preserved.`)) return;
+  try {
+    await db.from('inventory_locations').update({ is_active: false }).eq('id', locId);
+    invLocations = invLocations.filter(l => l.id !== locId);
+    renderLocationsPanel();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+function renderVehiclesSection() {
+  const el = document.getElementById('vehicles-list');
+  if (!el) return;
+  if (!vehiclesList.length) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--txt2)">No vehicles yet. Add your first vehicle.</div>';
+    return;
+  }
+  const typeIcon = { van:'🚐', truck:'🚛', trailer:'🚜', other:'🚗' };
+  el.innerHTML = vehiclesList.map(v => `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--sur);border:1px solid var(--bdr);border-radius:9px;margin-bottom:6px">
+      <span style="font-size:20px">${typeIcon[v.type]||'🚗'}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:13px">${esc(v.name)}</div>
+        <div style="font-size:11px;color:var(--txt2)">
+          ${[v.year, v.make, v.model].filter(Boolean).join(' ')}
+          ${v.plate ? `· <span style="font-family:var(--mono)">${v.plate}</span>` : ''}
+        </div>
+        ${v.notes ? `<div style="font-size:10px;color:var(--txt3)">${esc(v.notes)}</div>` : ''}
+      </div>
+      <button class="btn btn-r btn-xs" onclick="deactivateVehicle('${v.id}','${esc(v.name)}')">Archive</button>
+    </div>`).join('');
+}
+
+function openAddVehicleFull() {
+  ['veh-name','veh-year','veh-make','veh-model','veh-plate','veh-notes'].forEach(id => {
+    const el = document.getElementById(id); if(el) el.value = '';
+  });
+  document.getElementById('veh-type').value = 'van';
+  document.getElementById('add-vehicle-modal').classList.add('open');
+}
+
+async function saveNewVehicle() {
+  const name = document.getElementById('veh-name').value.trim();
+  if (!name) { alert('Enter a vehicle name.'); return; }
+  if (vehiclesList.find(v => v.name.toLowerCase() === name.toLowerCase())) {
+    alert('A vehicle with this name already exists.'); return;
+  }
+  setSyncStatus('syncing');
+  const result = await addVehicleFull({
+    name,
+    type: document.getElementById('veh-type').value,
+    year: document.getElementById('veh-year').value.trim(),
+    make: document.getElementById('veh-make').value.trim(),
+    model: document.getElementById('veh-model').value.trim(),
+    plate: document.getElementById('veh-plate').value.trim(),
+    notes: document.getElementById('veh-notes').value.trim()
+  });
+  setSyncStatus('ok');
+  if (result) {
+    closeModal('add-vehicle-modal');
+    fillAllVehicleDropdowns();
+    renderVehiclesSection();
+    renderLocCards();
+    alert(`✓ ${name} added to fleet and created as an inventory location!`);
+  } else {
+    alert('Error adding vehicle. Try again.');
+  }
+}
+
+function openAddLocation() {
+  document.getElementById('loc-name').value = '';
+  document.getElementById('loc-notes').value = '';
+  document.getElementById('loc-type').value = 'warehouse';
+  document.getElementById('add-location-modal').classList.add('open');
 }
 
 // ─── GRAB MATERIAL ──────────────────────────────────────────
