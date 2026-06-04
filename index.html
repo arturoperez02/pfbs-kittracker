@@ -4761,7 +4761,7 @@ function fillLocationSelects() {
   });
 }
 
-function openTransferModal(fromLocId) {
+async function openTransferModal(fromLocId) {
   document.getElementById('tr-item-search').value = '';
   document.getElementById('tr-item-id').value = '';
   document.getElementById('tr-item-stocks').innerHTML = '';
@@ -4769,6 +4769,22 @@ function openTransferModal(fromLocId) {
   document.getElementById('tr-qty').value = '1';
   document.getElementById('tr-notes').value = '';
   document.getElementById('tr-item-dd').style.display = 'none';
+
+  // Load locations fresh, fall back to vehicles+settings if table missing
+  if (!invLocations.length) {
+    await loadLocations().catch(() => {});
+  }
+
+  // If still empty, build from vehicles + known locations
+  if (!invLocations.length) {
+    const builtIn = [
+      { id: 'warehouse', name: 'Warehouse', type: 'warehouse' },
+      { id: 'owners-house', name: "Owner's House", type: 'offsite' },
+      ...getVehicles().map((v, i) => ({ id: 'vehicle-' + i, name: v, type: 'vehicle' }))
+    ];
+    invLocations = builtIn;
+  }
+
   fillLocationSelects();
   if (fromLocId) {
     const sel = document.getElementById('tr-from');
