@@ -1425,6 +1425,27 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
   </div>
 </div>
 
+<!-- DISTRIBUTE STOCK MODAL -->
+<div class="ov" id="distribute-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-t"><span>📍 Set Location Quantities</span><button class="xbtn" onclick="closeModal('distribute-modal')">✕</button></div>
+    <div class="info-b" style="margin-bottom:14px">
+      Enter how many of this item are at each location. Total should match your current stock count.
+    </div>
+    <input type="hidden" id="dist-item-id">
+    <div id="dist-item-name" style="font-weight:700;font-size:14px;margin-bottom:4px"></div>
+    <div id="dist-total-row" style="font-size:12px;color:var(--txt2);margin-bottom:14px"></div>
+    <div id="dist-location-inputs"></div>
+    <div id="dist-sum-row" style="padding:10px 12px;background:var(--sur2);border-radius:9px;margin-bottom:14px;font-size:13px;font-weight:700"></div>
+    <hr>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="flex:1" onclick="closeModal('distribute-modal')">Cancel</button>
+      <button class="btn btn-p" style="flex:1" onclick="saveDistributeStock()">Save Distribution</button>
+    </div>
+  </div>
+</div>
+
 <!-- TRANSFER MODAL -->
 <div class="ov" id="transfer-modal">
   <div class="modal">
@@ -2934,12 +2955,13 @@ function renderInvCard(item, inGroup=false) {
   const cat = categories.find(c => c.id === item.category_id);
   const border = inGroup ? 'border-bottom:1px solid var(--bdr)' : 'border:1px solid var(--bdr);border-radius:var(--r);margin-bottom:8px';
 
-  // Build location breakdown if we have location data
+  // Compact location breakdown — only show locations that have stock
   const itemLocStock = locationStock[item.id] || {};
-  const locBreakdown = invLocations.length && Object.keys(itemLocStock).length
-    ? invLocations.filter(l => (itemLocStock[l.id] || 0) > 0).map(l =>
-        `<span style="font-size:10px;color:var(--txt2);margin-right:8px">${getLocIcon(l.type)} ${esc(l.name)}: <strong style="color:var(--grn)">${itemLocStock[l.id]}</strong></span>`
-      ).join('')
+  const hasLocData = Object.values(itemLocStock).some(q => q > 0);
+  const locBreakdown = hasLocData
+    ? invLocations.filter(l => (itemLocStock[l.id] || 0) > 0)
+        .map(l => `<span style="font-size:10px;color:var(--txt3);background:var(--sur2);padding:1px 6px;border-radius:4px;font-family:var(--mono)">${esc(l.name)}: <strong style="color:var(--grn)">${itemLocStock[l.id]}</strong></span>`)
+        .join(' ')
     : '';
 
   return `<div id="inv-item-${item.id}" style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--sur);${border};transition:outline .3s">
@@ -2960,7 +2982,7 @@ function renderInvCard(item, inGroup=false) {
       <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">
         <button class="btn btn-xs btn-s" onclick="editInvItem('${item.id}')">Edit</button>
         <button class="btn btn-xs btn-t" onclick="printItemLabel('${item.id}')">🏷</button>
-        <button class="btn btn-xs btn-t" onclick="openTransferModal();quickTransferFrom('',&apos;${item.id}&apos;)" title="Transfer">↔</button>
+        <button class="btn btn-xs btn-t" onclick="openDistributeStock('${item.id}')" title="Set location quantities">📍</button>
         ${isLow?`<button class="btn btn-xs btn-warn" onclick="addToReorder('${item.id}')">Reorder</button>`:''}
       </div>
     </div>
@@ -4647,6 +4669,93 @@ async function doApplyTplRequest(req, tpl, all) {
   }
 }
 
+function openDistributeStock(itemId) {
+  const item = inventoryItems.find(i => i.id === itemId);
+  if (!item) return;
+  // Ensure locations are loaded
+  if (!invLocations.length) {
+    const builtIn = [
+      { id: 'warehouse', name: 'Warehouse', type: 'warehouse' },
+      { id: 'owners-house', name: "Owner's House", type: 'offsite' },
+      ...getVehicles().map((v, i) => ({ id: 'vehicle-' + i, name: v, type: 'vehicle' }))
+    ];
+    invLocations = builtIn;
+  }
+  document.getElementById('dist-item-id').value = itemId;
+  document.getElementById('dist-item-name').textContent = `${item.part_number ? item.part_number + ' — ' : ''}${item.name}`;
+  document.getElementById('dist-total-row').textContent = `Current total stock: ${item.quantity_on_hand || 0} units`;
+  const existing = locationStock[itemId] || {};
+  // Build input for each location
+  document.getElementById('dist-location-inputs').innerHTML = invLocations.map(loc => `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--sur2);border-radius:9px;margin-bottom:8px">
+      <span style="font-size:18px">${getLocIcon(loc.type)}</span>
+      <span style="flex:1;font-size:13px;font-weight:600">${esc(loc.name)}</span>
+      <input type="number" id="dist-qty-${loc.id}" min="0" value="${existing[loc.id] || 0}"
+        style="width:80px;text-align:center;font-family:var(--mono);font-size:14px;font-weight:700"
+        oninput="updateDistSum('${itemId}')">
+    </div>`).join('');
+  updateDistSum(itemId);
+  document.getElementById('distribute-modal').classList.add('open');
+}
+
+function updateDistSum(itemId) {
+  const item = inventoryItems.find(i => i.id === itemId);
+  const total = item?.quantity_on_hand || 0;
+  let sum = 0;
+  invLocations.forEach(loc => {
+    sum += parseInt(document.getElementById('dist-qty-' + loc.id)?.value || 0);
+  });
+  const row = document.getElementById('dist-sum-row');
+  const diff = sum - total;
+  if (diff === 0) {
+    row.innerHTML = `✅ Total: ${sum} / ${total} — matches stock count`;
+    row.style.color = 'var(--grn)';
+  } else if (diff > 0) {
+    row.innerHTML = `⚠ Total: ${sum} / ${total} — ${diff} over stock count`;
+    row.style.color = 'var(--amb)';
+  } else {
+    row.innerHTML = `📦 Total: ${sum} / ${total} — ${Math.abs(diff)} unallocated`;
+    row.style.color = 'var(--txt2)';
+  }
+}
+
+async function saveDistributeStock() {
+  const itemId = document.getElementById('dist-item-id').value;
+  setSyncStatus('syncing');
+  try {
+    // Save each location quantity
+    for (const loc of invLocations) {
+      const qty = parseInt(document.getElementById('dist-qty-' + loc.id)?.value || 0);
+      // Skip local/fallback IDs for Supabase
+      if (loc.id.startsWith('local-') || loc.id === 'warehouse' || loc.id === 'owners-house' || loc.id.startsWith('vehicle-')) {
+        // Just update local cache
+        if (!locationStock[itemId]) locationStock[itemId] = {};
+        locationStock[itemId][loc.id] = qty;
+        continue;
+      }
+      await db.from('inventory_location_stock').upsert({
+        inventory_item_id: itemId,
+        location_id: loc.id,
+        quantity: qty,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'inventory_item_id,location_id' });
+      if (!locationStock[itemId]) locationStock[itemId] = {};
+      locationStock[itemId][loc.id] = qty;
+    }
+    setSyncStatus('ok');
+    closeModal('distribute-modal');
+    renderInventory();
+    if (document.getElementById('panel-locations')?.classList.contains('active')) {
+      renderLocationsPanel();
+    }
+    const item = inventoryItems.find(i => i.id === itemId);
+    alert(`✓ Stock distributed for ${item?.name}!`);
+  } catch(e) {
+    setSyncStatus('error');
+    alert('Error saving: ' + e.message);
+  }
+}
+
 // ─── LOCATIONS ───────────────────────────────────────────────
 let invLocations = [];
 let locationStock = {};  // { itemId: { locationId: qty } }
@@ -4724,10 +4833,11 @@ function renderLocCards() {
           }).join('')}
           ${itemsHere.length > 5 ? `<div style="font-size:11px;color:var(--txt3);text-align:center;padding:4px">+${itemsHere.length-5} more items</div>` : ''}
         </div>` : `<div style="font-size:12px;color:var(--txt3);text-align:center;padding:8px">No stock at this location</div>`}
-      <div style="margin-top:10px;display:flex;gap:6px">
-        <button class="btn btn-p btn-sm" style="flex:1" onclick="openTransferModal('${loc.id}')">↔ Transfer In/Out</button>
-        <button class="btn btn-r btn-xs" onclick="deactivateLocation('${loc.id}','${esc(loc.name)}')">Archive</button>
-      </div>
+        <div style="margin-top:10px;display:flex;gap:6px">
+          <button class="btn btn-p btn-sm" style="flex:1" onclick="openTransferModal('${loc.id}')">↔ Transfer In/Out</button>
+          <button class="btn btn-s btn-xs" onclick="bulkAssignToWarehouse('${loc.id}')" title="Assign all unallocated inventory here">📦 Set as main</button>
+          <button class="btn btn-r btn-xs" onclick="deactivateLocation('${loc.id}','${esc(loc.name)}')">Archive</button>
+        </div>
     </div>`;
   }).join('');
 }
@@ -5021,6 +5131,38 @@ async function saveNewVehicle() {
   } else {
     alert('Error adding vehicle. Try again.');
   }
+}
+
+async function bulkAssignToWarehouse(locId) {
+  const loc = invLocations.find(l => l.id === locId);
+  const count = inventoryItems.filter(i => i.tracking_type === 'bulk').length;
+  if (!confirm(`Set ALL ${count} bulk inventory items to "${loc?.name}" as their primary location?\n\nItems already distributed across locations will be updated. This sets unallocated items to their full quantity at this location.`)) return;
+  setSyncStatus('syncing');
+  let done = 0;
+  for (const item of inventoryItems) {
+    if (item.tracking_type !== 'bulk') continue;
+    const existing = locationStock[item.id] || {};
+    const totalAllocated = Object.values(existing).reduce((s, q) => s + q, 0);
+    // Only set if not already distributed
+    if (totalAllocated === 0 && (item.quantity_on_hand || 0) > 0) {
+      const qty = item.quantity_on_hand || 0;
+      try {
+        if (!locId.startsWith('local-') && locId !== 'warehouse' && !locId.startsWith('vehicle-')) {
+          await db.from('inventory_location_stock').upsert({
+            inventory_item_id: item.id, location_id: locId,
+            quantity: qty, updated_at: new Date().toISOString()
+          }, { onConflict: 'inventory_item_id,location_id' });
+        }
+        if (!locationStock[item.id]) locationStock[item.id] = {};
+        locationStock[item.id][locId] = qty;
+        done++;
+      } catch(e) { console.warn('bulk assign error:', e.message); }
+    }
+  }
+  setSyncStatus('ok');
+  renderInventory();
+  renderLocationsPanel();
+  alert(`✓ ${done} items assigned to "${loc?.name}"!\n\nItems already distributed across multiple locations were not changed.`);
 }
 
 function openAddLocation() {
