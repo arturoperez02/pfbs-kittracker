@@ -4719,41 +4719,40 @@ function updateDistSum(itemId) {
   }
 }
 
+async function saveLocStockToCloud() {
+  localStorage.setItem('kt_loc_stock', JSON.stringify(locationStock));
+  try { await db.from('app_settings').upsert({ key: 'kt_loc_stock', value: JSON.stringify(locationStock), updated_at: new Date().toISOString() }, { onConflict: 'key' }); }
+  catch(e) { console.warn('saveLocStock:', e.message); }
+}
+
+async function saveTransfersToCloud() {
+  const recent = transferLog.slice(0, 100);
+  localStorage.setItem('kt_transfers', JSON.stringify(recent));
+  try { await db.from('app_settings').upsert({ key: 'kt_transfers', value: JSON.stringify(recent), updated_at: new Date().toISOString() }, { onConflict: 'key' }); }
+  catch(e) { console.warn('saveTransfers:', e.message); }
+}
+
+async function saveLocationsToCloud() {
+  localStorage.setItem('kt_locations', JSON.stringify(invLocations));
+  try { await db.from('app_settings').upsert({ key: 'kt_locations', value: JSON.stringify(invLocations), updated_at: new Date().toISOString() }, { onConflict: 'key' }); }
+  catch(e) { console.warn('saveLocations:', e.message); }
+}
+
 async function saveDistributeStock() {
   const itemId = document.getElementById('dist-item-id').value;
   setSyncStatus('syncing');
-  try {
-    // Save each location quantity
-    for (const loc of invLocations) {
-      const qty = parseInt(document.getElementById('dist-qty-' + loc.id)?.value || 0);
-      // Skip local/fallback IDs for Supabase
-      if (loc.id.startsWith('local-') || loc.id === 'warehouse' || loc.id === 'owners-house' || loc.id.startsWith('vehicle-')) {
-        // Just update local cache
-        if (!locationStock[itemId]) locationStock[itemId] = {};
-        locationStock[itemId][loc.id] = qty;
-        continue;
-      }
-      await db.from('inventory_location_stock').upsert({
-        inventory_item_id: itemId,
-        location_id: loc.id,
-        quantity: qty,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'inventory_item_id,location_id' });
-      if (!locationStock[itemId]) locationStock[itemId] = {};
-      locationStock[itemId][loc.id] = qty;
-    }
-    setSyncStatus('ok');
-    closeModal('distribute-modal');
-    renderInventory();
-    if (document.getElementById('panel-locations')?.classList.contains('active')) {
-      renderLocationsPanel();
-    }
-    const item = inventoryItems.find(i => i.id === itemId);
-    alert(`✓ Stock distributed for ${item?.name}!`);
-  } catch(e) {
-    setSyncStatus('error');
-    alert('Error saving: ' + e.message);
-  }
+  invLocations.forEach(loc => {
+    const qty = parseInt(document.getElementById('dist-qty-' + loc.id)?.value || 0);
+    if (!locationStock[itemId]) locationStock[itemId] = {};
+    locationStock[itemId][loc.id] = qty;
+  });
+  await saveLocStockToCloud();
+  setSyncStatus('ok');
+  closeModal('distribute-modal');
+  renderInventory();
+  if (document.getElementById('panel-locations')?.classList.contains('active')) renderLocationsPanel();
+  const item = inventoryItems.find(i => i.id === itemId);
+  alert(`✓ Stock distributed for ${item?.name}!`);
 }
 
 // ─── LOCATIONS ───────────────────────────────────────────────
@@ -4762,37 +4761,43 @@ let locationStock = {};  // { itemId: { locationId: qty } }
 let transferLog = [];
 
 async function loadLocations() {
-  // Always load from localStorage cache first — never wipe it
-  const cached = localStorage.getItem('kt_loc_stock');
-  if (cached) try { const c = JSON.parse(cached); if (Object.keys(c).length) locationStock = c; } catch(e) {}
-  const cachedTransfers = localStorage.getItem('kt_transfers');
-  if (cachedTransfers) try { transferLog = JSON.parse(cachedTransfers); } catch(e) {}
-  try {
-    const { data: locs } = await db.from('inventory_locations').select('*').eq('is_active', true).order('sort_order');
-    if (locs && locs.length) invLocations = locs;
-    const { data: stock } = await db.from('inventory_location_stock').select('*');
-    if (stock && stock.length) {
-      // Merge Supabase stock with localStorage — Supabase wins for real UUIDs
-      stock.forEach(s => {
-        if (!locationStock[s.inventory_item_id]) locationStock[s.inventory_item_id] = {};
-        locationStock[s.inventory_item_id][s.location_id] = s.quantity;
-      });
-      localStorage.setItem('kt_loc_stock', JSON.stringify(locationStock));
-    }
-    const { data: transfers } = await db.from('inventory_transfers').select('*, inventory_items(name,part_number), from_loc:inventory_locations!from_location_id(name), to_loc:inventory_locations!to_location_id(name)').order('transferred_at', { ascending: false }).limit(100);
-    if (transfers && transfers.length) {
-      transferLog = transfers;
-      localStorage.setItem('kt_transfers', JSON.stringify(transferLog));
-    }
-  } catch(e) { console.warn('Locations load (run SQL to enable full sync):', e.message); }
+  // Load cached data from localStorage immediately
+  try { const c = localStorage.getItem('kt_loc_stock'); if (c) locationStock = JSON.parse(c); } catch(e) {}
+  try { const c = localStorage.getItem('kt_transfers'); if (c) transferLog = JSON.parse(c); } catch(e) {}
+  try { const c = localStorage.getItem('kt_locations'); if (c) invLocations = JSON.parse(c); } catch(e) {}
 
-  // If no locations loaded from Supabase, use fallback
+  // Try to load from app_settings (works without new SQL tables)
+  try {
+    const { data } = await db.from('app_settings').select('*').in('key', ['kt_loc_stock', 'kt_transfers', 'kt_locations']);
+    if (data) {
+      data.forEach(row => {
+        try {
+          const val = JSON.parse(row.value);
+          if (row.key === 'kt_loc_stock' && Object.keys(val).length) {
+            locationStock = val;
+            localStorage.setItem('kt_loc_stock', JSON.stringify(val));
+          }
+          if (row.key === 'kt_transfers' && val.length) {
+            transferLog = val;
+            localStorage.setItem('kt_transfers', JSON.stringify(val));
+          }
+          if (row.key === 'kt_locations' && val.length) {
+            invLocations = val;
+            localStorage.setItem('kt_locations', JSON.stringify(val));
+          }
+        } catch(e) {}
+      });
+    }
+  } catch(e) { console.warn('loadLocations app_settings:', e.message); }
+
+  // Seed default locations if none exist
   if (!invLocations.length) {
     invLocations = [
-      { id: 'warehouse', name: 'Warehouse', type: 'warehouse' },
-      { id: 'owners-house', name: "Owner's House", type: 'offsite' },
-      ...getVehicles().map((v, i) => ({ id: 'vehicle-' + i, name: v, type: 'vehicle' }))
+      { id: 'loc-warehouse', name: 'Warehouse', type: 'warehouse' },
+      { id: 'loc-owners-house', name: "Owner's House", type: 'offsite' },
+      ...getVehicles().map((v, i) => ({ id: 'loc-vehicle-' + i, name: v, type: 'vehicle' }))
     ];
+    await saveLocationsToCloud();
   }
 }
 
@@ -5031,52 +5036,24 @@ async function confirmTransfer() {
   const fromLoc = invLocations.find(l => l.id === fromId);
   const toLoc = invLocations.find(l => l.id === toId);
   const item = inventoryItems.find(i => i.id === itemId);
-  const localEntry = {
+  transferLog.unshift({
     id: uid(), inventory_item_id: itemId, from_location_id: fromId, to_location_id: toId,
     quantity: actualQty, transferred_by: by||null, notes: notes||null,
     transferred_at: new Date().toISOString(),
     inventory_items: { name: item?.name, part_number: item?.part_number },
     from_loc: { name: fromLoc?.name }, to_loc: { name: toLoc?.name }
-  };
-  transferLog.unshift(localEntry);
+  });
 
-  // Save to localStorage as backup
-  localStorage.setItem('kt_transfers', JSON.stringify(transferLog.slice(0, 100)));
-  localStorage.setItem('kt_loc_stock', JSON.stringify(locationStock));
-
-  // Try Supabase — silently skip if tables don't exist
+  // Save to cloud (app_settings — works without new SQL tables)
   setSyncStatus('syncing');
-  try {
-    const isRealId = id => id && !id.startsWith('local-') && id !== 'warehouse' && id !== 'owners-house' && !id.startsWith('vehicle-');
-    if (isRealId(fromId)) {
-      await db.from('inventory_location_stock').upsert({
-        inventory_item_id: itemId, location_id: fromId,
-        quantity: locationStock[itemId][fromId], updated_at: new Date().toISOString()
-      }, { onConflict: 'inventory_item_id,location_id' });
-    }
-    if (isRealId(toId)) {
-      await db.from('inventory_location_stock').upsert({
-        inventory_item_id: itemId, location_id: toId,
-        quantity: locationStock[itemId][toId], updated_at: new Date().toISOString()
-      }, { onConflict: 'inventory_item_id,location_id' });
-    }
-    if (isRealId(fromId) || isRealId(toId)) {
-      await db.from('inventory_transfers').insert({
-        inventory_item_id: itemId,
-        from_location_id: isRealId(fromId) ? fromId : null,
-        to_location_id: isRealId(toId) ? toId : null,
-        quantity: actualQty, transferred_by: by||null, notes: notes||null
-      });
-    }
-  } catch(e) {
-    console.warn('Transfer Supabase sync (run SQL to enable):', e.message);
-  }
-
+  await saveLocStockToCloud();
+  await saveTransfersToCloud();
   setSyncStatus('ok');
+
   closeModal('transfer-modal');
   renderInventory();
   renderLocationsPanel();
-  alert(`✓ Transfer complete!\n${actualQty}x ${item?.name}\n${fromLoc?.name} → ${toLoc?.name}`);
+  alert(`✓ Transfer complete!\n${actualQty}x ${item?.name}\n${fromLoc?.name||'--'} → ${toLoc?.name||'--'}`);
 }
 
 async function saveNewLocation() {
@@ -5100,10 +5077,11 @@ async function saveNewLocation() {
     // Table likely doesn't exist yet — add to local list so it works immediately
     if (e.message && (e.message.includes('does not exist') || e.message.includes('relation') || e.message.includes('42P01'))) {
       invLocations.push({ id: 'local-' + uid(), name, type, notes, sort_order: invLocations.length + 1 });
+      await saveLocationsToCloud();
       setSyncStatus('ok');
       closeModal('add-location-modal');
       renderLocationsPanel();
-      alert(`✓ "${name}" added locally.\n\n⚠ To save permanently, run the inventory_locations.sql in Supabase, then reload.`);
+      alert(`✓ "${name}" added and synced!`);
     } else {
       alert('Error adding location: ' + e.message);
     }
@@ -5204,9 +5182,9 @@ async function bulkAssignToWarehouse(locId) {
       } catch(e) { console.warn('bulk assign error:', e.message); }
     }
   }
+  setSyncStatus('syncing');
+  await saveLocStockToCloud();
   setSyncStatus('ok');
-  // Persist to localStorage so it survives page reloads
-  localStorage.setItem('kt_loc_stock', JSON.stringify(locationStock));
   renderInventory();
   renderLocationsPanel();
   alert(`✓ ${done} items assigned to "${loc?.name}"!\n\nItems already distributed across multiple locations were not changed.`);
