@@ -2983,7 +2983,7 @@ function renderInvCard(item, inGroup=false) {
         <button class="btn btn-xs btn-s" onclick="editInvItem('${item.id}')">Edit</button>
         <button class="btn btn-xs btn-t" onclick="printItemLabel('${item.id}')">🏷</button>
         <button class="btn btn-xs btn-t" onclick="openDistributeStock('${item.id}')" title="Set location quantities">📍</button>
-        <button class="btn btn-xs btn-r" onclick="deleteInvItem('${item.id}','${esc(item.name)}')">🗑</button>
+        <button class="btn btn-xs btn-r" onclick="deleteInvItem('${item.id}',this)" data-name="${esc(item.name)}">🗑</button>
         ${isLow?`<button class="btn btn-xs btn-warn" onclick="addToReorder('${item.id}')">Reorder</button>`:''}
       </div>
     </div>
@@ -3072,7 +3072,8 @@ function openAddItem() {
   document.getElementById('inv-modal').classList.add('open');
 }
 
-async function deleteInvItem(id, name) {
+async function deleteInvItem(id, elOrName) {
+  const name = typeof elOrName === 'string' ? elOrName : (elOrName?.dataset?.name || 'this item');
   if (!confirm(`Delete "${name}"?\n\nThis will permanently remove the item from inventory. This cannot be undone.`)) return;
   setSyncStatus('syncing');
   try {
