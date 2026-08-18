@@ -3076,12 +3076,20 @@ async function deleteInvItem(id, name) {
   if (!confirm(`Delete "${name}"?\n\nThis will permanently remove the item from inventory. This cannot be undone.`)) return;
   setSyncStatus('syncing');
   try {
-    await db.from('inventory_items').delete().eq('id', id);
+    const { data, error } = await db.from('inventory_items').delete().eq('id', id);
+    if (error) {
+      console.error('Delete error:', error);
+      alert('Delete failed: ' + error.message + '\n\nCode: ' + error.code);
+      setSyncStatus('error');
+      return;
+    }
     inventoryItems = inventoryItems.filter(i => i.id !== id);
     setSyncStatus('ok');
     renderInventory();
+    alert('✓ Item deleted successfully.');
   } catch(e) {
     setSyncStatus('error');
+    console.error('Delete exception:', e);
     alert('Error deleting item: ' + e.message);
   }
 }
