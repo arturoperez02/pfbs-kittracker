@@ -2983,6 +2983,7 @@ function renderInvCard(item, inGroup=false) {
         <button class="btn btn-xs btn-s" onclick="editInvItem('${item.id}')">Edit</button>
         <button class="btn btn-xs btn-t" onclick="printItemLabel('${item.id}')">🏷</button>
         <button class="btn btn-xs btn-t" onclick="openDistributeStock('${item.id}')" title="Set location quantities">📍</button>
+        <button class="btn btn-xs btn-r" onclick="deleteInvItem('${item.id}','${esc(item.name)}')">🗑</button>
         ${isLow?`<button class="btn btn-xs btn-warn" onclick="addToReorder('${item.id}')">Reorder</button>`:''}
       </div>
     </div>
@@ -3069,6 +3070,20 @@ function openAddItem() {
   fillPrefixSelect('');
   fillCategorySelect('');
   document.getElementById('inv-modal').classList.add('open');
+}
+
+async function deleteInvItem(id, name) {
+  if (!confirm(`Delete "${name}"?\n\nThis will permanently remove the item from inventory. This cannot be undone.`)) return;
+  setSyncStatus('syncing');
+  try {
+    await db.from('inventory_items').delete().eq('id', id);
+    inventoryItems = inventoryItems.filter(i => i.id !== id);
+    setSyncStatus('ok');
+    renderInventory();
+  } catch(e) {
+    setSyncStatus('error');
+    alert('Error deleting item: ' + e.message);
+  }
 }
 
 function editInvItem(id) {
@@ -3295,7 +3310,9 @@ async function syncSettingToSupabase(key, value) {
 
 async function loadAllSettings() {
   try {
-    const { data } = await db.from('app_settings').select('*');
+    // Exclude large location blobs — those load separately in loadLocations
+    const { data } = await db.from('app_settings').select('*')
+      .not('key', 'in', '("kt_loc_stock","kt_transfers","kt_locations")');
     if (!data) return;
     data.forEach(row => {
       try {
@@ -4720,8 +4737,15 @@ function updateDistSum(itemId) {
 }
 
 async function saveLocStockToCloud() {
-  localStorage.setItem('kt_loc_stock', JSON.stringify(locationStock));
-  try { await db.from('app_settings').upsert({ key: 'kt_loc_stock', value: JSON.stringify(locationStock), updated_at: new Date().toISOString() }, { onConflict: 'key' }); }
+  // Only save items with actual stock to keep payload small
+  const compressed = {};
+  Object.entries(locationStock).forEach(([itemId, locs]) => {
+    const nonZero = {};
+    Object.entries(locs).forEach(([locId, qty]) => { if (qty > 0) nonZero[locId] = qty; });
+    if (Object.keys(nonZero).length) compressed[itemId] = nonZero;
+  });
+  localStorage.setItem('kt_loc_stock', JSON.stringify(compressed));
+  try { await db.from('app_settings').upsert({ key: 'kt_loc_stock', value: JSON.stringify(compressed), updated_at: new Date().toISOString() }, { onConflict: 'key' }); }
   catch(e) { console.warn('saveLocStock:', e.message); }
 }
 
