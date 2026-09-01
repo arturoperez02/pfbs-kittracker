@@ -4374,14 +4374,14 @@ function printHistorySlip(jobId) {
   const html = `<h2 style="margin-bottom:4px;font-size:18px">Kit Checkout Slip</h2>
     <p style="color:#666;font-size:11px;margin-bottom:16px">${company} — ${new Date().toLocaleString()}</p>
     <table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11px">
-      ${rows.map(([k,v])=>`<tr><td style="font-weight:bold;padding:4px 8px;border:1px solid #ccc;width:35%">${k}</td><td style="padding:4px 8px;border:1px solid #ccc">${v}</td></tr>`).join('')}
+      ${rows.map(([k,v])=>`<tr><td style="font-weight:bold;padding:4px 8px;border:1.5px solid #000;width:35%">${k}</td><td style="padding:4px 8px;border:1.5px solid #000">${v}</td></tr>`).join('')}
     </table>
     <table style="width:100%;border-collapse:collapse;font-size:11px">
       <tr style="background:#1a237e;color:#fff"><th style="padding:6px 8px;text-align:left">Item</th><th style="padding:6px 8px;text-align:center;width:60px">Qty</th><th style="padding:6px 8px;text-align:center;width:80px">Condition</th></tr>
       ${(job.job_items||[]).map((it,i)=>`<tr style="background:${i%2===0?'#fff':'#f8f8f8'}">
-        <td style="padding:5px 8px;border:1px solid #ddd">${it.item_name}</td>
-        <td style="padding:5px 8px;border:1px solid #ddd;text-align:center">${it.quantity}</td>
-        <td style="padding:5px 8px;border:1px solid #ddd;text-align:center;font-weight:bold;color:${it.return_condition==='good'?'#16a34a':it.return_condition==='repair'?'#d97706':'#dc2626'}">${it.return_condition?it.return_condition.toUpperCase():'--'}</td>
+        <td style="padding:5px 8px;border:1.5px solid #000">${it.item_name}</td>
+        <td style="padding:5px 8px;border:1.5px solid #000;text-align:center">${it.quantity}</td>
+        <td style="padding:5px 8px;border:1.5px solid #000;text-align:center;font-weight:bold;color:${it.return_condition==='good'?'#16a34a':it.return_condition==='repair'?'#d97706':'#dc2626'}">${it.return_condition?it.return_condition.toUpperCase():'--'}</td>
       </tr>`).join('')}
     </table>`;
   showPrint(html);
@@ -7293,7 +7293,7 @@ function printBlankChecklist(lang) {
     <h2 style="margin-bottom:4px;font-size:18px">${es ? 'Recibo de Materiales (En Blanco)' : 'Kit Checkout Slip (Blank)'}</h2>
     <p style="color:#666;font-size:11px;margin-bottom:16px">${getCompanyName()}</p>
     <table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11px">
-      ${rows.map(([k]) => `<tr><td style="font-weight:bold;padding:8px 8px;border:1px solid #ccc;width:35%">${k}</td><td style="padding:8px 8px;border:1px solid #ccc">&nbsp;</td></tr>`).join('')}
+      ${rows.map(([k]) => `<tr><td style="font-weight:bold;padding:8px 8px;border:1.5px solid #000;width:35%">${k}</td><td style="padding:8px 8px;border:1.5px solid #000">&nbsp;</td></tr>`).join('')}
     </table>
     <table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11px">
       <tr style="background:#1a237e;color:#fff">
@@ -7301,17 +7301,17 @@ function printBlankChecklist(lang) {
         <th style="padding:6px 8px;text-align:center;width:60px">Qty</th>
         <th style="padding:6px 8px;text-align:center;width:80px">[ ] OK</th>
       </tr>
-      ${blankItems.map((_, i) => `<tr style="background:${i % 2 === 0 ? '#fff' : '#f8f8f8'}"><td style="padding:9px 8px;border:1px solid #ddd">&nbsp;</td><td style="padding:9px 8px;border:1px solid #ddd;text-align:center">&nbsp;</td><td style="padding:9px 8px;border:1px solid #ddd;text-align:center">[ ]</td></tr>`).join('')}
+      ${blankItems.map((_, i) => `<tr style="background:${i % 2 === 0 ? '#fff' : '#f8f8f8'}"><td style="padding:9px 8px;border:1.5px solid #000">&nbsp;</td><td style="padding:9px 8px;border:1.5px solid #000;text-align:center">&nbsp;</td><td style="padding:9px 8px;border:1.5px solid #000;text-align:center">[ ]</td></tr>`).join('')}
     </table>
     <p style="font-weight:bold;margin-bottom:6px;font-size:11px">${es ? 'Material Adicional Necesario / No Necesario' : 'Additional Material Needed / Not Needed'}:</p>
     <div style="margin-bottom:16px">
-      <div style="border-bottom:1px solid #999;height:22px"></div>
-      <div style="border-bottom:1px solid #999;height:22px"></div>
-      <div style="border-bottom:1px solid #999;height:22px"></div>
+      <div style="border-bottom:1.5px solid #000;height:22px"></div>
+      <div style="border-bottom:1.5px solid #000;height:22px"></div>
+      <div style="border-bottom:1.5px solid #000;height:22px"></div>
     </div>
     <div style="display:flex;gap:40px;margin-top:16px">
-      <div><div style="border-top:1px solid #000;width:220px;padding-top:5px;font-size:10px;color:#666">${es ? 'Firma del técnico + fecha' : 'Tech signature + date'}</div></div>
-      <div><div style="border-top:1px solid #000;width:220px;padding-top:5px;font-size:10px;color:#666">${es ? 'Supervisor que verificó + hora' : 'Supervisor verifying + time'}</div></div>
+      <div><div style="border-top:1.5px solid #000;width:220px;padding-top:5px;font-size:10px;color:#666">${es ? 'Firma del técnico + fecha' : 'Tech signature + date'}</div></div>
+      <div><div style="border-top:1.5px solid #000;width:220px;padding-top:5px;font-size:10px;color:#666">${es ? 'Supervisor que verificó + hora' : 'Supervisor verifying + time'}</div></div>
     </div>
   `;
   showPrint(html);
@@ -7322,7 +7322,7 @@ function buildSlipHTML(title, rows, items, keys, es, warnings) {
     <h2 style="margin-bottom:4px;font-size:18px">${title}</h2>
     <p style="color:#666;font-size:11px;margin-bottom:16px">PF Building Services — ${new Date().toLocaleString()}</p>
     <table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11px">
-      ${rows.map(([k,v])=>`<tr><td style="font-weight:bold;padding:4px 8px;border:1px solid #ccc;width:35%">${k}</td><td style="padding:4px 8px;border:1px solid #ccc">${v}</td></tr>`).join('')}
+      ${rows.map(([k,v])=>`<tr><td style="font-weight:bold;padding:4px 8px;border:1.5px solid #000;width:35%">${k}</td><td style="padding:4px 8px;border:1.5px solid #000">${v}</td></tr>`).join('')}
     </table>
     ${warnings&&warnings.length?`<div style="border:1px solid #d97706;background:#fff7ed;border-radius:6px;padding:8px 12px;margin-bottom:14px">
       <div style="font-weight:bold;font-size:11px;color:#9a3412;margin-bottom:4px">⚠ ${es?'Avisos':'Warnings'}</div>
@@ -7334,19 +7334,19 @@ function buildSlipHTML(title, rows, items, keys, es, warnings) {
         <th style="padding:6px 8px;text-align:center;width:60px">Qty</th>
         <th style="padding:6px 8px;text-align:center;width:80px">[ ] OK</th>
       </tr>
-      ${items.map((it,i)=>`<tr style="background:${i%2===0?'#fff':'#f8f8f8'}"><td style="padding:6px 8px;border:1px solid #ddd">${it.name||it.item_name}</td><td style="padding:6px 8px;border:1px solid #ddd;text-align:center">${it.qty||it.quantity}</td><td style="padding:6px 8px;border:1px solid #ddd;text-align:center">[ ]</td></tr>`).join('')}
+      ${items.map((it,i)=>`<tr style="background:${i%2===0?'#fff':'#f8f8f8'}"><td style="padding:6px 8px;border:1.5px solid #000">${it.name||it.item_name}</td><td style="padding:6px 8px;border:1.5px solid #000;text-align:center">${it.qty||it.quantity}</td><td style="padding:6px 8px;border:1.5px solid #000;text-align:center">[ ]</td></tr>`).join('')}
     </table>
-    ${keys&&keys.length?`<p style="font-weight:bold;margin-bottom:6px;font-size:11px">${es?'Llaves':'Keys'}:</p><table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11px">${keys.map((k,i)=>`<tr style="background:${i%2===0?'#fff':'#f8f8f8'}"><td style="padding:5px 8px;border:1px solid #ddd">${k.tag}</td><td style="padding:5px 8px;border:1px solid #ddd;text-align:center">${k.qty}</td><td style="padding:5px 8px;border:1px solid #ddd;text-align:center">[ ]</td></tr>`).join('')}</table>`:''}
+    ${keys&&keys.length?`<p style="font-weight:bold;margin-bottom:6px;font-size:11px">${es?'Llaves':'Keys'}:</p><table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11px">${keys.map((k,i)=>`<tr style="background:${i%2===0?'#fff':'#f8f8f8'}"><td style="padding:5px 8px;border:1.5px solid #000">${k.tag}</td><td style="padding:5px 8px;border:1.5px solid #000;text-align:center">${k.qty}</td><td style="padding:5px 8px;border:1.5px solid #000;text-align:center">[ ]</td></tr>`).join('')}</table>`:''}
     <p style="font-weight:bold;margin-bottom:6px;font-size:11px">${es?'Material Adicional Necesario / No Necesario':'Additional Material Needed / Not Needed'}:</p>
     <div style="margin-bottom:16px">
-      <div style="border-bottom:1px solid #999;height:22px"></div>
-      <div style="border-bottom:1px solid #999;height:22px"></div>
-      <div style="border-bottom:1px solid #999;height:22px"></div>
+      <div style="border-bottom:1.5px solid #000;height:22px"></div>
+      <div style="border-bottom:1.5px solid #000;height:22px"></div>
+      <div style="border-bottom:1.5px solid #000;height:22px"></div>
     </div>
     <p style="font-size:11px;color:#555;margin-bottom:20px;font-style:italic">${es?'Confirmo haber recibido todos los artículos en buen estado.':'I confirm receipt of all items in good condition.'}</p>
     <div style="display:flex;gap:40px;margin-top:16px">
-      <div><div style="border-top:1px solid #000;width:220px;padding-top:5px;font-size:10px;color:#666">${es?'Firma del técnico + fecha':'Tech signature + date'}</div></div>
-      <div><div style="border-top:1px solid #000;width:220px;padding-top:5px;font-size:10px;color:#666">${es?'Supervisor que verificó + hora':'Supervisor verifying + time'}</div></div>
+      <div><div style="border-top:1.5px solid #000;width:220px;padding-top:5px;font-size:10px;color:#666">${es?'Firma del técnico + fecha':'Tech signature + date'}</div></div>
+      <div><div style="border-top:1.5px solid #000;width:220px;padding-top:5px;font-size:10px;color:#666">${es?'Supervisor que verificó + hora':'Supervisor verifying + time'}</div></div>
     </div>
   `;
 }
@@ -7356,15 +7356,15 @@ function buildReturnSlip(job, items, retBy, att) {
     <h2 style="margin-bottom:4px;font-size:18px">Return Record / Registro de Devolución</h2>
     <p style="color:#666;font-size:11px;margin-bottom:16px">PF Building Services — ${new Date().toLocaleString()}</p>
     <table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11px">
-      ${[['WO #',job.hcp_job_number||'--'],['Site',job.building_client||job.site_address||'--'],['Vehicle',job.vehicle||'--'],['Returned by',retBy],['Attendant',att]].map(([k,v])=>`<tr><td style="font-weight:bold;padding:4px 8px;border:1px solid #ccc;width:35%">${k}</td><td style="padding:4px 8px;border:1px solid #ccc">${v}</td></tr>`).join('')}
+      ${[['WO #',job.hcp_job_number||'--'],['Site',job.building_client||job.site_address||'--'],['Vehicle',job.vehicle||'--'],['Returned by',retBy],['Attendant',att]].map(([k,v])=>`<tr><td style="font-weight:bold;padding:4px 8px;border:1.5px solid #000;width:35%">${k}</td><td style="padding:4px 8px;border:1.5px solid #000">${v}</td></tr>`).join('')}
     </table>
     <table style="width:100%;border-collapse:collapse;font-size:11px">
       <tr style="background:#1a237e;color:#fff"><th style="padding:6px 8px;text-align:left">Item</th><th style="padding:6px 8px;text-align:center">Qty</th><th style="padding:6px 8px;text-align:center">Returned</th><th style="padding:6px 8px;text-align:center">Condition</th><th style="padding:6px 8px;text-align:left">Notes</th></tr>
-      ${items.map((it,i)=>`<tr style="background:${i%2===0?'#fff':'#f8f8f8'}"><td style="padding:5px 8px;border:1px solid #ddd">${it.item_name}</td><td style="padding:5px 8px;border:1px solid #ddd;text-align:center">${it.quantity}</td><td style="padding:5px 8px;border:1px solid #ddd;text-align:center">${it.returned_quantity??it.quantity}</td><td style="padding:5px 8px;border:1px solid #ddd;text-align:center;font-weight:bold;color:${it.return_condition==='good'?'#16a34a':it.return_condition==='repair'?'#d97706':'#dc2626'}">${(it.return_condition||'good').toUpperCase()}</td><td style="padding:5px 8px;border:1px solid #ddd;font-size:10px">${it.return_notes||'--'}</td></tr>`).join('')}
+      ${items.map((it,i)=>`<tr style="background:${i%2===0?'#fff':'#f8f8f8'}"><td style="padding:5px 8px;border:1.5px solid #000">${it.item_name}</td><td style="padding:5px 8px;border:1.5px solid #000;text-align:center">${it.quantity}</td><td style="padding:5px 8px;border:1.5px solid #000;text-align:center">${it.returned_quantity??it.quantity}</td><td style="padding:5px 8px;border:1.5px solid #000;text-align:center;font-weight:bold;color:${it.return_condition==='good'?'#16a34a':it.return_condition==='repair'?'#d97706':'#dc2626'}">${(it.return_condition||'good').toUpperCase()}</td><td style="padding:5px 8px;border:1.5px solid #000;font-size:10px">${it.return_notes||'--'}</td></tr>`).join('')}
     </table>
     <div style="display:flex;gap:40px;margin-top:24px">
-      <div><div style="border-top:1px solid #000;width:200px;padding-top:5px;font-size:10px;color:#666">Attendant + date</div></div>
-      <div><div style="border-top:1px solid #000;width:200px;padding-top:5px;font-size:10px;color:#666">Tech signature + date</div></div>
+      <div><div style="border-top:1.5px solid #000;width:200px;padding-top:5px;font-size:10px;color:#666">Attendant + date</div></div>
+      <div><div style="border-top:1.5px solid #000;width:200px;padding-top:5px;font-size:10px;color:#666">Tech signature + date</div></div>
     </div>
   `;
 }
