@@ -1345,6 +1345,27 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
   </div>
 </div>
 
+<!-- DISPATCH VERIFY MODAL (reconcile printed checklist back into the system) -->
+<div class="ov" id="dispatch-verify-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-t"><span>✓ Verify Dispatch</span><button class="xbtn" onclick="closeModal('dispatch-verify-modal')">✕</button></div>
+    <div class="info-b" style="margin-bottom:13px">Enter what the supervisor confirmed at the truck from the printed checklist.</div>
+    <div class="fg"><label>Verified By (Supervisor)</label><input type="text" id="dv-verified-by" placeholder="Rigoberto, Baldemar..."></div>
+    <hr>
+    <div class="card-title" style="margin-bottom:8px">Equipment Confirmed</div>
+    <div id="dv-items-list" style="margin-bottom:12px"></div>
+    <hr>
+    <div class="fg"><label>Additional Material Needed / Not Needed</label>
+      <textarea id="dv-notes" rows="3" placeholder="Transcribe supervisor's handwritten notes from the printed sheet..."></textarea>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-s" style="flex:1" onclick="closeModal('dispatch-verify-modal')">Cancel</button>
+      <button class="btn btn-p" style="flex:1" onclick="submitDispatchVerify()">✓ Save Verification</button>
+    </div>
+  </div>
+</div>
+
 <!-- INSPECTION MODAL -->
 <div class="ov" id="insp-modal">
   <div class="modal">
@@ -1974,10 +1995,12 @@ function renderActiveJobs() {
           <div style="font-size:11px;color:var(--txt2);margin-top:3px;font-family:var(--mono)">${esc(j.tech_names||'--')} · ${j.num_techs} tech${j.num_techs>1?'s':''} · ${fd(j.scheduled_date)}</div>
           ${j.vehicle ? `<div style="font-size:11px;color:var(--txt2);font-family:var(--mono)">${esc(j.vehicle)}</div>` : ''}
           ${j.tech_confirmed ? '<div style="font-size:10px;color:var(--grn);margin-top:3px">✓ Tech confirmed pickup</div>' : ''}
+          ${j.dispatch_verified ? `<div style="font-size:10px;color:var(--grn);margin-top:3px">✓ Dispatch verified — ${esc(j.dispatch_verified_by||'')}</div>` : '<div style="font-size:10px;color:var(--amb);margin-top:3px">⚠ Dispatch not verified</div>'}
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
           <span class="badge ${j.status==='picked_up'?'bg-b':'bg-p'}">${j.status==='picked_up'?'Out':'Packed'}</span>
           <button class="btn btn-xs btn-p" onclick="editActiveJob('${j.id}')">✏ Edit</button>
+          <button class="btn btn-xs ${j.dispatch_verified?'btn-s':'btn-p'}" onclick="openDispatchVerify('${j.id}')">${j.dispatch_verified?'✓ Reconciled':'✓ Verify Dispatch'}</button>
           <button class="btn btn-xs btn-s" onclick="nav('returns')">Return</button>
           <button class="btn btn-xs btn-s" onclick="printDymoLabelById('${j.id}')">🖨 Label</button>
           <button class="btn btn-xs btn-r" onclick="deleteActiveJob('${j.id}','${esc(j.hcp_job_number||'this job')}')">🗑 Delete</button>
@@ -1985,6 +2008,97 @@ function renderActiveJobs() {
       </div>
     </div>
   `).join('');
+}
+
+// ─── DISPATCH VERIFICATION (reconcile printed checklist) ──────
+let dvJob = null;
+
+function openDispatchVerify(jobId) {
+  const job = jobs.find(j => j.id === jobId);
+  if (!job) return;
+  dvJob = job;
+  document.getElementById('dv-verified-by').value = job.dispatch_verified_by || job.attendant_name || '';
+  document.getElementById('dv-notes').value = job.dispatch_notes || '';
+  renderDispatchVerifyItems();
+  document.getElementById('dispatch-verify-modal').classList.add('open');
+}
+
+function renderDispatchVerifyItems() {
+  const el = document.getElementById('dv-items-list');
+  const items = dvJob.job_items || [];
+  if (!items.length) { el.innerHTML = '<div style="font-size:11px;color:var(--txt2)">No items on this job.</div>'; return; }
+  el.innerHTML = items.map((item, i) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--sur2);border-radius:8px;margin-bottom:5px;border:1px solid var(--bdr)">
+      <div style="flex:1;min-width:0">
+        <span style="font-size:12px;font-weight:600">${esc(item.item_name)}</span>
+        <span style="font-size:10px;color:var(--txt2);margin-left:4px">expected: ${item.quantity}</span>
+      </div>
+      <input type="number" min="0" value="${item.confirmed_qty ?? item.quantity}" data-idx="${i}" class="dv-qty"
+        style="width:54px;text-align:center;font-size:13px;font-family:var(--mono);color:var(--acc);background:var(--acc-dim);border:1px solid rgba(245,166,35,.3);border-radius:6px;padding:4px;margin:0">
+      <select data-idx="${i}" class="dv-status" style="width:110px;font-size:11px;padding:4px">
+        <option value="as_expected" ${(!item.item_dispatch_status||item.item_dispatch_status==='as_expected')?'selected':''}>As expected</option>
+        <option value="short" ${item.item_dispatch_status==='short'?'selected':''}>Short</option>
+        <option value="extra_added" ${item.item_dispatch_status==='extra_added'?'selected':''}>Extra added</option>
+        <option value="substituted" ${item.item_dispatch_status==='substituted'?'selected':''}>Substituted</option>
+        <option value="not_needed" ${item.item_dispatch_status==='not_needed'?'selected':''}>Not needed</option>
+      </select>
+    </div>
+  `).join('');
+}
+
+async function submitDispatchVerify() {
+  if (!dvJob) return;
+  const verifiedBy = document.getElementById('dv-verified-by').value.trim();
+  if (!verifiedBy) { alert('Enter who verified the dispatch.'); return; }
+  const notes = document.getElementById('dv-notes').value.trim();
+  const qtyInputs = document.querySelectorAll('#dv-items-list .dv-qty');
+  const statusInputs = document.querySelectorAll('#dv-items-list .dv-status');
+  const items = dvJob.job_items || [];
+
+  setSyncStatus('syncing');
+  try {
+    for (let i = 0; i < items.length; i++) {
+      const confirmedQty = parseInt(qtyInputs[i].value) || 0;
+      const itemStatus = statusInputs[i].value;
+      await db.from('job_items').update({
+        confirmed_qty: confirmedQty,
+        item_dispatch_status: itemStatus
+      }).eq('id', items[i].id);
+    }
+    await db.from('jobs').update({
+      dispatch_verified: true,
+      dispatch_verified_by: verifiedBy,
+      dispatch_verified_at: new Date().toISOString(),
+      dispatch_notes: notes
+    }).eq('id', dvJob.id);
+    setSyncStatus('ok');
+    closeModal('dispatch-verify-modal');
+    dvJob = null;
+    await loadAll();
+  } catch (e) {
+    setSyncStatus('error');
+    alert('Error saving dispatch verification: ' + e.message);
+  }
+}
+
+// Returns items on other jobs of the same template that were marked short
+// in at least 2 of the last 3 verified jobs — surfaced as a print warning.
+function getRecurringShortages(templateId) {
+  if (!templateId) return [];
+  const sameType = jobs
+    .filter(j => j.template_id === templateId && j.dispatch_verified)
+    .sort((a, b) => new Date(b.dispatch_verified_at || 0) - new Date(a.dispatch_verified_at || 0))
+    .slice(0, 3);
+  if (sameType.length < 2) return [];
+  const shortCounts = {};
+  sameType.forEach(j => {
+    (j.job_items || []).forEach(item => {
+      if (item.item_dispatch_status === 'short') {
+        shortCounts[item.item_name] = (shortCounts[item.item_name] || 0) + 1;
+      }
+    });
+  });
+  return Object.entries(shortCounts).filter(([, c]) => c >= 2).map(([name]) => name);
 }
 
 async function deleteActiveJob(jobId, jobNum) {
@@ -6903,7 +7017,32 @@ function printSlip(lang) {
     [es?'Técnicos':'Techs', (document.getElementById('co-names').value||'--')+' ('+document.getElementById('co-numtechs').value+')'],
     [es?'Fecha':'Date', document.getElementById('co-date').value||'--']
   ];
-  showPrint(buildSlipHTML(es?'Recibo de Materiales':'Kit Checkout Slip', rows, active, coKeys, es));
+  showPrint(buildSlipHTML(es?'Recibo de Materiales':'Kit Checkout Slip', rows, active, coKeys, es, getSlipWarnings(active, tid, es)));
+}
+
+// Warnings surfaced on the printed dispatch checklist: items currently out
+// for repair, and items that have run short on the last couple jobs of this
+// same template (populated once dispatch verification data exists).
+function getSlipWarnings(items, templateId, es) {
+  const warnings = [];
+  const outOfService = repairs.filter(r => r.status !== 'back_in_service');
+  items.forEach(item => {
+    const iid = item.inventory_item_id;
+    if (!iid) return;
+    const tickets = outOfService.filter(r => r.inventory_item_id === iid);
+    if (tickets.length) {
+      warnings.push(es
+        ? `${item.name||item.item_name}: ${tickets.length} unidad(es) actualmente en reparación — confirme disponibilidad`
+        : `${item.name||item.item_name}: ${tickets.length} unit(s) currently out for repair — confirm availability`);
+    }
+  });
+  const recurring = getRecurringShortages(templateId);
+  recurring.forEach(name => {
+    warnings.push(es
+      ? `${name}: faltó en trabajos recientes de este tipo — verifique cantidad`
+      : `${name}: ran short on recent jobs of this type — double check quantity`);
+  });
+  return warnings;
 }
 
 function printSlipLastJob(lang) {
@@ -6918,17 +7057,21 @@ function printSlipLastJob(lang) {
     [es?'Técnicos':'Techs', (lastJob.tech_names||'--')+' ('+lastJob.num_techs+')'],
     [es?'Fecha':'Date', lastJob.scheduled_date||'--']
   ];
-  const items=(lastJob.job_items||[]).map(i=>({name:i.item_name,qty:i.quantity}));
-  showPrint(buildSlipHTML(es?'Recibo de Materiales':'Kit Checkout Slip', rows, items, lastJob.keys||[], es));
+  const items=(lastJob.job_items||[]).map(i=>({name:i.item_name,qty:i.quantity,inventory_item_id:i.inventory_item_id}));
+  showPrint(buildSlipHTML(es?'Recibo de Materiales':'Kit Checkout Slip', rows, items, lastJob.keys||[], es, getSlipWarnings(items, lastJob.template_id, es)));
 }
 
-function buildSlipHTML(title, rows, items, keys, es) {
+function buildSlipHTML(title, rows, items, keys, es, warnings) {
   return `
     <h2 style="margin-bottom:4px;font-size:18px">${title}</h2>
     <p style="color:#666;font-size:11px;margin-bottom:16px">PF Building Services — ${new Date().toLocaleString()}</p>
     <table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11px">
       ${rows.map(([k,v])=>`<tr><td style="font-weight:bold;padding:4px 8px;border:1px solid #ccc;width:35%">${k}</td><td style="padding:4px 8px;border:1px solid #ccc">${v}</td></tr>`).join('')}
     </table>
+    ${warnings&&warnings.length?`<div style="border:1px solid #d97706;background:#fff7ed;border-radius:6px;padding:8px 12px;margin-bottom:14px">
+      <div style="font-weight:bold;font-size:11px;color:#9a3412;margin-bottom:4px">⚠ ${es?'Avisos':'Warnings'}</div>
+      ${warnings.map(w=>`<div style="font-size:10px;color:#7c2d12">• ${w}</div>`).join('')}
+    </div>`:''}
     <table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11px">
       <tr style="background:#1a237e;color:#fff">
         <th style="padding:6px 8px;text-align:left">${es?'Artículo':'Item'}</th>
@@ -6938,10 +7081,16 @@ function buildSlipHTML(title, rows, items, keys, es) {
       ${items.map((it,i)=>`<tr style="background:${i%2===0?'#fff':'#f8f8f8'}"><td style="padding:6px 8px;border:1px solid #ddd">${it.name||it.item_name}</td><td style="padding:6px 8px;border:1px solid #ddd;text-align:center">${it.qty||it.quantity}</td><td style="padding:6px 8px;border:1px solid #ddd;text-align:center">[ ]</td></tr>`).join('')}
     </table>
     ${keys&&keys.length?`<p style="font-weight:bold;margin-bottom:6px;font-size:11px">${es?'Llaves':'Keys'}:</p><table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11px">${keys.map((k,i)=>`<tr style="background:${i%2===0?'#fff':'#f8f8f8'}"><td style="padding:5px 8px;border:1px solid #ddd">${k.tag}</td><td style="padding:5px 8px;border:1px solid #ddd;text-align:center">${k.qty}</td><td style="padding:5px 8px;border:1px solid #ddd;text-align:center">[ ]</td></tr>`).join('')}</table>`:''}
+    <p style="font-weight:bold;margin-bottom:6px;font-size:11px">${es?'Material Adicional Necesario / No Necesario':'Additional Material Needed / Not Needed'}:</p>
+    <div style="margin-bottom:16px">
+      <div style="border-bottom:1px solid #999;height:22px"></div>
+      <div style="border-bottom:1px solid #999;height:22px"></div>
+      <div style="border-bottom:1px solid #999;height:22px"></div>
+    </div>
     <p style="font-size:11px;color:#555;margin-bottom:20px;font-style:italic">${es?'Confirmo haber recibido todos los artículos en buen estado.':'I confirm receipt of all items in good condition.'}</p>
     <div style="display:flex;gap:40px;margin-top:16px">
       <div><div style="border-top:1px solid #000;width:220px;padding-top:5px;font-size:10px;color:#666">${es?'Firma del técnico + fecha':'Tech signature + date'}</div></div>
-      <div><div style="border-top:1px solid #000;width:220px;padding-top:5px;font-size:10px;color:#666">${es?'Encargado + fecha':'Attendant + date'}</div></div>
+      <div><div style="border-top:1px solid #000;width:220px;padding-top:5px;font-size:10px;color:#666">${es?'Supervisor que verificó + hora':'Supervisor verifying + time'}</div></div>
     </div>
   `;
 }
