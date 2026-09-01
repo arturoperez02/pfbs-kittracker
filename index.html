@@ -2063,6 +2063,7 @@ function renderActiveJobs() {
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
           <span class="badge ${j.status==='picked_up'?'bg-b':'bg-p'}">${j.status==='picked_up'?'Out':'Packed'}</span>
           <button class="btn btn-xs btn-p" onclick="editActiveJob('${j.id}')">✏ Edit</button>
+          <button class="btn btn-xs btn-s" onclick="printActiveJobSlip('${j.id}')">⬇ Slip</button>
           <button class="btn btn-xs ${j.dispatch_verified?'btn-s':'btn-p'}" onclick="openDispatchVerify('${j.id}')">${j.dispatch_verified?'✓ Reconciled':'✓ Verify Dispatch'}</button>
           <button class="btn btn-xs btn-s" onclick="nav('returns')">Return</button>
           <button class="btn btn-xs btn-s" onclick="printDymoLabelById('${j.id}')">🖨 Label</button>
@@ -7263,7 +7264,26 @@ function getSlipWarnings(items, templateId, es) {
   return warnings;
 }
 
-function printSlipLastJob(lang) {
+// Re-prints the checkout slip for a job that's already packed/out, straight
+// from the dashboard's Today's Active Jobs card — previously the only way
+// to get a material list PDF was from the checkout wizard at the moment of
+// packing, with no way back to it once a job was already active.
+function printActiveJobSlip(jobId, lang) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  const es = lang === 'es' || (!lang && (localStorage.getItem('kt_wh_lang') || 'en') === 'es');
+  const rows = [
+    [es?'Proyecto':'Project', j.building_client || j.site_address || '--'],
+    ['WO #', j.hcp_job_number || '--'],
+    [es?'Sitio':'Site', j.site_address || '--'],
+    [es?'Edificio':'Building', j.building_client || '--'],
+    [es?'Vehículo':'Vehicle', j.vehicle || '--'],
+    [es?'Técnicos':'Techs', (j.tech_names||'--') + ' (' + (j.num_techs||1) + ')'],
+    [es?'Fecha':'Date', j.scheduled_date || '--']
+  ];
+  const items = (j.job_items || []).map(i => ({name: i.name||i.item_name, qty: i.qty||i.quantity, inventory_item_id: i.inventory_item_id}));
+  showPrint(buildSlipHTML(es?'Recibo de Materiales':'Kit Checkout Slip', rows, items, j.keys||[], es, getSlipWarnings(items, j.template_id, es)));
+}
   if (!lastJob) return;
   const es=lang==='es';
   const rows=[
