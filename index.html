@@ -2120,7 +2120,7 @@ async function fetchScheduledJobs() {
     return snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
       .filter(j => (j.techs || []).length > 0 && j.jobStatus !== 'complete')
-      .filter(j => !j.endDate || j.endDate >= todayStr);
+      .filter(j => (j.endDate || j.date) >= todayStr);
   } catch (e) {
     console.warn('TechSched fetch failed:', e.message);
     return [];
