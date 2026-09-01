@@ -12,6 +12,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <style>
 :root {
   --bg: #111827;
@@ -495,6 +497,10 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
         <div class="card">
           <div class="card-title">Today's Active Jobs</div>
           <div id="active-jobs-list"><div class="empty"><div class="ei">📋</div><p>No active jobs</p></div></div>
+        </div>
+        <div class="card" id="scheduled-jobs-card" style="display:none">
+          <div class="card-title">📅 Confirmed in TechSched</div>
+          <div id="scheduled-jobs-list"></div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
           <div class="card"><div class="card-title">Repair Queue</div><div id="dash-repairs"><div class="empty" style="padding:20px 8px"><div class="ei" style="font-size:24px">🔧</div><p style="font-size:11px">All clear</p></div></div></div>
@@ -1200,6 +1206,17 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
       <div style="font-size:12px;font-weight:700;color:var(--acc);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">🏢 Company Info</div>
       <div class="fg"><label>Company Name (appears on all printed slips)</label><input type="text" id="s-company" placeholder="PF Building Services"></div>
       <button class="btn btn-s btn-sm" onclick="settingsSaveCompany()">Save Company Name</button>
+    </div>
+    <hr>
+
+    <!-- TECHSCHED INTEGRATION -->
+    <div style="margin-bottom:18px">
+      <div style="font-size:12px;font-weight:700;color:var(--acc);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">📅 TechSched Connection</div>
+      <div class="info-b" style="margin-bottom:10px">Shows today's confirmed TechSched jobs (assigned techs, not yet complete) on the dashboard, read directly — no separate setup needed.</div>
+      <div class="toggle-wrap">
+        <div><div class="toggle-label">Show TechSched jobs on dashboard</div></div>
+        <label class="toggle"><input type="checkbox" id="s-techsched-enabled" onchange="settingsSaveTechSched()"><span class="toggle-slider"></span></label>
+      </div>
     </div>
     <hr>
 
@@ -1967,6 +1984,7 @@ function refresh() {
     const keysEl = document.getElementById('s-keys-out');
     if (keysEl) keysEl.textContent = keysOut;
     renderActiveJobs();
+    try { renderScheduledJobsPanel(); } catch(e) { console.warn('renderScheduledJobsPanel:', e); }
     renderDashRepairs();
     renderDashReorder();
     try { renderLowStockAlerts(); } catch(e) { console.warn('renderLowStockAlerts:', e); }
@@ -2010,7 +2028,101 @@ function renderActiveJobs() {
   `).join('');
 }
 
-// ─── DISPATCH VERIFICATION (reconcile printed checklist) ──────
+// ─── TECHSCHED INTEGRATION (direct read of TechSched's Firestore) ────
+// TechSched (pfbs-schedule.arturo-perez408.workers.dev) is a static app with
+// no server of its own — it talks straight to Firestore from the browser,
+// and its config is not a secret (access is gated by TechSched's own PIN
+// screen, not Firebase Auth). So KitTracker reads the same 'jobs'
+// collection directly here — no Zapier, no custom endpoint, no API key.
+//
+// "Confirmed" is approximated as: has at least one tech assigned, and
+// jobStatus isn't 'complete'. TechSched's own UI also factors in schedule
+// conflicts and a separate "needs rental equipment" flag when deciding a
+// job's card color (green/red/blue/amber) — that conflict logic lives only
+// in TechSched's client code, not stored in Firestore, so it can't be
+// replicated here. This is a close approximation, not a pixel-exact match.
+const TECHSCHED_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBNU68bFVjxEY96RmOLaADEH1i8B6uFQiM",
+  authDomain: "techsched-c8c09.firebaseapp.com",
+  projectId: "techsched-c8c09",
+  storageBucket: "techsched-c8c09.firebasestorage.app",
+  messagingSenderId: "134678593695",
+  appId: "1:134678593695:web:fae594af421a1e0f9de2aa"
+};
+let techSchedDb = null;
+function getTechSchedDb() {
+  if (techSchedDb) return techSchedDb;
+  try {
+    if (!firebase.apps || !firebase.apps.length) firebase.initializeApp(TECHSCHED_FIREBASE_CONFIG, 'techsched');
+    const tsApp = firebase.apps.find(a => a.name === 'techsched') || firebase.app('techsched');
+    techSchedDb = tsApp.firestore();
+    return techSchedDb;
+  } catch (e) { console.warn('TechSched Firebase init failed:', e.message); return null; }
+}
+
+let scheduledJobsCache = [];
+
+async function fetchScheduledJobs() {
+  const db2 = getTechSchedDb();
+  if (!db2) return [];
+  const todayStr = today();
+  try {
+    const snap = await db2.collection('jobs').where('date', '==', todayStr).get();
+    return snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(j => (j.techs || []).length > 0 && j.jobStatus !== 'complete');
+  } catch (e) {
+    console.warn('TechSched fetch failed:', e.message);
+    return [];
+  }
+}
+
+async function renderScheduledJobsPanel() {
+  const card = document.getElementById('scheduled-jobs-card');
+  const el = document.getElementById('scheduled-jobs-list');
+  if (localStorage.getItem('kt_techsched_enabled') === '0') { card.style.display = 'none'; return; }
+  card.style.display = '';
+  el.innerHTML = '<div style="font-size:11px;color:var(--txt2);padding:6px 0">Loading...</div>';
+  scheduledJobsCache = await fetchScheduledJobs();
+  // Don't show jobs already pulled into KitTracker as a checkout job
+  const existingJobNums = new Set(jobs.map(j => (j.hcp_job_number || '').toLowerCase()).filter(Boolean));
+  const remaining = scheduledJobsCache.filter(sj => !existingJobNums.has((sj.jobNum || '').toLowerCase()));
+  if (!remaining.length) {
+    el.innerHTML = '<div class="empty" style="padding:16px 8px"><div class="ei" style="font-size:22px">📅</div><p style="font-size:11px">No confirmed jobs pending checklist</p></div>';
+    return;
+  }
+  el.innerHTML = remaining.map(sj => `
+    <div class="job-card">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:13px">${esc(sj.jobNum||'No Job #')} — ${esc(sj.client||sj.address||'No site')}</div>
+          <div style="font-size:11px;color:var(--txt2);margin-top:3px;font-family:var(--mono)">${esc((sj.techs||[]).join(', ')||'--')}</div>
+          ${sj.vehicle ? `<div style="font-size:11px;color:var(--txt2);font-family:var(--mono)">${esc(sj.vehicle)}</div>` : ''}
+        </div>
+        <button class="btn btn-xs btn-p" onclick='startChecklistFromTechSched(${JSON.stringify(sj).replace(/'/g,"&#39;")})'>+ Start Checklist</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Prefills the New Job / checkout wizard from a TechSched job. The tech
+// still confirms/selects the equipment template themselves — this only
+// saves re-typing the job number, site, techs, date, and vehicle.
+function startChecklistFromTechSched(sj) {
+  nav('checkout');
+  setTimeout(() => {
+    const set = (id, v) => { const e = document.getElementById(id); if (e) e.value = v || ''; };
+    set('co-jobnum', sj.jobNum);
+    set('co-addr', sj.address);
+    set('co-bldg', sj.client);
+    set('co-names', (sj.techs || []).join(', '));
+    set('co-numtechs', (sj.techs || []).length || 1);
+    set('co-vehicle', sj.vehicle);
+    set('co-date', sj.date || today());
+  }, 50);
+}
+
+
 let dvJob = null;
 
 function openDispatchVerify(jobId) {
@@ -3441,7 +3553,7 @@ async function loadAllSettings() {
       try {
         const val = JSON.parse(row.value);
         const str = typeof val === 'string' ? val : JSON.stringify(val);
-        if (['kt_company','kt_pin','kt_autolock'].includes(row.key)) localStorage.setItem(row.key, str);
+        if (['kt_company','kt_pin','kt_autolock','kt_techsched_enabled'].includes(row.key)) localStorage.setItem(row.key, str);
         else localStorage.setItem(row.key, JSON.stringify(val));
       } catch(e) {}
     });
@@ -3503,6 +3615,13 @@ function settingsSaveCompany() {
   localStorage.setItem('kt_company', v);
   syncSettingToSupabase('kt_company', v);
   alert('✓ Company name saved!');
+}
+
+function settingsSaveTechSched() {
+  const enabled = document.getElementById('s-techsched-enabled').checked;
+  localStorage.setItem('kt_techsched_enabled', enabled ? '1' : '0');
+  syncSettingToSupabase('kt_techsched_enabled', enabled ? '1' : '0');
+  renderScheduledJobsPanel();
 }
 
 // ─── VEHICLES ───────────────────────────────────────────────
@@ -3706,6 +3825,8 @@ function openSettings() {
     if (prefixLabel) prefixLabel.value = '';
     const company = document.getElementById('s-company');
     if (company) company.value = getCompanyName();
+    const tsToggle = document.getElementById('s-techsched-enabled');
+    if (tsToggle) tsToggle.checked = localStorage.getItem('kt_techsched_enabled') !== '0';
     renderPrefixList();
     renderVehiclesList();
     document.getElementById('settings-modal').classList.add('open');
