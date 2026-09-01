@@ -672,7 +672,10 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
               <button class="btn btn-s btn-sm" onclick="printSlipLastJob('en')">🖨 EN Slip</button>
               <button class="btn btn-s btn-sm" onclick="printSlipLastJob('es')">🖨 ES Slip</button>
             </div>
-            <button class="btn btn-s btn-full" style="margin-top:12px" onclick="nav('dashboard')">← Back to Dashboard</button>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+              <button class="btn btn-p" style="flex:1" onclick="startAnotherJob()">+ Start Another Job</button>
+              <button class="btn btn-s" style="flex:1" onclick="nav('dashboard')">← Back to Dashboard</button>
+            </div>
           </div>
         </div>
       </div>
@@ -2369,6 +2372,13 @@ function nav(id) {
     const el = document.getElementById(searches[id]);
     if (el) el.value = '';
   }
+  if (id==='checkout') {
+    // If the wizard was left on the Step 4 success screen (job already
+    // saved), reset it — otherwise leave in-progress Step 1-3 data alone
+    // so a tech doesn't lose a kit they're mid-way through building.
+    const s4 = document.getElementById('s4');
+    if (s4 && s4.classList.contains('active')) startAnotherJob();
+  }
   if (id==='returns') fillReturnSelect();
   if (id==='templates') renderTplGrid();
   if (id==='inventory') renderInventory();
@@ -2576,6 +2586,31 @@ function addKeyFromRegistry(name, qty) {
 }
 
 const STEP_LABELS = ['Job Details','Review Kit','Confirm & Sign Out','Print Label'];
+
+// Clears the New Job wizard back to a blank Step 1. Called both when
+// tapping "New Job" in the bottom nav and via the explicit "Start Another
+// Job" button on the success screen — previously neither reset anything,
+// so finishing a job and starting the next one left old data and the
+// wizard stuck on Step 4.
+function startAnotherJob() {
+  coItems = [];
+  coKeys = [];
+  selectedTemplateIds = [];
+  lastJob = null;
+  ['co-jobnum','co-addr','co-bldg','co-vehicle','co-notes','co-attendant'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  const names = document.getElementById('co-names'); if (names) names.value = '';
+  const numTechs = document.getElementById('co-numtechs'); if (numTechs) numTechs.value = '1';
+  const dateEl = document.getElementById('co-date'); if (dateEl) dateEl.value = today();
+  const tplSel = document.getElementById('co-template'); if (tplSel) tplSel.value = '';
+  const vehSel = document.getElementById('co-vehicle-sel'); if (vehSel) vehSel.value = '';
+  const hint = document.getElementById('hcp-hint'); if (hint) hint.style.display = 'none';
+  try { renderCoKeys(); } catch(e) {}
+  try { calcKit(); } catch(e) {}
+  goStep(1);
+}
+
 function goStep(n) {
   if (n===2) {
     if (!selectedTemplateIds.length && !document.getElementById('co-template').value) {
@@ -7356,23 +7391,41 @@ function showLabelPrint(html, title) {
 }
 
 // ─── TECH ROSTER ────────────────────────────────────────────
+// Mirrors TechSched's actual Technicians list (Settings → Technicians in
+// TechSched, stored at settings/main.techs in the same Firestore project)
+// rather than deriving names from past job assignments — so a tech added
+// or removed in TechSched shows up here without needing to be scheduled
+// on a job first.
 let _techRoster = [];
 
 async function loadTechRoster() {
   try {
-    const url = `${FB_BASE}/jobs?key=${FB_KEY}&pageSize=200`;
+    const url = `${FB_BASE}/settings/main?key=${FB_KEY}`;
     const res = await fetch(url);
     const data = await res.json();
-    const techSet = new Set();
-    (data.documents || []).forEach(doc => {
-      const f = doc.fields || {};
-      const techs = (f.techs?.arrayValue?.values || []).map(x => x.stringValue).filter(Boolean);
-      techs.forEach(t => techSet.add(t));
-    });
-    _techRoster = [...techSet].sort();
+    const techs = (data.fields?.techs?.arrayValue?.values || []).map(x => x.stringValue).filter(Boolean);
+    if (techs.length) {
+      _techRoster = [...new Set(techs)].sort();
+    } else {
+      throw new Error('No techs field on settings/main — falling back');
+    }
   } catch(e) {
-    console.warn('Could not load tech roster:', e);
-    _techRoster = JSON.parse(localStorage.getItem('kt_tech_roster') || '[]');
+    console.warn('Could not load TechSched roster, falling back to job history:', e.message);
+    try {
+      const url2 = `${FB_BASE}/jobs?key=${FB_KEY}&pageSize=200`;
+      const res2 = await fetch(url2);
+      const data2 = await res2.json();
+      const techSet = new Set();
+      (data2.documents || []).forEach(doc => {
+        const f = doc.fields || {};
+        const techs = (f.techs?.arrayValue?.values || []).map(x => x.stringValue).filter(Boolean);
+        techs.forEach(t => techSet.add(t));
+      });
+      _techRoster = [...techSet].sort();
+    } catch(e2) {
+      console.warn('Fallback also failed, using cached roster:', e2.message);
+      _techRoster = JSON.parse(localStorage.getItem('kt_tech_roster') || '[]');
+    }
   }
   localStorage.setItem('kt_tech_roster', JSON.stringify(_techRoster));
   renderTechQuickPicks();
