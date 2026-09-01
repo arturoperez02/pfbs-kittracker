@@ -12,6 +12,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <style>
@@ -1858,7 +1859,7 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
 <div id="print-area">
   <div id="print-content"></div>
   <div style="margin-top:20px;display:flex;gap:12px">
-    <button onclick="window.print()" style="padding:10px 20px;background:#1a237e;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">🖨 Print / Save PDF</button>
+    <button onclick="downloadPrintPDF()" style="padding:10px 20px;background:#1a237e;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">⬇ Download PDF</button>
     <button onclick="closePrintArea()" style="padding:10px 16px;background:#eee;border:none;border-radius:8px;font-size:13px;cursor:pointer">✕ Close</button>
   </div>
 </div>
@@ -7383,6 +7384,30 @@ function closePrintArea() {
 function showPrint(html) {
   document.getElementById('print-content').innerHTML = html;
   document.getElementById('print-area').style.display = 'block';
+}
+
+// Renders #print-content straight to a PDF file and downloads it — no browser
+// print dialog, so no risk of a technician's Chrome adding its own date/URL
+// header and footer to the slip.
+function downloadPrintPDF() {
+  const el = document.getElementById('print-content');
+  if (!el || !el.innerHTML.trim()) return;
+  const titleTxt = (el.querySelector('h2')?.textContent || 'Documento').trim();
+  const stamp = new Date().toISOString().slice(0,10);
+  const filename = titleTxt.replace(/[^\w\-]+/g, '_') + '_' + stamp + '.pdf';
+  const btn = document.querySelector('#print-area button[onclick="downloadPrintPDF()"]');
+  const origLabel = btn ? btn.textContent : null;
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Generating…'; }
+  html2pdf().set({
+    margin: 0.25,
+    filename: filename,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+    jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
+    pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+  }).from(el).save().finally(() => {
+    if (btn) { btn.disabled = false; btn.textContent = origLabel; }
+  });
 }
 
 // For Dymo labels — shows in dedicated preview modal
