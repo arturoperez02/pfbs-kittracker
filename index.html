@@ -2112,10 +2112,15 @@ async function fetchScheduledJobs() {
   if (!db2) return [];
   const todayStr = today();
   try {
-    const snap = await db2.collection('jobs').where('date', '==', todayStr).get();
+    // Multi-day jobs are stored once, keyed by their start date, and can
+    // still be running well past that date. An exact `date == today` match
+    // only ever fires on day one, so query everything that started on or
+    // before today, then keep only jobs whose end date hasn't passed yet.
+    const snap = await db2.collection('jobs').where('date', '<=', todayStr).get();
     return snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
-      .filter(j => (j.techs || []).length > 0 && j.jobStatus !== 'complete');
+      .filter(j => (j.techs || []).length > 0 && j.jobStatus !== 'complete')
+      .filter(j => !j.endDate || j.endDate >= todayStr);
   } catch (e) {
     console.warn('TechSched fetch failed:', e.message);
     return [];
@@ -7681,7 +7686,7 @@ function parseFirestoreDoc(doc) {
   const arr = k => (f[k]?.arrayValue?.values || []).map(x => x.stringValue || '').filter(Boolean);
   return {
     id: doc.name.split('/').pop(),
-    date: str('date'), start: str('start'),
+    date: str('date'), endDate: str('endDate'), start: str('start'),
     address: str('address'), type: str('type'),
     jobNum: str('jobNum'), client: str('client'),
     vehicle: str('vehicle'),
@@ -7703,15 +7708,27 @@ async function openImportModal() {
   const listEl = document.getElementById('import-job-list');
   listEl.innerHTML = '<div class="sched-loading"><div class="spinner"></div>Loading jobs from TechSched…</div>';
   try {
-    const url = `${FB_BASE}/jobs?key=${FB_KEY}&pageSize=200`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('Firebase error: ' + res.status);
-    const data = await res.json();
-    const allJobs = (data.documents || []).map(parseFirestoreDoc);
+    // Page through ALL jobs rather than trusting a single 200-doc slice —
+    // Firestore's default list order is by internal doc id, not by date, so
+    // a newly created job can land outside an unpaginated first page and
+    // never even reach the date filter below.
+    let allDocs = [], pageToken = '';
+    for (let i = 0; i < 15; i++) { // safety cap: up to ~3000 docs
+      const url = `${FB_BASE}/jobs?key=${FB_KEY}&pageSize=200${pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Firebase error: ' + res.status);
+      const data = await res.json();
+      allDocs = allDocs.concat(data.documents || []);
+      if (!data.nextPageToken) break;
+      pageToken = data.nextPageToken;
+    }
+    const allJobs = allDocs.map(parseFirestoreDoc);
     const todayStr = today();
     _schedJobs = allJobs
       .filter(j => j.jobStatus !== 'complete' && j.jobStatus !== 'completed')
-      .filter(j => !j.date || j.date >= todayStr)
+      // Use endDate (falls back to date for single-day jobs) so a multi-day
+      // job stays visible after its start date has passed but before it's done.
+      .filter(j => !j.date || (j.endDate || j.date) >= todayStr)
       .sort((a, b) => (a.date||'').localeCompare(b.date||'') || (a.start||'').localeCompare(b.start||''));
 
     if (!_schedJobs.length) {
