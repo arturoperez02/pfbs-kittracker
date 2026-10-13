@@ -537,6 +537,7 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
           <!-- Step 1: Job details -->
           <div class="wiz-step active" id="s1">
             <div class="card-title">Step 1 — Job Details / Detalles del Trabajo</div>
+            <button class="btn btn-p btn-full" style="margin-bottom:8px" onclick="openCrmImport()">📋 Import from CRM Schedule</button>
             <button class="btn btn-t btn-full" style="margin-bottom:14px" onclick="openImportModal()">📅 Import from TechSched Schedule</button>
             <div class="fg"><label>HCP Job # / Número de Trabajo</label><input type="text" id="co-jobnum" placeholder="HCP-2025-0412" oninput="tryHCPLookup()"></div>
             <div id="hcp-hint" style="display:none" class="info info-b"></div>
@@ -1175,7 +1176,7 @@ hr { border: none; border-top: 1px solid var(--bdr); margin: 14px 0; }
 <div class="ov" id="import-modal">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-t"><span>📅 Import from TechSched</span><button class="xbtn" onclick="closeModal('import-modal')">✕</button></div>
+    <div class="modal-t"><span id="import-title">📅 Import from TechSched</span><button class="xbtn" onclick="closeModal('import-modal')">✕</button></div>
     <div class="info-t" style="margin-bottom:14px">Tap a job to auto-fill the form — job #, site, techs, date, vehicle, and template. / Toca un trabajo para pre-llenar el formulario.</div>
     <div id="import-job-list"><div class="sched-loading"><div class="spinner"></div>Loading jobs from TechSched…</div></div>
     <button class="btn btn-s btn-full" style="margin-top:12px" onclick="closeModal('import-modal')">Cancel</button>
@@ -1874,6 +1875,11 @@ const SB_URL = 'https://eyiuyqrjoamhvpzqggqs.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV5aXV5cXJqb2FtaHZwenFnZ3FzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0ODgyMzMsImV4cCI6MjA5NTA2NDIzM30.712zY8myAmb9BFGgGsvXBtPFMTx0mEy88xCGKTau9jI';
 const { createClient } = supabase;
 const db = createClient(SB_URL, SB_KEY);
+// PFBS CRM (Proposal Desk) — read-only link to the job schedule. Public anon key; the CRM only lets
+// logins listed in CRM Settings → Warehouse call warehouse_jobs(), and nothing else.
+const CRM_URL = 'https://igerptqlkbxmmajixlao.supabase.co';
+const CRM_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlnZXJwdHFsa2J4bW1haml4bGFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1NzkzNTgsImV4cCI6MjEwNzE1NTM1OH0.v9KLRc9DUbxt9NVeOiODegs91fHi89I89nEq7rLtzYE';
+const crmDb = createClient(CRM_URL, CRM_KEY, { auth: { storageKey: 'kt-crm-link', persistSession: true } });
 
 // ─── DEVICE AUTH (real security boundary — RLS checks this) ───────
 // Previously loadAll()/loadTechRoster() fired immediately on page load,
@@ -7744,6 +7750,7 @@ let _schedJobs = [];
 
 async function openImportModal() {
   document.getElementById('import-modal').classList.add('open');
+  document.getElementById('import-title').textContent = '📅 Import from TechSched';
   if (!_techRoster.length) loadTechRoster();
   const listEl = document.getElementById('import-job-list');
   listEl.innerHTML = '<div class="sched-loading"><div class="spinner"></div>Loading jobs from TechSched…</div>';
@@ -7824,8 +7831,13 @@ function applyScheduleJob(idx) {
     document.getElementById('co-names').value = j.techs.join(', ');
     document.getElementById('co-numtechs').value = j.techs.length;
   }
-  // Match template using new multi-template picker
-  const mapped = mapJobType(j.type);
+  // CRM jobs: put the scope, equipment and crew notes in the notes box (only if it's empty)
+  const notesEl = document.getElementById('co-notes');
+  if (j._src === 'CRM' && notesEl && !notesEl.value.trim()) {
+    notesEl.value = [j.scope && j.scope.length ? 'Scope: ' + j.scope.join('; ') : '', j.equipment && j.equipment.length ? 'Equipment: ' + j.equipment.join(', ') : '', j.notes || ''].filter(Boolean).join('\n');
+  }
+  // Match template using new multi-template picker (CRM jobs can list several work types: first one that maps wins)
+  const mapped = mapJobType(j.type) || (j.types || []).map(mapJobType).find(Boolean) || '';
   if (mapped) {
     const match = templates.find(t => t.name.toLowerCase().includes(mapped.toLowerCase()));
     if (match) {
@@ -7842,10 +7854,74 @@ function applyScheduleJob(idx) {
   }
   const hint = document.getElementById('hcp-hint');
   hint.className = 'info info-t';
-  hint.innerHTML = `📅 <strong>Imported from TechSched</strong> — ${esc(j.client || j.address.split(',')[0])} · ${fmtSchedDate(j.date)}${mapped ? ' · Template: ' + esc(mapped) : ''}`;
+  hint.innerHTML = `${j._src === 'CRM' ? '📋' : '📅'} <strong>Imported from ${j._src || 'TechSched'}</strong> — ${esc(j.client || j.address.split(',')[0])} · ${fmtSchedDate(j.date)}${mapped ? ' · Template: ' + esc(mapped) : ''}`;
   hint.style.display = '';
   closeModal('import-modal');
 }
+
+// ─── CRM SCHEDULE IMPORT (PFBS CRM → KitTracker; replaces TechSched once Oscar schedules in the CRM) ─────
+async function openCrmImport() {
+  document.getElementById('import-modal').classList.add('open');
+  document.getElementById('import-title').textContent = '📋 Import from CRM Schedule';
+  if (!_techRoster.length) loadTechRoster();
+  const listEl = document.getElementById('import-job-list');
+  const { data: { session } } = await crmDb.auth.getSession();
+  if (!session) {
+    listEl.innerHTML = `<div class="info-b" style="margin-bottom:10px">Link this device to the CRM once (the warehouse login Arturo set up in CRM Settings → Warehouse). / Conecta este dispositivo al CRM una vez.</div>
+      <div class="fg"><label>CRM email</label><input type="email" id="crm-email" autocomplete="username"></div>
+      <div class="fg"><label>CRM password</label><input type="password" id="crm-pass" autocomplete="current-password" onkeydown="if(event.key==='Enter')crmLink()"></div>
+      <div style="color:var(--red);font-size:11px;min-height:16px;margin-bottom:8px" id="crm-err"></div>
+      <button class="btn btn-p btn-full" onclick="crmLink()">Link to CRM</button>`;
+    return;
+  }
+  listEl.innerHTML = '<div class="sched-loading"><div class="spinner"></div>Loading jobs from the CRM…</div>';
+  try {
+    const { data, error } = await crmDb.rpc('warehouse_jobs', { p_days: 14 });
+    if (error) throw error;
+    _schedJobs = (data || []).map(v => ({
+      _src: 'CRM', id: v.id,
+      jobNum: v.job_no || '', date: v.visit_date || '', endDate: v.end_date || '', start: v.start_time || '',
+      client: [v.client, v.property].filter(Boolean).join(' · '), address: v.address || '',
+      type: (v.work || [])[0] || '', types: v.work || [], techs: v.techs || [], vehicle: v.vehicle || '',
+      equipment: v.equipment || [], scope: v.scope || [], notes: v.notes || '', jobStatus: 'scheduled'
+    }));
+    if (!_schedJobs.length) {
+      listEl.innerHTML = '<div class="empty"><div class="ei">📋</div><p>No jobs scheduled in the CRM for the next 2 weeks</p></div>';
+      return;
+    }
+    listEl.innerHTML = _schedJobs.map((j, idx) => {
+      const mapped = j.types.map(mapJobType).find(Boolean) || '';
+      return `<div class="sched-job-card" data-idx="${idx}">
+        <div class="sched-job-icon">📋</div>
+        <div class="sched-job-info">
+          <div class="sched-job-title">${j.jobNum ? '#' + esc(j.jobNum) + ' · ' : ''}${esc(j.client || j.address.split(',')[0] || '--')}</div>
+          <div class="sched-job-sub">
+            ${fmtSchedDate(j.date)}${j.endDate && j.endDate !== j.date ? ' – ' + fmtSchedDate(j.endDate) : ''}<br>
+            ${esc(j.address)}<br>
+            ${esc(j.types.join(', ') || '--')}${mapped ? ' → <span style="color:var(--teal)">' + esc(mapped) + '</span>' : ''}<br>
+            ${j.equipment.length ? '🏗️ ' + esc(j.equipment.join(', ')) + '<br>' : ''}👷 ${esc(j.techs.join(', ') || 'no crew yet')}${j.vehicle ? ' · 🚗 ' + esc(j.vehicle) : ''}
+          </div>
+        </div>
+      </div>`;
+    }).join('') + '<button class="btn btn-s btn-xs" style="margin-top:6px" onclick="crmUnlink()">Unlink this device from the CRM</button>';
+    listEl.querySelectorAll('.sched-job-card').forEach(card => {
+      card.addEventListener('click', function() { applyScheduleJob(parseInt(this.dataset.idx)); });
+    });
+  } catch (e) {
+    listEl.innerHTML = `<div class="info-a">⚠ Could not load CRM jobs.<br><span style="font-size:11px;opacity:.8">${esc(e.message || String(e))}</span><br><br>Fill the form manually, or use the TechSched import.</div>
+      <button class="btn btn-s btn-xs" style="margin-top:6px" onclick="crmUnlink()">Sign in to the CRM again</button>`;
+    console.error('CRM import error:', e);
+  }
+}
+window.crmLink = async function() {
+  const email = (document.getElementById('crm-email').value || '').trim(), pass = document.getElementById('crm-pass').value, err = document.getElementById('crm-err');
+  err.textContent = '';
+  if (!email || !pass) { err.textContent = 'Enter the CRM email and password.'; return; }
+  const { error } = await crmDb.auth.signInWithPassword({ email, password: pass });
+  if (error) { err.textContent = 'Sign in failed: ' + error.message; return; }
+  openCrmImport();
+};
+window.crmUnlink = async function() { await crmDb.auth.signOut(); openCrmImport(); };
 
 // ─── DYMO ITEM LABEL (2" x 1") ──────────────────────────────
 // Pure JS Code128 barcode generator — no library needed
